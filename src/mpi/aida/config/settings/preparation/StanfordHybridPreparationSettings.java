@@ -17,6 +17,5 @@ public class StanfordHybridPreparationSettings extends PreparationSettings {
   public StanfordHybridPreparationSettings() {
     this.setMentionsFilter(FilterType.STANFORD_NER);
     this.setUseHybridMentionDetection(true);
-    this.setFilteringTypes(null);
   }
 }

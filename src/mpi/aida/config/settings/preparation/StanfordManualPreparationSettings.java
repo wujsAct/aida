@@ -15,6 +15,5 @@ public class StanfordManualPreparationSettings extends PreparationSettings {
 
   public StanfordManualPreparationSettings() {
     this.setMentionsFilter(FilterType.Manual);
-    this.setFilteringTypes(null);
   }
 }
