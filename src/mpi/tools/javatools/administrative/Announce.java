@@ -8,8 +8,6 @@ import java.io.Writer;
 import java.util.Set;
 import java.util.Vector;
 
-
-
 import mpi.tools.javatools.datatypes.FinalSet;
 import mpi.tools.javatools.parsers.NumberFormatter;
 

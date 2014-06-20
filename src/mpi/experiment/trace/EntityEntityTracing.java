@@ -1,5 +1,7 @@
 package mpi.experiment.trace;
 
+import gnu.trove.map.hash.TIntObjectHashMap;
+
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -12,40 +14,43 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
-import mpi.aida.data.Entity;
+import mpi.aida.access.DataAccess;
+import mpi.aida.data.EntityMetaData;
 import mpi.aida.data.Mention;
 import mpi.aida.util.CollectionUtils;
 import mpi.experiment.measure.EvaluationMeasures;
 import mpi.experiment.trace.measures.KeytermEntityEntityMeasureTracer;
 import mpi.experiment.trace.measures.MeasureTracer;
 
+import org.apache.commons.lang.ArrayUtils;
+
 public class EntityEntityTracing { 
 
   private String mainEntity;
-  private Map<String, Integer> correctRanking;
+  private Map<Integer, Integer> correctRanking;
    
   
-  private Map<String, Map<String, MeasureTracer>> entityEntityMeasureTracer = new HashMap<String, Map<String, MeasureTracer>>();
+  private Map<Integer, Map<Integer, MeasureTracer>> entityEntityMeasureTracer = new HashMap<Integer, Map<Integer, MeasureTracer>>();
 
   // below is document EE specific
   private boolean doDocumentEETracing;
 
-  private Map<String, String> mention2correctEntity;
-  private Map<Mention, Set<String>> mention2candidates;
-  private Collection<String> correctEntities;
+  private Map<String, Integer> mention2correctEntity;
+  private Map<Mention, Set<Integer>> mention2candidates;
+  private Collection<Integer> correctEntities;
   
   
   private int totalRanks = 0;
   private double totalReciprocalRanks = 0.0;
 
-  private Map<String, Double> weightedDegress;
+  private Map<Integer, Double> weightedDegress;
   
   
   private String html = null;
   
   private DecimalFormat df = new DecimalFormat("0.0E0");
 
-  private Map<String, Map<Integer, Double>> entityContext = new HashMap<String, Map<Integer,Double>>();
+  private Map<Integer, Map<Integer, Double>> entityContext = new HashMap<Integer, Map<Integer,Double>>();
 
   
   public EntityEntityTracing() {
@@ -56,10 +61,10 @@ public class EntityEntityTracing {
     this.doDocumentEETracing = doDocumentEETracing;
   }
   
-  public String getHtml() {
+  public String getHtml(TIntObjectHashMap<EntityMetaData> entitiesMetaData) {
     // make sure the html is generated, but don't generate twice    
     if (html == null) {
-      generateHtml(); 
+      generateHtml(entitiesMetaData); 
     }
     
     return html;
@@ -68,9 +73,10 @@ public class EntityEntityTracing {
   /**
    * Call this method to generate/store tracer output in <em>html</em> and free all other stuff.
    * This uses a lot less memory and is necessary to have tracing for multiple documents.
+   * @param entitiesMetaData 
    */
-  public void generateHtml() {
-    html = generateOutput();
+  public void generateHtml(TIntObjectHashMap<EntityMetaData> entitiesMetaData) {
+    html = generateOutput(entitiesMetaData);
     
     entityEntityMeasureTracer = null;
     mention2correctEntity = null;
@@ -78,17 +84,21 @@ public class EntityEntityTracing {
     weightedDegress = null;
   }
 
-  public String generateOutput() {
+  public String generateOutput(TIntObjectHashMap<EntityMetaData> entitiesMetaData) {
     StringBuilder sb = new StringBuilder();
     
-    Set<String> entities = getAllEntities();
-    List<String> sortedEntities = new ArrayList<String>(entities.size());
-    sortedEntities.addAll(entities);
-    Collections.sort(sortedEntities, new Comparator<String>() {
+    Set<Integer> entityIds = getAllEntities();
+    int[] internalIds = ArrayUtils.toPrimitive(entityIds.toArray(new Integer[entityIds.size()]));
+    final TIntObjectHashMap<EntityMetaData> emd = DataAccess.getEntitiesMetaData(internalIds);
+    
+    List<Integer> sortedEntities = new ArrayList<Integer>(entityIds.size());
+    sortedEntities.addAll(entityIds);
+    Collections.sort(sortedEntities, new Comparator<Integer>() {
 
       @Override
-      public int compare(String te1, String te2) {
-        return te1.compareTo(te2);
+      public int compare(Integer te1, Integer te2) {
+        return emd.get(te1).getHumanReadableRepresentation().compareTo(
+            emd.get(te2).getHumanReadableRepresentation());
       }
     });
     
@@ -109,7 +119,7 @@ public class EntityEntityTracing {
             + mention2correctEntity.get(m1.getIdentifiedRepresentation()) + ")";
         sb.append("<tr><td>").append(m1Title).append("</td>");
         for (Mention m2 : sortedMentions) {
-          sb.append(getMentionMentionEntities(m1, m2));
+          sb.append(getMentionMentionEntities(m1, m2, entitiesMetaData));
         }
         sb.append("</tr>");
       }
@@ -124,7 +134,7 @@ public class EntityEntityTracing {
       sb.append("</ul>");
 
       sb.append("<h1>Entities ordered by Weighted Degree</h1><ol>");
-      for (Entry<String, Double> e : weightedDegress.entrySet()) {
+      for (Entry<Integer, Double> e : weightedDegress.entrySet()) {
         String color = (correctEntities.contains(e.getKey())) ? "#ADFF2F" : "#FFA500";
         sb.append("<li style='background-color:").append(color).append(";'>").append(e.getKey()).append(": ").append(e.getValue()).append("</li>");
       }
@@ -141,16 +151,16 @@ public class EntityEntityTracing {
     
     if (doDocumentEETracing) {
       sb.append("<a name='eesims'></a>");
-      for (String entity : sortedEntities) {
+      for (int entity : sortedEntities) {
 //        if (doDocumentEETracing && (!correctEntities.contains(entity) && !correctEntities.contains(Entity.EXISTS))) {
 //          continue;
 //        }
-        sb.append("<a href='#" + entity + "'>" + entity + "</a>, ");
+        sb.append("<a href='" + emd.get(entity).getUrl() + "'>" + emd.get(entity).getHumanReadableRepresentation()+ "</a>, ");
       }
     }
     
     sb.append("<table style='width=300px;padding:10px'>");
-    for (String entity : sortedEntities) {
+    for (int entity : sortedEntities) {
 //      if (doDocumentEETracing && (!correctEntities.contains(entity) && !correctEntities.contains(Entity.EXISTS))) {
 //        continue;
 //      } else 
@@ -182,9 +192,9 @@ public class EntityEntityTracing {
       sb.append("<td>").append("<strong>").append(k).append("</strong>").append(" (").append(df.format(sortedK.get(k))).append(") </td>");
       
       // find all matching entities + keywords
-      Map<String, Double> matchingEntities = new HashMap<String, Double>();
+      Map<Integer, Double> matchingEntities = new HashMap<Integer, Double>();
       
-      for (String other : entityContext.keySet()) {
+      for (Integer other : entityContext.keySet()) {
         if (other.equals(main)) continue;
         
         if (entityContext.get(other).containsKey(k)) {
@@ -192,9 +202,9 @@ public class EntityEntityTracing {
         }
       }
       
-      Map<String, Double> sortedMatches = CollectionUtils.sortMapByValue(matchingEntities, true);
+      Map<Integer, Double> sortedMatches = CollectionUtils.sortMapByValue(matchingEntities, true);
       sb.append("<td>");
-      for (String e : sortedMatches.keySet()) {
+      for (Integer e : sortedMatches.keySet()) {
         sb.append("<strong>").append(e).append("</strong>").append(" (").append(df.format(sortedMatches.get(e))).append(") - ");
       }
       sb.append("</td>");
@@ -206,24 +216,24 @@ public class EntityEntityTracing {
     return sb.toString();
   }
 
-  private String getMentionMentionEntities(Mention m1, Mention m2) {
+  private String getMentionMentionEntities(Mention m1, Mention m2, TIntObjectHashMap<EntityMetaData> entitiesMetaData) {
     if (m1.equals(m2)) {
       return "<td><span style='background-color:black;color:white'>same_mention</span></td>";
     }
     
-    String e1 = mention2correctEntity.get(m1.getIdentifiedRepresentation());    
-    String e2 = mention2correctEntity.get(m2.getIdentifiedRepresentation());
+    int e1 = mention2correctEntity.get(m1.getIdentifiedRepresentation());    
+    int e2 = mention2correctEntity.get(m2.getIdentifiedRepresentation());
     
-    if (e1.equals(Entity.OOKBE) || e2.equals(Entity.OOKBE)) {
+    if (e1 <=  0 || e2 <= 0) {
       return "<td>no_entity</td>";
-    } else if (e1.equals(e2)) {
+    } else if (e1 == e2) {
       return "<td>same_entity</td>";
     }
     
-    Map<String, Double> connectedEntities = new HashMap<String, Double>();
+    Map<Integer, Double> connectedEntities = new HashMap<Integer, Double>();
     
     if (entityEntityMeasureTracer.containsKey(e1)) {
-      for (Entry<String, MeasureTracer> e : entityEntityMeasureTracer.get(e1).entrySet()) {
+      for (Entry<Integer, MeasureTracer> e : entityEntityMeasureTracer.get(e1).entrySet()) {
         // only add those mentions that are candidates of the mention
         if (mention2candidates.get(m2).contains(e.getKey())) {
           connectedEntities.put(e.getKey(), e.getValue().getScore());
@@ -231,7 +241,7 @@ public class EntityEntityTracing {
       }       
     }
     
-    Map<String, Double> sortedNeighbors = CollectionUtils.sortMapByValue(connectedEntities, true);
+    Map<Integer, Double> sortedNeighbors = CollectionUtils.sortMapByValue(connectedEntities, true);
        
     StringBuilder sb = new StringBuilder();
     
@@ -239,18 +249,18 @@ public class EntityEntityTracing {
     int i = 0;
     int maxEntities = 3;
     
-    for (String entityName : sortedNeighbors.keySet()) {
+    for (Integer entityId : sortedNeighbors.keySet()) {
       i++;
       
-      if (entityName.equals(e2)) {
+      if (entityId.equals(e2)) {
         positionCorrect = i;
 
         // do not draw everything
         if (!(i > Math.min(maxEntities, correctEntities.size()))) {
-          sb.append("<strong>").append(entityName).append(": ").append(df.format(sortedNeighbors.get(entityName))).append("</strong>").append("<br />");
+          sb.append("<strong>").append(entitiesMetaData.get(entityId).getHumanReadableRepresentation()).append(": ").append(df.format(sortedNeighbors.get(entityId))).append("</strong>").append("<br />");
         }
       } else if (!(i > Math.min(maxEntities, correctEntities.size()))) {
-        sb.append(entityName).append(": ").append(df.format(sortedNeighbors.get(entityName))).append("<br />");
+        sb.append(entityId).append(": ").append(df.format(sortedNeighbors.get(entityId))).append("<br />");
       }
     }
     
@@ -279,15 +289,15 @@ public class EntityEntityTracing {
     return cell;
   }
 
-  private Set<String> getAllEntities() {
+  private Set<Integer> getAllEntities() {
     return entityEntityMeasureTracer.keySet();
   }
 
-  public synchronized void addEntityEntityMeasureTracer(String e1, String e2, MeasureTracer mt) {
-    Map<String, MeasureTracer> second = entityEntityMeasureTracer.get(e1);
+  public synchronized void addEntityEntityMeasureTracer(int e1, int e2, MeasureTracer mt) {
+    Map<Integer, MeasureTracer> second = entityEntityMeasureTracer.get(e1);
     
     if (second == null) {
-      second = new HashMap<String, MeasureTracer>();
+      second = new HashMap<Integer, MeasureTracer>();
       entityEntityMeasureTracer.put(e1, second);
     }
     
@@ -298,7 +308,7 @@ public class EntityEntityTracing {
 //    entityContextTracers.put(entity, mt);
 //  }
 
-  private String getEntityDetailedOutput(String entity) {
+  private String getEntityDetailedOutput(Integer entity) {
     StringBuilder sb = new StringBuilder();
     sb.append("<tr>");
         
@@ -312,37 +322,37 @@ public class EntityEntityTracing {
 //    }
     sb.append("</td>");
     
-    Map<String, Double> connectedEntities = new HashMap<String, Double>();
-    for (Entry<String, MeasureTracer> e : entityEntityMeasureTracer.get(entity).entrySet()) {
+    Map<Integer, Double> connectedEntities = new HashMap<Integer, Double>();
+    for (Entry<Integer, MeasureTracer> e : entityEntityMeasureTracer.get(entity).entrySet()) {
       connectedEntities.put(e.getKey(), e.getValue().getScore());
     }       
-    Map<String, Double> sortedNeighbors = CollectionUtils.sortMapByValue(connectedEntities, true);
+    Map<Integer, Double> sortedNeighbors = CollectionUtils.sortMapByValue(connectedEntities, true);
     
     // all correct entities
     sb.append("<td style='vertical-align:top;border-bottom:1px solid gray;border-right:1px solid gray'>");
     sb.append("<div style='width:90%;padding:5px;color:#CCCCCC;text-align:right'><em>Related entities</em></div>");
             
-    List<List<String>> rankedNeighbors = convertToRanks(sortedNeighbors);
-    Map<String, Double> neighbor2rank = EvaluationMeasures.convertToAverageRanks(rankedNeighbors);
-    Map<String, Double> sortedNeighbor2rank = CollectionUtils.sortMapByValue(neighbor2rank, false);
+    List<List<Integer>> rankedNeighbors = convertToRanks(sortedNeighbors);
+    Map<Integer, Double> neighbor2rank = EvaluationMeasures.convertToAverageRanks(rankedNeighbors);
+    Map<Integer, Double> sortedNeighbor2rank = CollectionUtils.sortMapByValue(neighbor2rank, false);
     
-    for (String entityName : sortedNeighbor2rank.keySet()) {
-      if (doDocumentEETracing && !correctEntities.contains(entityName)) {
+    for (Integer entityId : sortedNeighbor2rank.keySet()) {
+      if (doDocumentEETracing && !correctEntities.contains(entityId)) {
         continue;
       }
       
-      double actualRank = neighbor2rank.get(entityName); // average can be 0.5
+      double actualRank = neighbor2rank.get(entityId); // average can be 0.5
       
       sb.append("<span style='font-size:14pt; font-weight:bold;'>");
       if (!doDocumentEETracing) {
-        int correctRank = correctRanking.get(entityName);
+        int correctRank = correctRanking.get(entityId);
         double diff = actualRank-correctRank;
         String color = calcRelDistColor(1-(double)Math.abs(diff)/(double)sortedNeighbors.size());
         sb.append("<span style='background-color:"+color+";'>").append(actualRank+". ("+correctRank+"|"+diff+")</span> ");
       }
-      sb.append(entityName).append(":</span> <span style='font-size:14pt; font-style:italic;'>").append(sortedNeighbors.get(entityName)).append("</span>").append("<br />");
+      sb.append(entityId).append(":</span> <span style='font-size:14pt; font-style:italic;'>").append(sortedNeighbors.get(entityId)).append("</span>").append("<br />");
                   
-      MeasureTracer targetMt = getEntityEntityMeasureTracer(entity, entityName);
+      MeasureTracer targetMt = getEntityEntityMeasureTracer(entity, entityId);
       if (targetMt != null) {
         String mtOutput = targetMt.getOutput();
         sb.append(mtOutput).append("<br /><br />\n");
@@ -357,10 +367,10 @@ public class EntityEntityTracing {
 
       int i = 0;
 
-      for (String entityName : sortedNeighbors.keySet()) {
-        sb.append("<strong>").append(entityName).append(": ").append(sortedNeighbors.get(entityName)).append("</strong>").append("<br />");
+      for (Integer entityId : sortedNeighbors.keySet()) {
+        sb.append("<strong>").append(entityId).append(": ").append(sortedNeighbors.get(entityId)).append("</strong>").append("<br />");
 
-        MeasureTracer targetMt = getEntityEntityMeasureTracer(entity, entityName);
+        MeasureTracer targetMt = getEntityEntityMeasureTracer(entity, entityId);
         if (targetMt != null) {
           String mtOutput = targetMt.getOutput();
           sb.append(mtOutput).append("<br /><br />");
@@ -377,20 +387,20 @@ public class EntityEntityTracing {
     return sb.toString();
   }
   
-  private List<List<String>> convertToRanks(Map<String, Double> sortedNeighbors) {
-    List<List<String>> rankedNeighbors = new LinkedList<List<String>>();    
+  private List<List<Integer>> convertToRanks(Map<Integer, Double> sortedNeighbors) {
+    List<List<Integer>> rankedNeighbors = new LinkedList<List<Integer>>();    
     
-    List<String> currentRank = null;
+    List<Integer> currentRank = null;
     double currentValue = -1.0;
 
-    for (Entry<String, Double> e : sortedNeighbors.entrySet()) {
-      String rankedEntity = e.getKey();
+    for (Entry<Integer, Double> e : sortedNeighbors.entrySet()) {
+      Integer rankedEntity = e.getKey();
       double rankValue = e.getValue();
 
       if (rankValue == currentValue) {
         currentRank.add(rankedEntity);
       } else {
-        currentRank = new LinkedList<String>();
+        currentRank = new LinkedList<Integer>();
         currentRank.add(rankedEntity);
         rankedNeighbors.add(currentRank);
         currentValue = rankValue;
@@ -400,12 +410,11 @@ public class EntityEntityTracing {
     return rankedNeighbors;
   }
   
-  private MeasureTracer getEntityEntityMeasureTracer(String e1, String e2) {
-    String first = e1;
-    String second = e2;
-    
+  private MeasureTracer getEntityEntityMeasureTracer(Integer e1, Integer e2) {
+    Integer first = e1;
+    Integer second = e2;
 
-    Map<String, MeasureTracer> two = entityEntityMeasureTracer.get(first);
+    Map<Integer, MeasureTracer> two = entityEntityMeasureTracer.get(first);
     
     if (two != null) {
       return two.get(second);
@@ -414,15 +423,15 @@ public class EntityEntityTracing {
     }
   }
   
-  public void setMention2Candidates(Map<Mention, Set<String>> m2c) {
+  public void setMention2Candidates(Map<Mention, Set<Integer>> m2c) {
     this.mention2candidates = m2c;
   }
   
-  public void setMention2CorrectEntity(Map<String, String> m2ce) {
+  public void setMention2CorrectEntity(Map<String, Integer> m2ce) {
     this.mention2correctEntity = m2ce;
   }
   
-  public void setCorrectEntities(Collection<String> correctEntities) {
+  public void setCorrectEntities(Collection<Integer> correctEntities) {
     this.correctEntities = correctEntities;
   }
   
@@ -482,7 +491,7 @@ public class EntityEntityTracing {
     return color;
   }
   
-  public void setWeightedDegrees(Map<String, Double> sortedWeightedDegrees) {
+  public void setWeightedDegrees(Map<Integer, Double> sortedWeightedDegrees) {
     this.weightedDegress = sortedWeightedDegrees;
   }
   
@@ -494,11 +503,11 @@ public class EntityEntityTracing {
     this.mainEntity = mainEntity;
   }
 
-  public void setCorrectRanking(Map<String, Integer> correctRanking) {
+  public void setCorrectRanking(Map<Integer, Integer> correctRanking) {
     this.correctRanking = correctRanking;
   }
 
-  public void addEntityContext(String entity, Map<Integer, Double> e1keyphrases) {
+  public void addEntityContext(int entity, Map<Integer, Double> e1keyphrases) {
     entityContext.put(entity, e1keyphrases);
   }
   

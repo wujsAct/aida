@@ -6,10 +6,10 @@ import gnu.trove.map.hash.TIntDoubleHashMap;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Locale;
-import java.util.NoSuchElementException;
 import java.util.Set;
 
 import mpi.aida.data.Entity;
+import mpi.aida.data.Mention;
 
 /**
  * This class calculates the prior probability of a mention
@@ -27,11 +27,11 @@ import mpi.aida.data.Entity;
  */
 public abstract class PriorProbability {
  
-  protected HashMap<String, TIntDoubleHashMap> priors;
+  protected HashMap<Mention, TIntDoubleHashMap> priors;
   
   private double weight;
   
-  public PriorProbability(Set<String> mentions) throws SQLException {
+  public PriorProbability(Set<Mention> mentions) throws SQLException {
     setupMentions(mentions);
   }
   
@@ -43,7 +43,7 @@ public abstract class PriorProbability {
     this.weight = weight;
   }
   
-  protected abstract void setupMentions(Set<String> mentions) throws SQLException;
+  protected abstract void setupMentions(Set<Mention> mentions) throws SQLException;
 
   /**
    * Returns the prior probability for the given mention-entity pair.
@@ -56,20 +56,15 @@ public abstract class PriorProbability {
    * @return
    */
   public double getPriorProbability(
-      String mentionText, Entity entity, boolean smoothing) {
-    mentionText = conflateMention(mentionText);
-    TIntDoubleHashMap mentionPriors = priors.get(mentionText);
+      Mention mention, Entity entity, boolean smoothing) {
     
-    if (mentionPriors == null) {
-      throw new NoSuchElementException(
-          "Mention " + mentionText + " must be passed to constructor!");
-    }
+    TIntDoubleHashMap allMentionPriors = priors.get(mention);    
+    double entityPrior = allMentionPriors.get(entity.getId());
     
-    double entityPrior = mentionPriors.get(entity.getId());
     if (smoothing && entityPrior == 0.0) {
       double smallestPrior = 1.0;
       
-      for (TIntDoubleIterator it = mentionPriors.iterator(); it.hasNext();) {
+      for (TIntDoubleIterator it = allMentionPriors.iterator(); it.hasNext();) {
         it.advance();
         double currentPrior = it.value(); 
         if (currentPrior < smallestPrior) {
@@ -82,12 +77,12 @@ public abstract class PriorProbability {
     return entityPrior;
   }
   
-  public double getBestPrior(String mentionText) {
-    mentionText = conflateMention(mentionText);
-    TIntDoubleHashMap mentionPriors = priors.get(mentionText);
+  public double getBestPrior(Mention mention) {
+    TIntDoubleHashMap allMentionPriors = priors.get(mention);
+
 
     double bestPrior = 0.0;
-    for (TIntDoubleIterator it = mentionPriors.iterator(); it.hasNext();) {
+    for (TIntDoubleIterator it = allMentionPriors.iterator(); it.hasNext();) {
       it.advance();
       double currentPrior = it.value();
       if (currentPrior > bestPrior) {
@@ -98,8 +93,8 @@ public abstract class PriorProbability {
     return bestPrior;
   }
   
-  public double getPriorProbability(String mentionText, Entity entity) {
-    return getPriorProbability(mentionText, entity, false);
+  public double getPriorProbability(Mention mention, Entity entity) {
+    return getPriorProbability(mention, entity, false);
   }
   
   public static String conflateMention(String mention) {

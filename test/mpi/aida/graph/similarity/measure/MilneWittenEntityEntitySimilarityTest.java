@@ -3,7 +3,7 @@ package mpi.aida.graph.similarity.measure;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import mpi.aida.AidaManager;
-import mpi.aida.access.DataAccess;
+import mpi.aida.access.DataAccessForTesting;
 import mpi.aida.config.AidaConfig;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
@@ -22,10 +22,10 @@ public class MilneWittenEntityEntitySimilarityTest {
   
   @Test
   public void mwTest() throws Exception {
-    Entity a = new Entity("Kashmir_(song)", DataAccess.getIdForYagoEntityId("Kashmir_(song)"));
-    Entity b = new Entity("Jimmy_Page", DataAccess.getIdForYagoEntityId("Jimmy_Page"));
-    Entity c = new Entity("Larry_Page", DataAccess.getIdForYagoEntityId("Larry_Page"));
-    Entity d = new Entity("Knebworth_Festival", DataAccess.getIdForYagoEntityId("Knebworth_Festival"));
+    Entity a = DataAccessForTesting.getTestEntity("Kashmir_(song)");
+    Entity b = DataAccessForTesting.getTestEntity("Jimmy_Page");
+    Entity c = DataAccessForTesting.getTestEntity("Larry_Page");
+    Entity d = DataAccessForTesting.getTestEntity("Knebworth_Festival");
     
     Entities entities = new Entities();
     entities.add(a);

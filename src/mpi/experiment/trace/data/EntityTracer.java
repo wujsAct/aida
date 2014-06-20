@@ -7,13 +7,13 @@ import mpi.experiment.trace.measures.MeasureTracer;
 
 public class EntityTracer implements Comparable<EntityTracer> {
 
-	private String entity;
+	private int entity;
 
 	private double score;
 
 	private List<MeasureTracer> measureTracers = new LinkedList<MeasureTracer>();
 
-	public EntityTracer(String entity) {
+	public EntityTracer(int entity) {
 		this.entity = entity;
 	}
 
@@ -25,7 +25,7 @@ public class EntityTracer implements Comparable<EntityTracer> {
 		return Double.compare(e.getTotalScore(), this.getTotalScore());
 	}
 
-	public String getName() {
+	public int getEntityId() {
 		return entity;
 	}
 

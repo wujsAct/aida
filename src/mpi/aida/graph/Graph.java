@@ -4,11 +4,12 @@
 package mpi.aida.graph;
 
 import gnu.trove.iterator.TIntDoubleIterator;
+import gnu.trove.iterator.TIntIntIterator;
 import gnu.trove.iterator.TObjectIntIterator;
 import gnu.trove.list.TIntList;
 import gnu.trove.list.array.TIntArrayList;
 import gnu.trove.map.hash.TIntDoubleHashMap;
-import gnu.trove.map.hash.TObjectDoubleHashMap;
+import gnu.trove.map.hash.TIntIntHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import gnu.trove.set.TIntSet;
 import gnu.trove.set.hash.TIntHashSet;
@@ -19,6 +20,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import mpi.aida.data.Entity;
 import mpi.aida.data.Mention;
 
 public class Graph {
@@ -31,14 +33,14 @@ public class Graph {
 
 	private GraphNode[] nodes;
 	private TObjectIntHashMap<Mention> mentionNodesIds;
-	private TObjectIntHashMap<String> entityNodesIds;
+	private TIntIntHashMap entityNodesIds;
 	/**
 	 * Storage of all local similarities. This is usually the same as the weights
 	 * on all mention-entity edges. However, when mention-entity edges are 
 	 * dropped, e.g. when running the coherence robustness test, some weights will
 	 * be missing. They are kept here.
 	 */
-	private Map<Mention, TObjectDoubleHashMap<String>> localSimilarities;
+	private Map<Mention, TIntDoubleHashMap> localSimilarities;
 	private TIntDoubleHashMap mentionPriorSimL1;
 	
 	protected double averageMEweight = 1.0;
@@ -62,8 +64,8 @@ public class Graph {
 		
 		nodes = new GraphNode[nodesCount];
 		mentionNodesIds = new TObjectIntHashMap<Mention>();
-		entityNodesIds = new TObjectIntHashMap<String>();
-		localSimilarities = new HashMap<Mention, TObjectDoubleHashMap<String>>();
+		entityNodesIds = new TIntIntHashMap();
+		localSimilarities = new HashMap<Mention, TIntDoubleHashMap>();
 		mentionPriorSimL1 = new TIntDoubleHashMap(50, 0.5f, -1, -1.0);
 
 		isRemoved = new boolean[nodesCount];
@@ -102,17 +104,27 @@ public class Graph {
 	}
 	
 	
-	public void addEdge(Mention mention, String entity, double sim) {
-		int id1 = mentionNodesIds.get(mention);
-		int id2 = entityNodesIds.get(entity);
-		addEdge(id1, id2, sim);
+	public void addEdge(Mention mention, Entity entity, double sim) {
+		addEdge(mention, entity.getId(), sim);
 	}
 	
-	public void addEdge(String entity1, String entity2, double coh) {
-		int id1 = entityNodesIds.get(entity1);
-		int id2 = entityNodesIds.get(entity2);
-		addEdge(id1, id2, coh);
+	public void addEdge(Mention mention, int entityInternalId, double sim) {
+    int id1 = mentionNodesIds.get(mention);
+    int id2 = entityNodesIds.get(entityInternalId);
+    addEdgeUsingNodeId(id1, id2, sim);
+  }
+	
+	public void addEdge(Entity entity1, Entity entity2, double coh) {
+	  addEdge(entity1.getId(), entity2.getId(), coh);
 	}
+	
+	public void addEdge(int entity1, int entity2, double coh) {
+    int id1 = entityNodesIds.get(entity1);
+    int id2 = entityNodesIds.get(entity2);
+    addEdgeUsingNodeId(id1, id2, coh);
+  }
+	
+	
 	
 	
 	public void addMentionNode(Mention mention) {
@@ -126,16 +138,22 @@ public class Graph {
 		nextNodeId++;
 	}
 	
-	public void addEntityNode(String entity) {
-		GraphNode node = new GraphNode();
-		node.setId(nextNodeId);
-		node.setType(GraphNodeTypes.ENTITY);
-		node.setNodeData(entity);
-		entityNodesIds.put(entity, nextNodeId);
-		nodes[nextNodeId] = node;
-		
-		nextNodeId++;
+	public void addEntityNode(Entity entity) {
+	  addEntityNode(entity.getId());
 	}
+
+  public void addEntityNode(int entityInternalId) {
+    GraphNode node = new GraphNode();
+    node.setId(nextNodeId);
+    node.setType(GraphNodeTypes.ENTITY);
+    node.setNodeData(entityInternalId);
+    entityNodesIds.put(entityInternalId, nextNodeId);
+    nodes[nextNodeId] = node;
+
+    nextNodeId++;
+  }
+	
+	
 	
 	public void addMentionPriorSimL1(Mention mention, double l1) {
 	  if (!getMentionNodesIds().containsKey(mention)) {
@@ -152,7 +170,7 @@ public class Graph {
 	  return mentionPriorSimL1.get(mentionId);
 	}
 
-  private void addEdge(int node1Id, int node2Id, double weight) {
+  private void addEdgeUsingNodeId(int node1Id, int node2Id, double weight) {
 		if(isEntityNode(node1Id) && isEntityNode(node2Id))
 			weight = weight * (1-alpha);
 		else if ((isMentionNode(node1Id) && isEntityNode(node2Id))
@@ -229,7 +247,7 @@ public class Graph {
 		return mentionNodesIds;
 	}
 	
-	public TObjectIntHashMap<String> getEntityNodesIds() {
+	public TIntIntHashMap getEntityNodesIds() {
 	  return entityNodesIds;
   }
 	
@@ -244,20 +262,20 @@ public class Graph {
     return true;
   }
 
-  public void setMentionEntitySim(Map<Mention, TObjectDoubleHashMap<String>> localSimiliarites) {
+  public void setMentionEntitySim(Map<Mention, TIntDoubleHashMap> localSimiliarites) {
     this.localSimilarities = localSimiliarites;
   }
   
-  public void addMentionEntitySim(Mention mention, String entityName, double sim) {
-    TObjectDoubleHashMap<String> sims = localSimilarities.get(mention);
+  public void addMentionEntitySim(Mention mention, int entityId, double sim) {
+    TIntDoubleHashMap sims = localSimilarities.get(mention);
     if (sims == null) {
-      sims = new TObjectDoubleHashMap<String>();
+      sims = new TIntDoubleHashMap();
       localSimilarities.put(mention, sims);
     }
-    sims.put(entityName, sim);
+    sims.put(entityId, sim);
   }
   
-  public TObjectDoubleHashMap<String> getMentionEntitySims(Mention mention) {
+  public TIntDoubleHashMap getMentionEntitySims(Mention mention) {
     return localSimilarities.get(mention);
   }
   
@@ -284,17 +302,17 @@ public class Graph {
           int entityId = entityItr.key();
           if (!nodesToRemove.contains(entityId)) {
             GraphNode entityNode = getNode(entityId);
-            String entityName = (String) entityNode.getNodeData();
+            int entityInternalId = (int) entityNode.getNodeData();
             if (!addedEntities.contains(entityId)) {
-              pruned.addEntityNode(entityName);
+              pruned.addEntityNode(entityInternalId);
               addedEntities.add(entityId);
             }
             Edge toAdd = new Edge(mentionId, entityId);
             if (!edgesToRemove.contains(toAdd)) {
-              pruned.addEdge(m, entityName, entityItr.value());
+              pruned.addEdge(m, entityInternalId, entityItr.value());
               pruned.addMentionEntitySim(
-                  m, entityName, 
-                  getMentionEntitySims(m).get(entityName));
+                  m, entityInternalId, 
+                  getMentionEntitySims(m).get(entityInternalId));
             }
           }
         }
@@ -302,12 +320,12 @@ public class Graph {
     }
     // Add all edges between entities which have not been removed.
     Set<Edge> addedEdges = new HashSet<Edge>();
-    for (TObjectIntIterator<String> itr = getEntityNodesIds().iterator(); 
+    for (TIntIntIterator itr = getEntityNodesIds().iterator(); 
         itr.hasNext(); ) {
       itr.advance();
       int entityId = itr.value();
       if (!nodesToRemove.contains(entityId)) {
-        String entityName = itr.key();
+        int entityInternalId = itr.key();
         GraphNode entityNode = getNode(entityId);
         for (TIntDoubleIterator entityItr = entityNode.getSuccessors().iterator(); 
             entityItr.hasNext(); ) {
@@ -316,11 +334,11 @@ public class Graph {
           GraphNode neighborNode = getNode(neighborId);
           if (neighborNode.getType().equals(GraphNodeTypes.ENTITY) &&
               !nodesToRemove.contains(neighborId)) {
-            String neighborName = (String) neighborNode.getNodeData();
+            int neighborInternalId = (int) neighborNode.getNodeData();
             Edge toAdd = new Edge(entityId, neighborId);
             if (!addedEdges.contains(toAdd) && 
                 !edgesToRemove.contains(toAdd)) {
-              pruned.addEdge(entityName, neighborName, entityItr.value());
+              pruned.addEdgeUsingNodeId(entityInternalId, neighborInternalId, entityItr.value());
               addedEdges.add(toAdd);
             }
           }

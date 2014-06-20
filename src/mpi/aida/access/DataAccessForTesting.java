@@ -13,16 +13,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 
+import mpi.aida.AidaManager;
 import mpi.aida.access.DataAccess.type;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
 import mpi.aida.data.EntityMetaData;
+import mpi.aida.data.KBIdentifiedEntity;
 import mpi.aida.data.Keyphrases;
 import mpi.aida.data.Type;
 import mpi.aida.graph.similarity.measure.WeightComputation;
 import mpi.aida.util.YagoUtil.Gender;
+import mpi.tools.javatools.datatypes.Pair;
 
 public class DataAccessForTesting implements DataAccessInterface {
 
@@ -39,6 +41,8 @@ public class DataAccessForTesting implements DataAccessInterface {
   
   private final int TOTAL_ENTITY_COUNT = 2651987;
       
+  private static final String TESTING = "TESTING";
+  
   /**
    * All entities with keyphrases and count. Format is:
    * entity, kp1, count1, kp2, count2, ...
@@ -97,15 +101,7 @@ public class DataAccessForTesting implements DataAccessInterface {
       new String[] { "Kashmir", "China", "India", "Pakistan" },
       new String[] { "Kashmir_(song)", "Led_Zeppelin", "Robert_Plant", "Jimmy_Page" },
       new String[] { "Knebworth_Festival", "England", "Music_Festival", "Led_Zeppelin" },
-  };
-     
-  @Override
-  public int[] getInlinkNeighbors(Entity entity) {
-    Entities singleEntity = new Entities();
-    singleEntity.add(entity);
-    return getInlinkNeighbors(singleEntity).get(entity.getId());
-  }
-      
+  };      
       
   @Override
   public void getEntityKeyphraseTokens(
@@ -113,7 +109,7 @@ public class DataAccessForTesting implements DataAccessInterface {
       TIntObjectHashMap<int[]> entityKeyphrases,
       TIntObjectHashMap<int[]> keyphraseTokens) {
     for (String[] eKps : allEntityKeyphrases) {
-      int entity = DataAccess.getIdForYagoEntityId(eKps[0]);
+      int entity = DataAccess.getInternalIdForKBEntity(getTestKBEntity(eKps[0]));
       int[] keyphrases = new int[(eKps.length - 1) / 2];
       if (eKps.length > 1) {
         for (int i = 1; i < eKps.length; ++i) {
@@ -135,11 +131,20 @@ public class DataAccessForTesting implements DataAccessInterface {
     }
   }
 
+  public static KBIdentifiedEntity getTestKBEntity(String entity) {
+    return new  KBIdentifiedEntity(entity, TESTING);
+  }
+  
+  public static Entity getTestEntity(String entity) {
+    KBIdentifiedEntity kbEntity = getTestKBEntity(entity);
+    return AidaManager.getEntity(kbEntity);
+  }
+
   public TIntObjectHashMap<TIntIntHashMap> getEntityKeyphraseIntersectionCount(
       Entities entities) {
     TIntObjectHashMap<TIntIntHashMap> isec = new TIntObjectHashMap<TIntIntHashMap>();
     for (String[] eKps : allEntityKeyphrases) {
-      int entity = DataAccess.getIdForYagoEntityId(eKps[0]);
+      int entity = DataAccess.getInternalIdForKBEntity(getTestKBEntity(eKps[0]));
       TIntIntHashMap counts = new TIntIntHashMap();
       isec.put(entity, counts);
       
@@ -159,6 +164,8 @@ public class DataAccessForTesting implements DataAccessInterface {
   }
 
   public DataAccessForTesting() {
+    addEntity(Entity.OOKBE);
+    
     for (String[] entity : allEntityKeyphrases) {
       addEntity(entity[0]);
     }
@@ -222,31 +229,37 @@ public class DataAccessForTesting implements DataAccessInterface {
 
   @Override
   public Map<String, Entities> getEntitiesForMentions(Collection<String> mentions, double maxEntityRank) {
-    Map<String, Entities> candidates = new HashMap<String, Entities>();
+    Map<String, Entities> allCandidates = new HashMap<String, Entities>();
     Entities pageEntities = new Entities();
-    Entity e1 = new Entity("Jimmy_Page", DataAccess.getIdForYagoEntityId("Jimmy_Page"));
+    Entity e1 = getTestEntity("Jimmy_Page");
     if (getEntityRank(e1) <= maxEntityRank) { pageEntities.add(e1); }
-    Entity e2 = new Entity("Larry_Page", DataAccess.getIdForYagoEntityId("Larry_Page"));
+    Entity e2 = getTestEntity("Larry_Page");
     if (getEntityRank(e2) <= maxEntityRank) { pageEntities.add(e2); }
-    candidates.put("Page", pageEntities);
+    allCandidates.put("Page", pageEntities);
     Entities kashmirEntities = new Entities();
-    e1 = new Entity("Kashmir", DataAccess.getIdForYagoEntityId("Kashmir"));
+    e1 = getTestEntity("Kashmir");
     if (getEntityRank(e1) <= maxEntityRank) { kashmirEntities.add(e1); }
-    e2 = new Entity("Kashmir_(song)", DataAccess.getIdForYagoEntityId("Kashmir_(song)"));
+    e2 = getTestEntity("Kashmir_(song)");
     if (getEntityRank(e2) <= maxEntityRank) { kashmirEntities.add(e2); }
-    candidates.put("Kashmir", kashmirEntities);
+    allCandidates.put("Kashmir", kashmirEntities);
     Entities knebworthEntities = new Entities();
-    e1 = new Entity("Knebworth_Festival", DataAccess.getIdForYagoEntityId("Knebworth_Festival"));
+    e1 = getTestEntity("Knebworth_Festival");
     if (getEntityRank(e1) <= maxEntityRank) { knebworthEntities.add(e1); } 
-    candidates.put("Knebworth", knebworthEntities);
-    candidates.put("Les Paul", new Entities());
+    allCandidates.put("Knebworth", knebworthEntities);
+    allCandidates.put("Les Paul", new Entities());
+    
+    Map<String, Entities> candidates = new HashMap<>();
+    for (String m : mentions) {
+      candidates.put(m, allCandidates.get(m));
+    }
+    
     return candidates;
   }
   
   public double getEntityRank(Entity e) {
     int offset = 0;
     for (String rank : orderedEntities) {
-      if (rank.equals(e.getName())) {
+      if (rank.equals(e.getIdentifierInKb())) {
         break;
       } else {
         ++offset;
@@ -315,14 +328,7 @@ public class DataAccessForTesting implements DataAccessInterface {
     }
     return keyphrases;
   }
-  
-
-  @Override
-  public Keyphrases getEntityKeyphrases(Entities entities,
-      Map<String, Double> keyphraseSourceWeights) {
-    return getEntityKeyphrases(entities, keyphraseSourceWeights, 0.0, 0);
-  }
-
+ 
   @Override
   public TIntObjectHashMap<int[]> getInlinkNeighbors(Entities entities) {
     TIntObjectHashMap<int[]> inlinks = new TIntObjectHashMap<int[]>();
@@ -332,10 +338,10 @@ public class DataAccessForTesting implements DataAccessInterface {
     }
     
     for (String[] entityInlinks : allInlinks) {
-      int eId = DataAccess.getIdForYagoEntityId(entityInlinks[0]);
+      int eId = DataAccess.getInternalIdForKBEntity(getTestKBEntity(entityInlinks[0]));
       int[] inlinkIds = new int[entityInlinks.length - 1];
       for (int i = 1; i < entityInlinks.length; ++i) {
-        inlinkIds[i-1] = DataAccess.getIdForYagoEntityId(entityInlinks[i]);
+        inlinkIds[i-1] = DataAccess.getInternalIdForKBEntity(getTestKBEntity(entityInlinks[i]));
       }
       Arrays.sort(inlinkIds);
       inlinks.put(eId, inlinkIds);
@@ -345,28 +351,28 @@ public class DataAccessForTesting implements DataAccessInterface {
   }
 
   @Override
-  public TObjectIntHashMap<String> getIdsForYagoEntityIds(
-      Collection<String> entities) {
-    TObjectIntHashMap<String> ids = 
-        new TObjectIntHashMap<String>(entities.size());
-    for (String entity : entities) {
-      if (!entity2id.containsKey(entity)) {
+  public TObjectIntHashMap<KBIdentifiedEntity> getInternalIdsForKBEntities(
+      Collection<KBIdentifiedEntity> entities) {
+    TObjectIntHashMap<KBIdentifiedEntity> ids = 
+        new TObjectIntHashMap<KBIdentifiedEntity>(entities.size());
+    for (KBIdentifiedEntity entity : entities) {
+      if (!entity2id.containsKey(entity.getIdentifier())) {
         throw new IllegalArgumentException(entity + " not in testing");
       } else {
-        ids.put(entity, entity2id.get(entity));
+        ids.put(entity, entity2id.get(entity.getIdentifier()));
       }
     }
     return ids;
   }
 
   @Override
-  public TIntObjectHashMap<String> getYagoEntityIdsForIds(int[] ids) {
-    TIntObjectHashMap<String> entities = new TIntObjectHashMap<String>();
+  public TIntObjectHashMap<KBIdentifiedEntity> getKnowlegebaseEntitiesForInternalIds(int[] ids) {
+    TIntObjectHashMap<KBIdentifiedEntity> entities = new TIntObjectHashMap<KBIdentifiedEntity>();
     for (int i = 0; i < ids.length; ++i) {
       if (!id2entity.containsKey(ids[i])) {
         throw new IllegalArgumentException(ids[i] + " not in testing");
       } else {
-        entities.put(ids[i], id2entity.get(ids[i]));
+        entities.put(ids[i], getTestKBEntity(id2entity.get(ids[i])));
       }
       ++i;
     }
@@ -399,67 +405,7 @@ public class DataAccessForTesting implements DataAccessInterface {
     }
     return ids;
   }
-  
-  @Override
-  public Map<String, Gender> getGenderForEntities(Entities entities) {
-    System.err.println("Accessed " + getMethodName());
-    return null;
-  }
-
-  @Override
-  public Map<String, Set<Type>> getTypes(Set<String> entities) {
-    System.err.println("Accessed " + getMethodName());
-    return null;
-  }
-
-  @Override
-  public Set<Type> getTypes(String Entity) {
-    System.err.println("Accessed " + getMethodName());
-    return null;
-  }
-
-  @Override
-  public List<String> getParentTypes(String queryType) {
-    System.err.println("Accessed " + getMethodName());
-    return null;
-  }
-
-  @Override
-  public boolean checkEntityNameExists(String entity) {
-    System.err.println("Accessed " + getMethodName());
-    return false;
-  }
-
-  @Override
-  public String getKeyphraseSource(String entityName, String keyphrase) {
-    System.err.println("Accessed " + getMethodName());
-    return null;
-  }
-
-  @Override
-  public Map<String, List<String>> getKeyphraseEntities(Set<String> keyphrases) {
-    System.err.println("Accessed " + getMethodName());
-    return null;
-  }
-
-  @Override
-  public TIntObjectHashMap<int[]> getEntityLSHSignatures(Entities entities) {
-    System.err.println("Accessed " + getMethodName());
-    return null;
-  }
-
-  @Override
-  public String getFamilyName(String entity) {
-    System.err.println("Accessed " + getMethodName());
-    return null;
-  }
-
-  @Override
-  public String getGivenName(String entity) {
-    System.err.println("Accessed " + getMethodName());
-    return null;
-  }
-
+ 
   @Override
   public TIntObjectHashMap<int[]> getEntityLSHSignatures(Entities entities, String table) {
     System.err.println("Accessed " + getMethodName());
@@ -471,19 +417,19 @@ public class DataAccessForTesting implements DataAccessInterface {
     if (mention.equals("PAGE")) {
       TIntDoubleHashMap pagePriors = 
           new TIntDoubleHashMap();
-      pagePriors.put(DataAccess.getIdForYagoEntityId("Jimmy_Page"), 0.3);
-      pagePriors.put(DataAccess.getIdForYagoEntityId("Larry_Page"), 0.7);
+      pagePriors.put(DataAccess.getInternalIdForKBEntity(getTestKBEntity("Jimmy_Page")), 0.3);
+      pagePriors.put(DataAccess.getInternalIdForKBEntity(getTestKBEntity("Larry_Page")), 0.7);
       return pagePriors;
     } else if (mention.equals("KASHMIR")) {
       TIntDoubleHashMap kashmirPriors =
           new TIntDoubleHashMap();
-      kashmirPriors.put(DataAccess.getIdForYagoEntityId("Kashmir"), 0.9);
-      kashmirPriors.put(DataAccess.getIdForYagoEntityId("Kashmir_(song)"), 0.1);
+      kashmirPriors.put(DataAccess.getInternalIdForKBEntity(getTestKBEntity("Kashmir")), 0.9);
+      kashmirPriors.put(DataAccess.getInternalIdForKBEntity(getTestKBEntity("Kashmir_(song)")), 0.1);
       return kashmirPriors;
     } else if (mention.equals("KNEBWORTH")) {
       TIntDoubleHashMap knebworthPriors = 
           new TIntDoubleHashMap();
-      knebworthPriors.put(DataAccess.getIdForYagoEntityId("Knebworth_Festival"), 1.0);
+      knebworthPriors.put(DataAccess.getInternalIdForKBEntity(getTestKBEntity("Knebworth_Festival")), 1.0);
       return knebworthPriors;
     } else if (mention.equals("LES PAUL")) {
       return new TIntDoubleHashMap();
@@ -492,8 +438,7 @@ public class DataAccessForTesting implements DataAccessInterface {
     }
   }
 
-  @Override
-  public TIntIntHashMap getKeywordDocumentFrequencies(TIntHashSet keywords) {
+  private TIntIntHashMap getKeywordDocumentFrequencies(TIntHashSet keywords) {
     TIntIntHashMap freqs = new TIntIntHashMap();
     for (String[] kpF : allKeyphraseFrequencies) {
       String[] tokens = kpF[0].split(" ");
@@ -518,7 +463,7 @@ public class DataAccessForTesting implements DataAccessInterface {
   public TIntIntHashMap getEntitySuperdocSize(Entities entities) {
     TIntIntHashMap sizes = new TIntIntHashMap();
     for (String entity[] : allEntitySizes) {
-      int id = DataAccess.getIdForYagoEntityId(entity[0]);
+      int id = DataAccess.getInternalIdForKBEntity(getTestKBEntity(entity[0]));
       int size = Integer.parseInt(entity[1]);
       sizes.put(id, size);
     }
@@ -526,8 +471,7 @@ public class DataAccessForTesting implements DataAccessInterface {
     for (Entity e : entities) {
       if (!sizes.containsKey(e.getId())) {
         System.err.println(
-            "allEntitySizes does not contain '" + 
-            DataAccess.getYagoEntityIdForId(e.getId()) + "'");
+            "allEntitySizes does not contain '" +  e );
       }    
     }
     
@@ -539,7 +483,7 @@ public class DataAccessForTesting implements DataAccessInterface {
     TIntObjectHashMap<TIntIntHashMap> isec = 
         new TIntObjectHashMap<TIntIntHashMap>();
     for (String[] eKps : allEntityKeyphrases) {
-      int entity = DataAccess.getIdForYagoEntityId(eKps[0]);
+      int entity = DataAccess.getInternalIdForKBEntity(getTestKBEntity(eKps[0]));
       TIntIntHashMap counts = new TIntIntHashMap();
       isec.put(entity, counts);
       
@@ -589,7 +533,7 @@ public class DataAccessForTesting implements DataAccessInterface {
   }
 
   @Override
-  public TObjectIntHashMap<String> getAllEntityIds() {
+  public TObjectIntHashMap<KBIdentifiedEntity> getAllEntityIds() {
     System.err.println("Accessed " + getMethodName());
     return null;
   }
@@ -598,7 +542,7 @@ public class DataAccessForTesting implements DataAccessInterface {
   public Entities getAllEntities() {
     Entities entities = new Entities();
     for (String eName : orderedEntities) {
-      entities.add(new Entity(eName, DataAccess.getIdForYagoEntityId(eName)));
+      entities.add(getTestEntity(eName));
     }
     return entities;
   }
@@ -649,118 +593,6 @@ public class DataAccessForTesting implements DataAccessInterface {
     return getAllWordExpansions()[wordId];
   }
 
-
-  @Override
-  public TIntObjectHashMap<Type> getTypeNamesForIds(int[] ids) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-
-  @Override
-  public TObjectIntHashMap<String> getIdsForTypeNames(Collection<String> typeNames) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-
-  @Override
-  public TIntObjectHashMap<int[]> getTypesIdsForEntitiesIds(int[] entitiesIds) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-
-  @Override
-  public TIntObjectHashMap<int[]> getEntitiesIdsForTypesIds(int[] typesIds) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-
-  @Override
-  public TIntObjectHashMap<int[]> getTypesIdsForEntities(Entities entities) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-
-  @Override
-  public Map<String, EntityMetaData> getEntitiesMetaData(Set<String> entities) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-
-  @Override
-  public EntityMetaData getEntityMetaData(String entity) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-
-  @Override
-  public TIntObjectHashMap<EntityMetaData> getEntitiesMetaData(int[] entitiesIds) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-
-  @Override
-  public EntityMetaData getEntityMetaData(int entityId) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-
-  @Override
-  public Map<String, Double> getEntitiesImportances(Set<String> entities) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-
-  @Override
-  public double getEntityImportance(String entity) {
-    // TODO Auto-generated method stub
-    return 0;
-  }
-
-
-  @Override
-  public TIntDoubleHashMap getEntitiesImportances(int[] entitiesIds) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-
-  @Override
-  public double getEntityImportance(int entityId) {
-    // TODO Auto-generated method stub
-    return 0;
-  }
-
-
-  @Override
-  public Map<String, Double> getKeyphraseSourceWeights() {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-
-  @Override
-  public double getKeyphraseSourceWeights(String source) {
-    // TODO Auto-generated method stub
-    return 0;
-  }
-
-  @Override
-  public Map<String, List<String>> getAllEntitiesMetaData(String startingWith) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-
   @Override
   public String getConfigurationName() {
     return "YAGO";
@@ -788,5 +620,120 @@ public class DataAccessForTesting implements DataAccessInterface {
     }
     
     return counts;
-  }  
+  }
+
+  @Override
+  public TObjectIntHashMap<String> getIdsForTypeNames(Collection<String> typeNames) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TIntObjectHashMap<Type> getTypesForIds(int[] ids) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TIntObjectHashMap<int[]> getTypesIdsForEntitiesIds(int[] ids) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TIntObjectHashMap<int[]> getEntitiesIdsForTypesIds(int[] ids) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TIntObjectHashMap<Gender> getGenderForEntities(Entities entities) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public Map<String, List<String>> getAllEntitiesMetaData(String startingWith) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TIntObjectHashMap<EntityMetaData> getEntitiesMetaData(int[] entitiesIds) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TIntDoubleHashMap getEntitiesImportances(int[] entitiesIds) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public List<String> getParentTypes(String queryType) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TIntObjectHashMap<int[]> getEntityLSHSignatures(Entities entities) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public Pair<Integer, Integer> getImportanceComponentMinMax(String importanceId) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public Map<String, Double> getKeyphraseSourceWeights() {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TIntObjectHashMap<int[]> getAllEntityTypes() {
+    // TODO Auto-generated method stub
+    return null;
+  }
+  
+
+  @Override
+  public TIntDoubleHashMap getAllEntityRanks() {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public Entities getEntitiesForMentionByFuzzyMatching(String mention, double minSimilarity) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TObjectIntHashMap<String> getAllKeyphraseSources() {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TIntObjectHashMap<int[]> getAllKeyphraseTokens() {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TObjectIntHashMap<Type> getAllTypeIds() {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TIntObjectHashMap<int[]> getTaxonomy() {
+    // TODO Auto-generated method stub
+    return null;
+  }
 }

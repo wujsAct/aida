@@ -1,14 +1,19 @@
 package mpi.aida.access;
 
 import gnu.trove.iterator.TIntIterator;
+import gnu.trove.iterator.TIntObjectIterator;
+import gnu.trove.iterator.TObjectIntIterator;
 import gnu.trove.map.hash.TIntDoubleHashMap;
 import gnu.trove.map.hash.TIntIntHashMap;
 import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
+import gnu.trove.set.TIntSet;
 import gnu.trove.set.hash.TIntHashSet;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -18,9 +23,12 @@ import mpi.aida.config.AidaConfig;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
 import mpi.aida.data.EntityMetaData;
+import mpi.aida.data.KBIdentifiedEntity;
 import mpi.aida.data.Keyphrases;
 import mpi.aida.data.Type;
+import mpi.aida.util.RunningTimer;
 import mpi.aida.util.YagoUtil.Gender;
+import mpi.tools.javatools.datatypes.Pair;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,14 +95,8 @@ public class DataAccess {
     return DataAccess.getInstance().getEntitiesForMentions(mention, maxEntityRank);
   }
   
-  public static Keyphrases getEntityKeyphrases(Entities entities) {
-    return DataAccess.getInstance().getEntityKeyphrases(entities, null);
-  }
-  
-  public static Keyphrases getEntityKeyphrases(
-      Entities entities, Map<String, Double> keyphraseSourceWeights) {
-    return DataAccess.getInstance().
-        getEntityKeyphrases(entities, keyphraseSourceWeights);
+  public static Entities getEntitiesForMentionByFuzzyMatcyhing(String mention, double minSimilarity) {
+    return DataAccess.getInstance().getEntitiesForMentionByFuzzyMatching(mention, minSimilarity);
   }
   
   /**
@@ -134,52 +136,77 @@ public class DataAccess {
   }
 
   public static int[] getInlinkNeighbors(Entity e) {
-    return DataAccess.getInstance().getInlinkNeighbors(e);
+    Entities entities = new Entities();
+    entities.add(e);
+    TIntObjectHashMap<int[]> neighbors = getInlinkNeighbors(entities);
+    return neighbors.get(e.getId());
   }
 
   public static TIntObjectHashMap<int[]> getInlinkNeighbors(Entities entities) {
     return DataAccess.getInstance().getInlinkNeighbors(entities);
   }
 
-  public static int getIdForYagoEntityId(String entity) {
-    List<String> entities = new ArrayList<String>(1);
+  public static int getInternalIdForKBEntity(KBIdentifiedEntity entity) {
+    List<KBIdentifiedEntity> entities = new ArrayList<KBIdentifiedEntity>(1);
     entities.add(entity);
-    return getIdsForYagoEntityIds(entities).get(entity);
+    return getInternalIdsForKBEntities(entities).get(entity);
   }
 
-  public static TObjectIntHashMap<String> getIdsForYagoEntityIds(Collection<String> entityIds) {
-    return DataAccess.getInstance().getIdsForYagoEntityIds(entityIds);
+  public static TObjectIntHashMap<KBIdentifiedEntity> getInternalIdsForKBEntities(Collection<KBIdentifiedEntity> entities) {
+    return DataAccess.getInstance().getInternalIdsForKBEntities(entities);
   }
   
-  
-  public static String getYagoEntityIdForId(int entity) {
+  public static KBIdentifiedEntity getKnowlegebaseEntityForInternalId(int entity) {
     int[] entities = new int[1];
     entities[0] = entity;
-    return getYagoEntityIdsForIds(entities).get(entity);
+    return getKnowlegebaseEntitiesForInternalIds(entities).get(entity);
   }
-   public static TIntObjectHashMap<String> getYagoEntityIdsForIds(int[] ids) {
-    return DataAccess.getInstance().getYagoEntityIdsForIds(ids);
+   public static TIntObjectHashMap<KBIdentifiedEntity> getKnowlegebaseEntitiesForInternalIds(int[] ids) {
+    return DataAccess.getInstance().getKnowlegebaseEntitiesForInternalIds(ids);
   }
    
-   public static int getIdForTypeName(String typeName) {
-     List<String> typeNames = new ArrayList<String>(1);
-     typeNames.add(typeName);
-     return getIdsForTypeNames(typeNames).get(typeName);
-   }
-
-   public static TObjectIntHashMap<String> getIdsForTypeNames(Collection<String> typeNames) {
-     return DataAccess.getInstance().getIdsForTypeNames(typeNames);
-   }
-   
-   
-  public static Type getTypeNameForId(int typeId) {
-    int[] types = new int[1];
-    types[0] = typeId;
-    return getTypeNamesForIds(types).get(typeId);
+  public static Entities getAidaEntitiesForInternalIds(int[] internalIds) {
+    TIntObjectHashMap<KBIdentifiedEntity> kbEntities = 
+        DataAccess.getKnowlegebaseEntitiesForInternalIds(internalIds);
+    Entities entities = new Entities();
+    for (TIntObjectIterator<KBIdentifiedEntity> itr = kbEntities.iterator(); 
+        itr.hasNext(); ) {
+      itr.advance();
+      entities.add(new Entity(itr.value(), itr.key()));
+    }
+    return entities;
   }
   
-  public static TIntObjectHashMap<Type> getTypeNamesForIds(int[] ids) {
-    return DataAccess.getInstance().getTypeNamesForIds(ids);
+  public static Entities getAidaEntitiesForKBEntities(Set<KBIdentifiedEntity> entities) {
+    TObjectIntHashMap<KBIdentifiedEntity> kbEntities = 
+        DataAccess.getInternalIdsForKBEntities(entities);
+    Entities aidaEntities = new Entities();
+    for (TObjectIntIterator<KBIdentifiedEntity> itr = kbEntities.iterator(); 
+        itr.hasNext(); ) {
+      itr.advance();
+      aidaEntities.add(new Entity(itr.key(), itr.value()));
+    }
+    return aidaEntities;
+  }
+   
+  public static int getIdForTypeName(String typeName) {
+    List<String> typeNames = new ArrayList<String>(1);
+    typeNames.add(typeName);
+    return getIdsForTypeNames(typeNames).get(typeName);
+  }
+
+  public static TObjectIntHashMap<String> getIdsForTypeNames(Collection<String> typeNames) {
+    return DataAccess.getInstance().getIdsForTypeNames(typeNames);
+  }
+   
+  public static Type getTypeForId(int typeId) {
+    int[] types = new int[1];
+    types[0] = typeId;
+    return getTypesForIds(types).get(typeId);
+  }
+  
+  public static TIntObjectHashMap<Type> getTypesForIds(int[] ids) {
+    return DataAccess.getInstance().getTypesForIds(ids);
   }
   
   public static int[] getTypeIdsForEntityId(int entityId) {
@@ -232,28 +259,44 @@ public class DataAccess {
     return DataAccess.getInstance().getIdsForWords(words);
   }
 
-  public static Map<String, Gender> getGenderForEntities(Entities entities) {
+  public static TIntObjectHashMap<Gender> getGenderForEntities(Entities entities) {
     return getInstance().getGenderForEntities(entities);
   }
 
-  public static Map<String, Set<Type>> getTypes(Set<String> entities) {
-    return getInstance().getTypes(entities);
+  public static TIntObjectHashMap<Set<Type>> getTypes(Entities entities) {
+    TIntObjectHashMap<Set<Type>> entityTypes = new TIntObjectHashMap<Set<Type>>();
+    TIntObjectHashMap<int[]> entitiesTypesIds = getTypesIdsForEntitiesIds(entities.getUniqueIdsAsArray());
+    TIntSet allTypesIds = new TIntHashSet();
+    for(TIntObjectIterator<int[]> itr = entitiesTypesIds.iterator(); 
+        itr.hasNext(); ) {
+      itr.advance();
+      int[] types = itr.value();
+      allTypesIds.addAll(types);
+    }
+
+    TIntObjectHashMap<Type> typeNamesMap = getTypesForIds(allTypesIds.toArray());
+    
+    for (Entity entity : entities) {
+      int[] typesIds = entitiesTypesIds.get(entity.getId());
+      Set<Type> types = new HashSet<Type>(typesIds.length, 1.0f);
+      for(int typeId : typesIds) {
+        types.add(typeNamesMap.get(typeId));
+      }
+      entityTypes.put(entity.getId(), types);
+    }
+    return entityTypes;
   }
 
-  public static Set<Type> getTypes(String entity) {
-    return getInstance().getTypes(entity);
+  public static Set<Type> getTypes(Entity entity) {
+    Entities entities = new Entities();
+    entities.add(entity);
+    TIntObjectHashMap<Set<Type>> entityTypes = getTypes(entities);
+    return entityTypes.get(entity.getId());
   }
 
+  @Deprecated
   public static Map<String, List<String>> getAllEntitiesMetaData(String startingWith){
     return getInstance().getAllEntitiesMetaData(startingWith);
-  }
-
-  public static Map<String, EntityMetaData> getEntitiesMetaData(Set<String> entities) {
-    return getInstance().getEntitiesMetaData(entities);
-  }
-
-  public static EntityMetaData getEntityMetaData(String Entity) {
-    return getInstance().getEntityMetaData(Entity);
   }
   
   public static TIntObjectHashMap<EntityMetaData> getEntitiesMetaData(int[] entitiesIds) {
@@ -261,15 +304,10 @@ public class DataAccess {
   }
 
   public static EntityMetaData getEntityMetaData(int entityId) {
-    return getInstance().getEntityMetaData(entityId);
-  }
-  
-  public static Map<String, Double> getEntitiesImportances(Set<String> entities) {
-    return getInstance().getEntitiesImportances(entities);
-  }
-
-  public static double getEntityImportance(String Entity) {
-    return getInstance().getEntityImportance(Entity);
+    int[] entitiesIds = new int[1];
+    entitiesIds[0] = entityId;
+    TIntObjectHashMap<EntityMetaData> results = getEntitiesMetaData(entitiesIds);
+    return results.get(entityId);
   }
   
   public static TIntDoubleHashMap getEntitiesImportances(int[] entitiesIds) {
@@ -277,7 +315,10 @@ public class DataAccess {
   }
 
   public static double getEntityImportance(int entityId) {
-    return getInstance().getEntityImportance(entityId);
+    int[] entitiesIds = new int[1];
+    entitiesIds[0] = entityId;
+    TIntDoubleHashMap results = getEntitiesImportances(entitiesIds);
+    return results.get(entityId);
   }
   
   public static TIntIntHashMap getKeyphraseDocumentFrequencies(TIntHashSet keyphrases) {    
@@ -288,14 +329,6 @@ public class DataAccess {
     return getInstance().getParentTypes(queryType);
   }
 
-  public static boolean checkEntityNameExists(String entityName) {
-    return getInstance().checkEntityNameExists(entityName);
-  }
-
-  public static String getKeyphraseSource(String entityName, String keyphrase) {
-    return getInstance().getKeyphraseSource(entityName, keyphrase);
-  }
-
   public static TIntObjectHashMap<int[]> getEntityLSHSignatures(Entities entities, String table) {
     return getInstance().getEntityLSHSignatures(entities, table);
   }
@@ -303,26 +336,19 @@ public class DataAccess {
   public static TIntObjectHashMap<int[]> getEntityLSHSignatures(Entities entities) {
     return getInstance().getEntityLSHSignatures(entities);
   }
-
-  public static String getFamilyName(String entity) {
-    return getInstance().getFamilyName(entity);
-  }
-
-  public static String getGivenName(String entity) {
-    return getInstance().getGivenName(entity);
-  }
   
   public static TIntDoubleHashMap getEntityPriors(String mention) {
     return getInstance().getEntityPriors(mention);
   }
-
   public static TIntIntHashMap getKeywordDocumentFrequencies(TIntHashSet keywords) {
+    Integer runId = RunningTimer.recordStartTime("DataAccess:KWDocFreq");
     TIntIntHashMap keywordCounts = new TIntIntHashMap(keywords.size(), 1.0f);
     for (TIntIterator itr = keywords.iterator(); itr.hasNext(); ) {
       int keywordId = itr.next();      
       int count = DataAccessCache.singleton().getKeywordCount(keywordId);
       keywordCounts.put(keywordId, count);
     }    
+    RunningTimer.recordEndTime("DataAccess:KWDocFreq", runId);
     return keywordCounts;   
   }
 
@@ -334,8 +360,32 @@ public class DataAccess {
     return getInstance().getEntityKeywordIntersectionCount(entities);
   }
 
-  public static TObjectIntHashMap<String> getAllEntityIds() {
+  public static TObjectIntHashMap<KBIdentifiedEntity> getAllEntityIds() {
     return getInstance().getAllEntityIds();
+  }
+  
+  public static TObjectIntHashMap<Type> getAllTypeIds() {
+    return getInstance().getAllTypeIds();
+  }
+  
+  public static TIntObjectHashMap<int[]> getAllEntityTypes() {
+    return getInstance().getAllEntityTypes();
+  }
+  
+  public static TIntObjectHashMap<int[]> getTaxonomy() {
+    return getInstance().getTaxonomy();
+  }
+  
+  public static TIntDoubleHashMap getAllEntityRanks() {
+    return getInstance().getAllEntityRanks();
+  }
+  
+  public static TObjectIntHashMap<String> getAllKeyphraseSources() {
+    return getInstance().getAllKeyphraseSources();
+  }
+  
+  public static TIntObjectHashMap<int[]> getAllKeyphraseTokens() {
+    return getInstance().getAllKeyphraseTokens();
   }
   
   public static Entities getAllEntities() {
@@ -391,5 +441,30 @@ public class DataAccess {
 
   public static int[] getAllKeywordDocumentFrequencies() {
     return getInstance().getAllKeywordDocumentFrequencies();
-  }  
+  }
+    
+  public static Pair<Integer, Integer> getImportanceComponentMinMax(String importanceId) {
+    return DataAccess.getInstance().getImportanceComponentMinMax(importanceId);
+  }
+  
+  public double getKeyphraseSourceWeights(String source){
+    return getKeyphraseSourceWeights().get(source);
+  }
+
+  public static Map<String, Double> getKeyphraseSourceWeights() {
+     return DataAccess.getInstance().getKeyphraseSourceWeights();
+  }
+
+  public static Map<KBIdentifiedEntity, EntityMetaData> getEntitiesMetaData(Set<KBIdentifiedEntity> entities) {
+    TObjectIntHashMap<KBIdentifiedEntity> ids = getInternalIdsForKBEntities(entities);
+    TIntObjectHashMap<EntityMetaData> metadata = getEntitiesMetaData(ids.values());
+    Map<KBIdentifiedEntity, EntityMetaData> result = new HashMap<KBIdentifiedEntity, EntityMetaData>();
+    for(TObjectIntIterator<KBIdentifiedEntity> itr = ids.iterator(); itr.hasNext();) {
+      itr.advance();
+      int id = itr.value();
+      result.put(itr.key(), metadata.get(id));
+    }
+    return result;
+  }
+  
 }

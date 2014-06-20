@@ -3,7 +3,7 @@ package mpi.aida.access;
 import java.io.File;
 
 
-public class DataAccessKeywordCountCacheTarget extends DataAccessCacheTarget {
+public class DataAccessKeywordCountCacheTarget extends DataAccessIntIntCacheTarget {
 
   public static final String ID = "KEYWORD_COUNT";
   

@@ -5,34 +5,19 @@ import java.util.List;
 
 import mpi.aida.access.DataAccess;
 import mpi.aida.access.DataAccessSQL;
-import mpi.aida.config.settings.DisambiguationSettings;
-import mpi.aida.config.settings.Settings.ALGORITHM;
-import mpi.aida.config.settings.Settings.TECHNIQUE;
 import mpi.aida.graph.similarity.exception.MissingSettingException;
 import mpi.aida.graph.similarity.util.SimilaritySettings;
-import mpi.experiment.trace.GraphTracer.TracingTarget;
 
 /**
  * Preconfigured settings for the {@see Disambiguator} using the mention-entity
  * prior, the keyphrase based similarity, and the KORE keyphrase based
  * entity coherence.
  */
-public class CocktailPartyKORELSHDisambiguationSettings extends DisambiguationSettings {
+public class CocktailPartyKORELSHDisambiguationSettings extends CocktailPartyDisambiguationSettings {
     
   private static final long serialVersionUID = 5867674989478781057L;
 
   public CocktailPartyKORELSHDisambiguationSettings() throws MissingSettingException {
-    getGraphSettings().setAlpha(0.6);
-    setTracingTarget(TracingTarget.WEB_INTERFACE);
-     
-    setDisambiguationTechnique(TECHNIQUE.GRAPH);
-    setDisambiguationAlgorithm(ALGORITHM.COCKTAIL_PARTY_SIZE_CONSTRAINED);
-    getGraphSettings().setUseExhaustiveSearch(true);
-    getGraphSettings().setUseNormalizedObjective(true);
-    getGraphSettings().setEntitiesPerMentionConstraint(5);
-    getGraphSettings().setUseCoherenceRobustnessTest(true);
-    getGraphSettings().setCohRobustnessThreshold(0.9);
-    
     List<String[]> cohConfigs = new LinkedList<String[]>();
     cohConfigs.add(new String[] { "KORELSHEntityEntitySimilarity", "1.0" });
 
@@ -50,11 +35,6 @@ public class CocktailPartyKORELSHDisambiguationSettings extends DisambiguationSe
     switchedKPsettings.setLshBandSize(2);
     switchedKPsettings.setLshBandCount(100);
     switchedKPsettings.setLshDatabaseTable(DataAccessSQL.ENTITY_LSH_SIGNATURES);
-    setSimilaritySettings(switchedKPsettings);
-        
-    SimilaritySettings unnormalizedKPsettings = new SimilaritySettings(
-        CocktailPartyDisambiguationSettings.getCoherenceRobustnessSimConfigs(), null, 0.0);
-    switchedKPsettings.setIdentifier("CoherenceRobustnessTest");
-    getGraphSettings().setCoherenceSimilaritySetting(unnormalizedKPsettings);
+    setSimilaritySettings(switchedKPsettings);      
   }
 }

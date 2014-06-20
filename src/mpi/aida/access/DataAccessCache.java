@@ -1,5 +1,8 @@
 package mpi.aida.access;
 
+import gnu.trove.map.hash.TIntObjectHashMap;
+import gnu.trove.map.hash.TObjectIntHashMap;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -7,6 +10,8 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 import mpi.aida.AidaManager;
@@ -23,9 +28,10 @@ class DataAccessCache {
   
   private static final String DATABASE_AIDA_CONFIG_CACHE = "database_aida.cache";
 
-  private DataAccessCacheTarget[] cacheTargets;
-  private final int WORD_EXPANSION = 0;
-  private final int KEYWORD_COUNT = 1;
+  private DataAccessIntIntCacheTarget wordExpansion;  
+  private DataAccessIntIntCacheTarget keywordCount;
+  private DataAccessKeyphraseTokensCacheTarget keyphraseTokens;
+  private DataAccessKeyphraseSourcesCacheTarget keyphraseSources;
   
   private static class DataAccessCacheHolder {
     public static DataAccessCache cache = new DataAccessCache();
@@ -36,9 +42,15 @@ class DataAccessCache {
   }
   
   private DataAccessCache() {
-    cacheTargets = new DataAccessCacheTarget[2];
-    cacheTargets[WORD_EXPANSION] = new DataAccessWordExpansionCacheTarget();
-    cacheTargets[KEYWORD_COUNT] = new DataAccessKeywordCountCacheTarget();
+    List<DataAccessCacheTarget> cacheTargets = new ArrayList<>();
+    wordExpansion = new DataAccessWordExpansionCacheTarget();
+    cacheTargets.add(wordExpansion);
+    keywordCount = new DataAccessKeywordCountCacheTarget();
+    cacheTargets.add(keywordCount);
+    keyphraseTokens = new DataAccessKeyphraseTokensCacheTarget();
+    cacheTargets.add(keyphraseTokens);
+    keyphraseSources = new DataAccessKeyphraseSourcesCacheTarget();
+    cacheTargets.add(keyphraseSources);
     
     logger.info("Loading word caches.");
         
@@ -101,10 +113,26 @@ class DataAccessCache {
   }
 
   public int expandTerm(int wordId) {
-    return cacheTargets[WORD_EXPANSION].getData(wordId);
+    return wordExpansion.getData(wordId);
   }
   
   public int getKeywordCount(int wordId) {
-    return cacheTargets[KEYWORD_COUNT].getData(wordId);
+    return keywordCount.getData(wordId);
+  }
+  
+  public int[] getKeyphraseTokens(int wordId) {
+    return keyphraseTokens.getData(wordId);
+  }
+  
+  public int getKeyphraseSourceId(String source) {
+    return keyphraseSources.getData(source);
+  }
+  
+  public TIntObjectHashMap<int[]> getAllKeyphraseTokens() {
+    return keyphraseTokens.getAllData();
+  }
+  
+  public TObjectIntHashMap<String> getAllKeyphraseSources() {
+    return keyphraseSources.getAllData();
   }
 }

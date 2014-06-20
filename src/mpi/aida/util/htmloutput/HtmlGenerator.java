@@ -6,10 +6,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import mpi.aida.data.DisambiguationResults;
-import mpi.aida.data.PreparedInput;
-import mpi.aida.data.ResultMention;
-
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -21,9 +17,7 @@ import org.json.simple.parser.JSONParser;
  */
 public class HtmlGenerator {
 
-  private String content;
   private String inputFile;
-  private PreparedInput input;
   private JSONObject jsonContent;
   
   /**
@@ -34,32 +28,12 @@ public class HtmlGenerator {
    * @param inputFile The name of the input file submitted.
    * @param input Constructed PreparedInput object.
    */
-  public HtmlGenerator(String content, String jsonRepr, String inputFile, PreparedInput input) throws Exception {
-    this.content = content;
+  public HtmlGenerator(String jsonRepr, String inputFile) throws Exception {
     this.inputFile = inputFile;
-    this.input = input;
     JSONParser jParser = new JSONParser();
     this.jsonContent = (JSONObject) jParser.parse(jsonRepr);
   }
-
-  /**
-   * This method generates HTML from given DisambiguationResults object reference.
-   * 
-   * @param results Disambiguation Result.
-   * @return  HTML body as a string.
-   * @throws Exception
-   */
-  public String constructFromResult(DisambiguationResults results) throws Exception {
-    GenerateWebHtml gen = new GenerateWebHtml();
-    String html = gen.process(content, input, results, false);
-    StringBuilder sb = constructHTML(html);
-    for (ResultMention rm : results.getResultMentions()) {
-      sb.append("<li>" + rm + " -> " + results.getResultEntities(rm) + "</li>");
-    }
-    sb.append("</ul></body></html>");
-    return sb.toString().replaceAll("\n", "<br />");
-  }
-
+  
   /**
    * This method generates HTML from given JSON representation of disambiguated result
    * 
@@ -72,7 +46,6 @@ public class HtmlGenerator {
     //String html = gen.processJSON(content, input, jsonRepr, false);
     StringBuilder sb = constructHTML(null);
     sb.append("</body></html>");
-    System.out.println("HTML generated from JSON representation");
     return sb.toString().replaceAll("\n", "<br />");
   }
 
@@ -142,7 +115,7 @@ public class HtmlGenerator {
       JSONArray entities = (JSONArray)tmpMention.get("allEntities");
       for (int i = 0; i < entities.size(); ++i) {
         JSONObject entity = (JSONObject) entities.get(i);
-        htmlList.append((String)entity.get("name"));
+        htmlList.append((String)entity.get("kbIdentifier"));
         htmlList.append("("+(String)entity.get("disambiguationScore")+")");
         if(i < entities.size() - 1) {
           htmlList.append(", ");

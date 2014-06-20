@@ -100,7 +100,7 @@ public class WeightedKeyphrasesContext extends KeyphrasesContext {
     }
 
     logger.debug("WeightedKeyphraseContext setup done for " +
-        entities.uniqueNameSize() + " entities, " +
+        entities.size() + " entities, " +
         keyphraseIDFweights.size() + " keyphrases");  
   }
 
@@ -227,11 +227,7 @@ public class WeightedKeyphrasesContext extends KeyphrasesContext {
           }
         }
         int keyphraseOccurrenceCount = keyphraseOccurrenceCounts.containsKey(kp) && (keyphraseOccurrenceCounts.get(kp) != keyphraseOccurrenceCounts.getNoEntryValue()) ? keyphraseOccurrenceCounts.get(kp) : 0;
-        
-        if (e.getName().equals("$_sign---NME--") && getKeyphraseForId(kp).equals("final note")) {
-          System.out.println("here");
-        }
-        
+                
         double score = 0.0;
         if (!(entityKeyphraseIntersectionCount == 0)) { // no interesection means 0 score
            score = 
@@ -250,7 +246,7 @@ public class WeightedKeyphrasesContext extends KeyphrasesContext {
         keyphraseMIWeights.put(kp, score);
         
         if (score > 1.0) {
-          System.out.println(e.getName() + "\t" + getKeyphraseForId(kp) + "\t" + score);
+          System.out.println(e + "\t" + getKeyphraseForId(kp) + "\t" + score);
         }
       }
     }

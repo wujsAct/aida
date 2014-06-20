@@ -29,6 +29,7 @@ public class DisambiguatorTest {
   public DisambiguatorTest() {
     AidaConfig.set("dataAccess", "testing");
     AidaConfig.set(AidaConfig.CACHE_WORD_DATA, "false");
+    AidaConfig.set(AidaConfig.PERSON_NAME_MERGING, "false");
     AidaManager.init();
   }
   
@@ -48,6 +49,7 @@ public class DisambiguatorTest {
     settings.getGraphSettings().setAlpha(DEFAULT_ALPHA);
     settings.getGraphSettings().setCohRobustnessThreshold(DEFAULT_COH_ROBUSTNESS);
     settings.getGraphSettings().setEntitiesPerMentionConstraint(DEFAULT_SIZE);
+    settings.setIncludeNullAsEntityCandidate(false);
 
     Disambiguator d = new Disambiguator(preparedInput, settings);
 
@@ -81,6 +83,7 @@ public class DisambiguatorTest {
     PreparedInput preparedInput = p.prepare(docId, content, new PreparationSettings());
 
     DisambiguationSettings settings = new CocktailPartyDisambiguationSettings();
+    settings.setIncludeNullAsEntityCandidate(false);
     settings.getGraphSettings().setAlpha(DEFAULT_ALPHA);
     settings.getGraphSettings().setCohRobustnessThreshold(DEFAULT_COH_ROBUSTNESS);
     settings.getGraphSettings().setEntitiesPerMentionConstraint(DEFAULT_SIZE);
@@ -122,6 +125,7 @@ public class DisambiguatorTest {
     settings.getGraphSettings().setCohRobustnessThreshold(DEFAULT_COH_ROBUSTNESS);
     settings.getGraphSettings().setEntitiesPerMentionConstraint(DEFAULT_SIZE);
     settings.setMaxEntityRank(0.8);
+    settings.setIncludeNullAsEntityCandidate(false);
 
     Disambiguator d = new Disambiguator(preparedInput, settings);
 

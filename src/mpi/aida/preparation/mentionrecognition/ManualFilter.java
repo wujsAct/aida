@@ -22,12 +22,12 @@ public class ManualFilter {
 
   protected static final int tagSize = startTag.length();;
 
-  public Pair<Tokens, Mentions> filter(String text, FilterType by, LANGUAGE language) {
+  public Pair<String, Mentions> filter(String text, FilterType by, LANGUAGE language) {
     Mentions mentions = new Mentions();
     String filteredText = filterText(text, mentions);
-    Tokens tokens = tokenize(filteredText, by, mentions, language);
-    Pair<Tokens, Mentions> tokensMentions = new Pair<Tokens, Mentions>(tokens, mentions);
-    return tokensMentions;
+    //Tokens tokens = tokenize(filteredText, by, mentions, language);
+    Pair<String, Mentions> filteredTextMentions = new Pair<String, Mentions>(filteredText, mentions);
+    return filteredTextMentions;
   }
 
   private String filterText(String text, Mentions mentions) {
@@ -61,17 +61,17 @@ public class ManualFilter {
     return sb.toString();
   }
 
-  private Tokens tokenize(String filteredText, FilterType by, Mentions mentions, LANGUAGE language) {
+  public Tokens tokenize(String filteredText, FilterType by, Mentions mentions, LANGUAGE language) {
     Tokens tokens = null;
     // TODO(jhoffart,mamir): get Manual* back if necessary.
     if (FilterMentions.FilterType.STANFORD_NER.equals(by)) {
       switch (language) {
         case en:
 //          tokens = AidaManager.tokenizeNER(filteredText, false);//why this and not the next line?
-          tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.ner, false);
+          tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.NER, false);
           break;
         case de:
-          tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.germanner, false);
+          tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.GERMAN_NER, false);
         default:
           break;
       }
@@ -86,10 +86,10 @@ public class ManualFilter {
     else if(FilterMentions.FilterType.ManualPOS.equals(by)) {
       switch (language) {
         case en:
-          tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.pos, true);
+          tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.POS, true);
           break;
         case de:
-          tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.germanpos, true);
+          tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.GERMAN_POS, true);
         default:
           break;
       }
@@ -97,16 +97,17 @@ public class ManualFilter {
     else if(FilterMentions.FilterType.Manual_NER.equals(by)) {
       switch (language) {
         case en:
-          tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.ner, true);
+          tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.NER, true);
           break;
         case de:
-          tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.germanner, true);
+          tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.GERMAN_NER, true);
         default:
           break;
       }
-    }
-    else {
-      tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.tokens, false);
+    } else if (FilterMentions.FilterType.CASELESS_STANFORD_NER.equals(by)) {
+      tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.ENGLISH_CASELESS_NER, true);
+    } else {
+      tokens = TokenizerManager.tokenize(filteredText, Tokenizer.type.TOKENS, false);
     }
     List<String> textContent = new LinkedList<String>();
     for (int p = 0; p < tokens.size(); p++) {

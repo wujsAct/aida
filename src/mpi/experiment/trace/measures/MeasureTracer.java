@@ -14,8 +14,9 @@ public abstract class MeasureTracer extends TracerPart {
 		this.name = name;
 		this.weight = weight;
 	}
+	
 	public String getName() {
-		return name + " - " + weight;
+	  return name;
 	}
 
 	public double getScore() {

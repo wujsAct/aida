@@ -2,7 +2,6 @@ package mpi.aida.graph.similarity.measure;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import mpi.aida.graph.similarity.measure.WeightComputation;
 
 import org.junit.Test;
 

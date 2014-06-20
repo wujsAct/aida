@@ -7,30 +7,38 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Entity the was assigned to a ResultMention.
- * The entity String is the identifier in YAGO2 
- * (see http://www.yago-knowledge.org)
- * 
+ * Entity the was assigned to a ResultMention. 
  *
  */
 public class ResultEntity implements Comparable<ResultEntity>, Serializable {
 
   private static final long serialVersionUID = -7062155406718136994L;
 
-  /** YAGO2 identifier of the entity (http://www.yago-knowledge.org) */
-  private String entity;
+  private KBIdentifiedEntity kbEntity;
 
   /** Score assigned to the entity */
   private double disambiguationScore;
 
-  public ResultEntity(String entity, double disambiguationScore) {
+  public ResultEntity(String identifier, String knowledgebase, double disambiguationScore) {
     super();
-    this.entity = entity;
+    this.kbEntity = new KBIdentifiedEntity(identifier, knowledgebase);
     this.disambiguationScore = disambiguationScore;
+  }
+  
+  public ResultEntity(Entity entity, double disambiguationScore) {
+    super();
+    if (entity instanceof NullEntity) {
+      this.kbEntity = new KBIdentifiedEntity(Entity.OOKBE, "AIDA");
+      this.disambiguationScore = 0.0;
+    } else {
+      this.kbEntity = new KBIdentifiedEntity(entity.getIdentifierInKb(), 
+          entity.getKnowledgebase());
+      this.disambiguationScore = disambiguationScore;
+    }
   }
 
   public static ResultEntity getNoMatchingEntity() {
-    return new ResultEntity(Entity.OOKBE, 0.0);
+    return new ResultEntity(Entity.OOKBE, "AIDA", 0.0);
   }
 
   public static List<ResultEntity> getResultEntityAsList(ResultEntity re) {
@@ -40,16 +48,20 @@ public class ResultEntity implements Comparable<ResultEntity>, Serializable {
   }
 
   /**
-   * @return  YAGO2 identifier of the entity (http://www.yago-knowledge.org)
+   * @return  original knowledgebase identifier of the entity
    */
   public String getEntity() {
-    return entity;
+    return kbEntity.getIdentifier();
   }
 
-  public void setEntity(String entity) {
-    this.entity = entity;
+  public String getKnowledgebase() {
+    return kbEntity.getKnowledgebase();
   }
-
+  
+  public KBIdentifiedEntity getKbEntity() {
+    return kbEntity;
+  }
+  
   public double getDisambiguationScore() {
     return disambiguationScore;
   }
@@ -59,7 +71,7 @@ public class ResultEntity implements Comparable<ResultEntity>, Serializable {
   }
   
   public boolean isNoMatchingEntity() {
-    return entity.equals(Entity.OOKBE);
+    return kbEntity.getIdentifier().equals(Entity.OOKBE);
   }
 
   @Override
@@ -71,6 +83,6 @@ public class ResultEntity implements Comparable<ResultEntity>, Serializable {
   public String toString() {
     NumberFormat df = NumberFormat.getInstance(Locale.ENGLISH);
     df.setMaximumFractionDigits(5);
-    return entity + " (" + df.format(disambiguationScore) + ")";
+    return kbEntity + " (" + df.format(disambiguationScore) + ")";
   }
 }

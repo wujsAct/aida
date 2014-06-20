@@ -10,45 +10,49 @@ import java.util.List;
 import java.util.Properties;
 
 public class ClassPathUtils {
-	public ClassPathUtils(){
-		
-	}
-	
-	public static Properties getPropertiesFromClasspath(String propFileName) throws IOException {
-	    // loading xmlProfileGen.properties from the classpath
-	    Properties props = new Properties();
-	    InputStream inputStream = ClassPathUtils.class.getClassLoader()
-	        .getResourceAsStream(propFileName);
 
-	    if (inputStream == null) {
-	        throw new FileNotFoundException("property file '" + propFileName
-	            + "' not found in the classpath");
-	    }
+  public ClassPathUtils() {
 
-	    props.load(inputStream);
-	    return props;
-	}
-	
-	public static List<String> getContent(String fileName) throws IOException{
+  }
+
+  public static Properties getPropertiesFromClasspath(String propFileName)
+      throws IOException {
+    // loading xmlProfileGen.properties from the classpath
+    Properties props = new Properties();
+    InputStream inputStream = ClassPathUtils.class.getClassLoader()
+        .getResourceAsStream(propFileName);
+
+    if (inputStream == null) {
+      throw new FileNotFoundException("property file '" + propFileName
+          + "' not found in the classpath");
+    }
+
+    props.load(inputStream);
+    inputStream.close();
+    return props;
+  }
+
+  public static List<String> getContent(String fileName) throws IOException {
     List<String> content = new ArrayList<String>();
-      InputStream inputStream = ClassPathUtils.class.getClassLoader()
-          .getResourceAsStream(fileName);
+    InputStream inputStream = ClassPathUtils.class.getClassLoader()
+        .getResourceAsStream(fileName);
 
-      if (inputStream == null) {
-          throw new FileNotFoundException("property file '" + fileName
-              + "' not found in the classpath");
-      }
+    if (inputStream == null) {
+      throw new FileNotFoundException("property file '" + fileName
+          + "' not found in the classpath");
+    }
 
-      BufferedReader bufReader = new BufferedReader(new InputStreamReader(inputStream));
+    BufferedReader bufReader = new BufferedReader(new InputStreamReader(
+        inputStream));
 
     String line;
     while (true) {
       line = bufReader.readLine();
-      if (line == "" || line == null)
-        break;
+      if (line == "" || line == null) break;
       content.add(line);
-    } 
+    }
 
-      return content;
+    bufReader.close();
+    return content;
   }
 }

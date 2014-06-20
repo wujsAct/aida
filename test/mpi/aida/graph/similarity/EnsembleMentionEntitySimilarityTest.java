@@ -7,7 +7,7 @@ import java.util.LinkedList;
 import java.util.List;
 
 import mpi.aida.AidaManager;
-import mpi.aida.access.DataAccess;
+import mpi.aida.access.DataAccessForTesting;
 import mpi.aida.config.AidaConfig;
 import mpi.aida.data.Context;
 import mpi.aida.data.Entities;
@@ -41,9 +41,9 @@ public class EnsembleMentionEntitySimilarityTest {
     String n2 = "Kashmir_(song)";
     String n3 = "Jimmy_Page";
     
-    Entity e1 = new Entity(n1, DataAccess.getIdForYagoEntityId(n1));
-    Entity e2 = new Entity(n2, DataAccess.getIdForYagoEntityId(n2));
-    Entity e3 = new Entity(n3, DataAccess.getIdForYagoEntityId(n3));
+    Entity e1 = DataAccessForTesting.getTestEntity(n1);
+    Entity e2 = DataAccessForTesting.getTestEntity(n2);
+    Entity e3 = DataAccessForTesting.getTestEntity(n3);
 
     Entities entities = new Entities();
     entities.add(e1);

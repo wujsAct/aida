@@ -27,7 +27,9 @@ public class Tokenizer {
 
   /** type of tokenizer */
   public static enum type {
-    tokens, pos, ner, parse, germantokens, germanpos, germanner
+    TOKENS, POS, NER, PARSE, 
+    GERMAN_TOKENS, GERMAN_POS, GERMAN_NER, 
+    ENGLISH_CASELESS_POS, ENGLISH_CASELESS_NER, ENGLISH_CASELESS_PARSE
   };
 
   public static final String TEXT = "TEXT";
@@ -42,60 +44,72 @@ public class Tokenizer {
 
   private HashSet<Character> whitespace = null;
 
-  private StanfordCoreNLP pipeline = null;
+  private StanfordCoreNLP stanfordCoreNLP = null;
 
   private Pattern p = Pattern.compile(".*[\\n\\r]+.*[\\n\\r]+.*");
   
   // German Models
-//  private final String GERMAN_NER_DEWAC = 
-//      "resources/corenlp/germanmodels/ner/dewac_175m_600.crf.ser.gz";
   private final String GERMAN_NER_HGC = 
       "resources/corenlp/germanmodels/ner/hgc_175m_600.crf.ser.gz";
   private final String GERMAN_POS_HGC = 
       "resources/corenlp/germanmodels/pos/german-hgc.tagger";
-//  private final String GERMAN_POS_DEWAC = 
-//    "resources/corenlp/germanmodels/pos/german-dewac.tagger";
-//  private final String GERMAN_POS_FAST = 
-//    "resources/corenlp/germanmodels/pos/german-fast.tagger";
-//  private static final String GERMAN_PARSER =
-//	  "resources/corenlp/germanmodels/parser/germanFactored.ser.gz";
-//	  "resources/corenlp/germanmodels/parser/germanPCFG.ser.gz";
+  
+  //CASESLESS English Models (e.g. for tweets)
+  private final String ENGLISH_CASELESS_POS_MODEL = "resources/corenlp/stanford-corenlp-caseless-2013-11-12-models/edu/stanford/nlp/models/pos-tagger/english-caseless-left3words-distsim.tagger";
+  private final String ENGLISH_CASELESS_NER_MODEL = "resources/corenlp/stanford-corenlp-caseless-2013-11-12-models/edu/stanford/nlp/models/ner/english.all.3class.caseless.distsim.crf.ser.gz,resources/corenlp/stanford-corenlp-caseless-2013-11-12-models/edu/stanford/nlp/models/ner/english.conll.4class.caseless.distsim.crf.ser.gz,resources/corenlp/stanford-corenlp-caseless-2013-11-12-models/edu/stanford/nlp/models/ner/english.muc.7class.caseless.distsim.crf.ser.gz,resources/corenlp/stanford-corenlp-caseless-2013-11-12-models/edu/stanford/nlp/models/ner/english.nowiki.3class.caseless.distsim.crf.ser.gz";
+  private final String ENGLISH_CASELESS_PARSE_MODEL = "resources/corenlp/stanford-corenlp-caseless-2013-11-12-models/edu/stanford/nlp/models/lexparser/englishPCFG.caseless.ser.gz";
   
   public Tokenizer(Tokenizer.type type) {
     Properties props = new Properties();
-
-    if (type.equals(Tokenizer.type.tokens)) {
-      props.put("annotators", "tokenize, ssplit");
-    } else if (type.equals(Tokenizer.type.ner)) {
-      props.put("annotators", "tokenize, ssplit, pos, lemma, ner");
-    } else if (type.equals(Tokenizer.type.pos)) {
-      props.put("annotators", "tokenize, ssplit, pos, lemma");
-//      pipeline = new StanfordCoreNLP(props, true); //?duplicate code line
-    } else if (type.equals(Tokenizer.type.parse)) {
-      props.put("annotators", "tokenize, ssplit, parse, pos, lemma");
+    props.put("tokenize.options", "untokenizable=noneDelete");
+    switch(type) {
+      case TOKENS:
+        props.put("annotators", "tokenize, ssplit");
+        break;
+      case NER:
+        props.put("annotators", "tokenize, ssplit, pos, lemma, ner");
+        break;
+      case POS:
+        props.put("annotators", "tokenize, ssplit, pos, lemma");
+        break;
+      case PARSE:
+        props.put("annotators", "tokenize, ssplit, parse, pos, lemma");
+        break;
+      case GERMAN_TOKENS:
+        props.put("annotators", "tokenize, ssplit");
+        break;
+      case GERMAN_POS:
+        props.put("annotators", "tokenize, ssplit, pos");
+        props.put("pos.model", GERMAN_POS_HGC);
+        props.put("ner.model", GERMAN_NER_HGC);
+        props.put("ner.useSUTime", "false"); //false not for english
+        props.put("ner.applyNumericClassifiers", "false"); //false not for english
+        break;
+      case GERMAN_NER:
+        props.put("annotators", "tokenize, ssplit, pos, lemma, ner");
+        props.put("pos.model", GERMAN_POS_HGC);
+        props.put("ner.model", GERMAN_NER_HGC);
+        props.put("ner.useSUTime", "false"); //false not for english
+        props.put("ner.applyNumericClassifiers", "false"); //false not for english
+        break;
+      case ENGLISH_CASELESS_POS:
+        props.put("annotators", "tokenize, ssplit, pos, lemma");
+        props.put("pos.model", ENGLISH_CASELESS_POS_MODEL);
+        break;
+      case ENGLISH_CASELESS_NER:
+        props.put("annotators", "tokenize, ssplit, pos, lemma, ner");
+        props.put("pos.model", ENGLISH_CASELESS_POS_MODEL);
+        props.put("ner.model", ENGLISH_CASELESS_NER_MODEL);
+        break;
+      case ENGLISH_CASELESS_PARSE:
+        props.put("annotators", "tokenize, ssplit, parse, pos, lemma");
+        props.put("pos.model", ENGLISH_CASELESS_POS_MODEL);
+        props.put("parse.model", ENGLISH_CASELESS_PARSE_MODEL);
+        break;
+      default:
+          break;
     }
-    else if(type.equals(Tokenizer.type.germantokens)) {
-      props.put("annotators", "tokenize, ssplit");
-    }
-    else if (type.equals(Tokenizer.type.germanner)) {
-      props.put("annotators", "tokenize, ssplit, pos, lemma, ner");
-      props.put("pos.model", GERMAN_POS_HGC);
-//      props.put("pos.model", GERMAN_POS_DEWAC);
-      props.put("ner.model", GERMAN_NER_HGC);
-//    props.put("ner.model", GERMAN_NER_DEWAC + "," + GERMAN_NER_HGC);
-      props.put("ner.useSUTime", "false"); //false not for english
-      props.put("ner.applyNumericClassifiers", "false"); //false not for english
-//      props.put("parse.model", GERMAN_PARSER); //does not work, [do we need this?]
-    }
-    else if (type.equals(Tokenizer.type.germanpos)) {
-      props.put("annotators", "tokenize, ssplit, pos");
-      props.put("pos.model", GERMAN_POS_HGC);
-//      props.put("pos.model", GERMAN_POS_DEWAC);
-      props.put("ner.model", GERMAN_NER_HGC);
-      props.put("ner.useSUTime", "false"); //false not for english
-      props.put("ner.applyNumericClassifiers", "false"); //false not for english
-    }
-    pipeline = new StanfordCoreNLP(props, true);
+    stanfordCoreNLP = new StanfordCoreNLP(props, true);
     init();
   }
 
@@ -111,7 +125,7 @@ public class Tokenizer {
         return;
       }
       Annotation document = new Annotation(text);
-      pipeline.annotate(document);
+      stanfordCoreNLP.annotate(document);
       List<CoreMap> sentences = document.get(SentencesAnnotation.class);
       Wrapper wrapper = new Wrapper();
       Morphology morphology = null;

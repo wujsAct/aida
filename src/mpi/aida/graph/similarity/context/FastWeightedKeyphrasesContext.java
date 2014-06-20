@@ -61,7 +61,7 @@ public class FastWeightedKeyphrasesContext extends WeightedKeyphrasesContext {
     entity2keyphrase2keywordWeightSum = createEntity2keyphrase2keywordWeightSumMapping();        
     entityVectorNorms = calculateVectorNorms(entities, entity2keywordIds);
     
-    logger.info("FastWeightedKeyphrasesContext setup done");
+    logger.debug("FastWeightedKeyphrasesContext setup done");
   }
 
   private TIntDoubleHashMap calculateVectorNorms(

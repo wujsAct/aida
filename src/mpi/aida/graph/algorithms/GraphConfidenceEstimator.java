@@ -4,14 +4,11 @@ import gnu.trove.iterator.TIntDoubleIterator;
 import gnu.trove.iterator.TIntIntIterator;
 import gnu.trove.iterator.TIntIterator;
 import gnu.trove.iterator.TIntObjectIterator;
-import gnu.trove.iterator.TObjectDoubleIterator;
 import gnu.trove.list.TIntList;
 import gnu.trove.list.array.TIntArrayList;
 import gnu.trove.map.hash.TIntDoubleHashMap;
 import gnu.trove.map.hash.TIntIntHashMap;
 import gnu.trove.map.hash.TIntObjectHashMap;
-import gnu.trove.map.hash.TObjectDoubleHashMap;
-import gnu.trove.map.hash.TObjectIntHashMap;
 import gnu.trove.set.TIntSet;
 import gnu.trove.set.hash.TIntHashSet;
 
@@ -109,7 +106,7 @@ public class GraphConfidenceEstimator {
    */
   public Map<Integer, Map<Integer, Double>> estimate(
       ConfidenceSettings confSettings) {
-    Integer timerId = RunningTimer.start("GraphConfidenceEstimator"); 
+    Integer timerId = RunningTimer.recordStartTime("GraphConfidenceEstimator"); 
         
     Map<Integer, Map<Integer, Double>> localConfidences = 
         new HashMap<Integer, Map<Integer,Double>>();
@@ -159,6 +156,7 @@ public class GraphConfidenceEstimator {
     if (confidenceBalance >= 1.0) {
       // Use only local similarity. Skip coherence confidence computation
       // for faster running time.
+      logger_.debug("Computing only local confidence scores by normalization");
       confidences = localConfidences;
     } else {
       // Get the numebr of iterations, bounded by MAX_ITERATIONS
@@ -184,8 +182,8 @@ public class GraphConfidenceEstimator {
           mergeCoherenceConfidences(
               localConfidences, coherenceConfidences, 
               confSettings.getConfidenceBalance()); 
-      RunningTimer.end("GraphConfidenceEstimator", timerId);
     }
+    RunningTimer.recordEndTime("GraphConfidenceEstimator", timerId);
     return confidences;
   }
 
@@ -216,12 +214,12 @@ public class GraphConfidenceEstimator {
     // candidate entities are dropped due to the coherence robustness test.
     // The graph contains all scores as well in a different variable.
     Mention mention = (Mention) g.getNode(mentionId).getNodeData();
-    TObjectDoubleHashMap<String> entitySims = g.getMentionEntitySims(mention);
+    TIntDoubleHashMap entitySims = g.getMentionEntitySims(mention);
     if (entitySims == null) {
       return new HashMap<Integer, Double>();
     }
-    TObjectIntHashMap<String> entity2id = g.getEntityNodesIds();
-    for (TObjectDoubleIterator<String> itr = entitySims.iterator(); itr.hasNext(); ) {
+    TIntIntHashMap entity2id = g.getEntityNodesIds();
+    for (TIntDoubleIterator itr = entitySims.iterator(); itr.hasNext(); ) {
       itr.advance();
       // If the entity is not present in the graph anymore, assign a new, 
       // negative one. The negative ids will never be queried, they are

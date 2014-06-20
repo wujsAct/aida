@@ -1,6 +1,11 @@
 package mpi.aida.data;
 
 import java.io.Serializable;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.commons.lang.StringUtils;
 
 public class Mention implements Serializable, Comparable<Mention> {
 
@@ -12,12 +17,12 @@ public class Mention implements Serializable, Comparable<Mention> {
   private String mention;
   
   /** 
-   * This holds the normalized mention, e.g. after 
+   * This holds the normalized forms of the mention, e.g. after 
    * lemmatizing/stemming the original mention.
    * Use this for candidate lookup in the disambiguation
    * phase.
    */
-  private String normalizedMention;
+  private Set<String> normalizedMentions;
   
   /**
    * Needed by CoNLL reader.
@@ -36,8 +41,6 @@ public class Mention implements Serializable, Comparable<Mention> {
 
   private int sentenceId;
 
-  private String groundTruthEntity = null;
-
   private double disambiguationConfidence;
 
   // Character offset
@@ -46,21 +49,36 @@ public class Mention implements Serializable, Comparable<Mention> {
   private Entities candidateEntities;
 
   private int id = -1;
-    
+
   /**
    * Occurrence count either in the collection or in a document. Set as needed.
    */
   private int occurrenceCount = 0;
 
+  // Below is only for evaluation. 
+  private String groundTruthEntity = null;
+  private Map<String, Double> allAnnotatedEntities;
+  
   public Mention() {
   }
 
   public Mention(String mention, int startToken, int endToken, int startStanford, int endStanford, int sentenceId) {
+    this(mention, mention, startToken, endToken, startStanford, endStanford, sentenceId);
+  }
+  
+  public Mention(String mention, String normalizedMention, int startToken, int endToken, int startStanford, int endStanford, int sentenceId) {
+    this(mention, (Set<String>) null, startToken, endToken, startStanford, endStanford, sentenceId);
+    normalizedMentions = new HashSet<>();
+    normalizedMentions.add(normalizedMention);
+  }
+  
+  public Mention(String mention, Set<String> normalizedMentions, int startToken, int endToken, int startStanford, int endStanford, int sentenceId) {
     this.startToken = startToken;
     this.endToken = endToken;
     this.startStanford = startStanford;
     this.endStanford = endStanford;
     this.mention = mention;
+    this.normalizedMentions = normalizedMentions;
     this.sentenceId = sentenceId;
   }
 
@@ -105,7 +123,10 @@ public class Mention implements Serializable, Comparable<Mention> {
   }
 
   public String toString() {
-    String norm = (normalizedMention != null) ? ("[" + normalizedMention + "]") : "";
+    String norm = "";
+    if(normalizedMentions.size() > 0) {
+      norm = "[" + StringUtils.join(normalizedMentions, ",") + "]"; 
+    }
     return mention + norm + ", From:" + startToken + "/" + startStanford + ", To:" + endToken + "/" + endStanford + ", Offset: " + charOffset + ", Length: " + charLength;
   }
 
@@ -136,6 +157,10 @@ public class Mention implements Serializable, Comparable<Mention> {
 
   public void setMention(String mention) {
     this.mention = mention;
+    if(normalizedMentions == null) {
+      normalizedMentions = new HashSet<>();
+      normalizedMentions.add(mention);
+    }
   }
 
   @Override
@@ -207,17 +232,19 @@ public class Mention implements Serializable, Comparable<Mention> {
   public void setOccurrenceCount(int occurrenceCount) {
     this.occurrenceCount = occurrenceCount;
   }
+  
 
   public void setNormalizedMention(String normalizedMention) {
-    this.normalizedMention = normalizedMention;
+    this.normalizedMentions = new HashSet<>();
+    normalizedMentions.add(normalizedMention);
   }
 
-  public String getNormalizedMention() {
-    String m = normalizedMention;
-    if (m == null) {
-      m = mention;
-    }
-    return m;
+  public void setNormalizedMention(Set<String> normalizedMentions) {
+    this.normalizedMentions = normalizedMentions;
+  }
+
+  public Set<String> getNormalizedMention() {
+    return normalizedMentions;
   }
 
   /**
@@ -232,5 +259,13 @@ public class Mention implements Serializable, Comparable<Mention> {
    */
   public String getNer() {
     return ner;
+  }
+
+  public Map<String, Double> getAllAnnotatedEntities() {
+    return allAnnotatedEntities;
+  }
+
+  public void setAllAnnotatedEntities(Map<String, Double> allAnnotatedEntities) {
+    this.allAnnotatedEntities = allAnnotatedEntities;
   }
 }

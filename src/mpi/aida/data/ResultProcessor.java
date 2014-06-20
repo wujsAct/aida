@@ -1,8 +1,12 @@
 package mpi.aida.data;
 
+import gnu.trove.map.hash.TIntDoubleHashMap;
+import gnu.trove.map.hash.TIntObjectHashMap;
+
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -21,7 +25,10 @@ import org.json.simple.JSONObject;
  */
 public class ResultProcessor {
 
+  public static final String FORMAT_VERSION = "2.1";
+  
 	private DisambiguationResults result;
+  private Map<KBIdentifiedEntity, EntityMetaData> entitiesMetaData;
 	private String content;
 	private String inputFile;
 	private PreparedInput input;
@@ -37,6 +44,13 @@ public class ResultProcessor {
 	private void init(){
 		jFinalObj = new JSONObject();
 		jAllMentions = new JSONArray();
+    Set<KBIdentifiedEntity> entities = new HashSet<KBIdentifiedEntity>();
+    for (ResultMention resultMention : result.getResultMentions()) {
+      for (ResultEntity resultEntity: result.getResultEntities(resultMention)) {
+        entities.add(resultEntity.getKbEntity());
+      }
+    }
+    entitiesMetaData = DataAccess.getEntitiesMetaData(entities);
 	}
 
 	public ResultProcessor(){
@@ -69,10 +83,6 @@ public class ResultProcessor {
 		this.content = content;
 	}
 	
-	public void setResult(DisambiguationResults result){
-		this.result = result;
-	}
-
 	public void setInput(PreparedInput input){
 		this.input = input;
 	}
@@ -91,10 +101,14 @@ public class ResultProcessor {
 	  // prepare the compact json representation
 	  jFinalObj.put("docID", input.getDocId());
     jFinalObj.put("originalFileName", inputFile);
+    jFinalObj.put("formatVersion", FORMAT_VERSION);
     
-    Map<String, EntityMetaData> hshEntityMetadata = result.getEntitiesMetaData();
-    Map<Integer, EntityMetaData> hshIdMetadata = new HashMap<Integer, EntityMetaData>();
-    Map<String, Set<Type>> hshEntityTypes = new HashMap<String, Set<Type>>();
+    Entities aidaEntities = DataAccess.getAidaEntitiesForKBEntities(entitiesMetaData.keySet());
+    TIntObjectHashMap<Set<Type>> entitiesTypes = DataAccess.getTypes(aidaEntities);
+    TIntDoubleHashMap entitiesImportances = DataAccess.getEntitiesImportances(aidaEntities.getUniqueIdsAsArray());
+    
+    // Contains all entities that are bestEntity for a mention.
+    Set<String> allEntities = new HashSet<>();
     
     for (ResultMention rm : result.getResultMentions()) {
       // load the hashmap with offset-mention pair. Useful for mention-look up while constructing annotated text.
@@ -102,23 +116,16 @@ public class ResultProcessor {
       JSONObject jMention = generateJSONForMention(rm);
       // retrieve entity types for the best entity and generate json repr
       ResultEntity bestEntity = result.getBestEntity(rm);
-      JSONObject jsonEntityType = new JSONObject();
-      jsonEntityType.put("entity", bestEntity.getEntity());
-      //Set<Type> entityTypesObjects = new HashSet<Type>();
       if (!bestEntity.getEntity().equals(Entity.OOKBE)) {
-        JSONObject jsonEntity = new JSONObject();     
-        EntityMetaData emData = hshEntityMetadata.get(bestEntity.getEntity());        
-        hshIdMetadata.put(emData.getId(), emData);
-        jsonEntity.put("name", bestEntity.getEntity());
-        jsonEntity.put("id", emData.getId());
+        JSONObject jsonEntity = new JSONObject();           
+        String kbId = bestEntity.getKbEntity().getDictionaryKey();
+        jsonEntity.put("kbIdentifier", kbId);
+        allEntities.add(kbId);
         NumberFormat df = NumberFormat.getInstance(Locale.ENGLISH);
         df.setMaximumFractionDigits(5);
         jsonEntity.put("disambiguationScore", df.format(bestEntity.getDisambiguationScore()));        
         // add best entity element to mention element
         jMention.put("bestEntity", jsonEntity);
-        
-        Set<Type> entityTypesObjects = DataAccess.getTypes(bestEntity.getEntity());
-        hshEntityTypes.put(bestEntity.getEntity(), entityTypesObjects);
       }
       
       // Generate temporary JSON Object to store other candidate entities but no need to add to mention json
@@ -133,17 +140,12 @@ public class ResultProcessor {
         if (!re.getEntity().equals(Entity.OOKBE)) {
           // create a json object for entity
           jsonEntity = new JSONObject();     
-          EntityMetaData emData = hshEntityMetadata.get(re.getEntity());        
-          hshIdMetadata.put(emData.getId(), emData);
-          jsonEntity.put("name", re.getEntity());
-          jsonEntity.put("id", emData.getId());
+          String kbId = re.getKbEntity().getDictionaryKey();
+          jsonEntity.put("kbIdentifier", kbId);
           NumberFormat df = NumberFormat.getInstance(Locale.ENGLISH);
           df.setMaximumFractionDigits(5);
           jsonEntity.put("disambiguationScore", df.format(re.getDisambiguationScore()));          
           jsonEntityArr.add(jsonEntity);
-          
-          Set<Type> entityTypesObjects = DataAccess.getTypes(re.getEntity());
-          hshEntityTypes.put(re.getEntity(), entityTypesObjects);
         }
       }     
       jMention.put("allEntities", jsonEntityArr);
@@ -155,6 +157,9 @@ public class ResultProcessor {
     jFinalObj.put("cleanedText", input.getTokens().toText());
     jFinalObj.put("jsTypeInfo", "");
     jFinalObj.put("overallTime", ""+(time/1000));
+    JSONArray jAllEntities = new JSONArray();
+    jAllEntities.addAll(allEntities);
+    jFinalObj.put("allEntities", jAllEntities);
     
     if(jMode == JSONTYPE.COMPACT){
       return jFinalObj;
@@ -162,55 +167,70 @@ public class ResultProcessor {
     
     // add all entities metadata (required for both WEB and EXT versions)
     JSONObject jMetadataArray = new JSONObject();
-    for(Entry<Integer, EntityMetaData> e : hshIdMetadata.entrySet()){
+    Set<String> allTypes = new HashSet<>();
+    for(Entry<KBIdentifiedEntity, EntityMetaData> e : entitiesMetaData.entrySet()){
       JSONObject jMetadata = new JSONObject();
-      int entityId = e.getKey();
+      KBIdentifiedEntity kbEntity = e.getKey();
       EntityMetaData eData = e.getValue();
       if(eData != null){
         jMetadata.put("readableRepr", eData.getHumanReadableRepresentation());
-        jMetadata.put("id", eData.getId());
+        jMetadata.put("entityId", kbEntity.getIdentifier());
         jMetadata.put("url", eData.getUrl());
+        jMetadata.put("knowledgebase", eData.getKnowledgebase());
+        jMetadata.put("depictionurl", eData.getDepictionurl());
+        jMetadata.put("depictionthumbnailurl", eData.getDepictionthumbnailurl());
+        jMetadata.put("importance", entitiesImportances.get(eData.getId()));
         
         // Temporary JSONArray to store entity types for the best entity
         JSONArray tmpEntityTypes = new JSONArray();
         List<String> entityTypesStrings = new ArrayList<String>();
-        Set<Type> hshTypeSet = hshEntityTypes.get(eData.getUrl());
+        Set<Type> hshTypeSet = entitiesTypes.get(eData.getId());
         if(hshTypeSet!=null){
           for(Type type: hshTypeSet) {
             entityTypesStrings.add(type.toString());
           }
-          tmpEntityTypes.addAll(entityTypesStrings);                                    
+          tmpEntityTypes.addAll(entityTypesStrings);     
+          allTypes.addAll(entityTypesStrings);
         }
         jMetadata.put("type", tmpEntityTypes);
       }      
-      jMetadataArray.put(entityId, jMetadata);
+      jMetadataArray.put(kbEntity.getDictionaryKey(), jMetadata);
     }    
     jFinalObj.put("entityMetadata", jMetadataArray);
     
+    // Add all types in document.
+    JSONArray jAllTypes = new JSONArray();
+    jAllTypes.addAll(allTypes);
+    jFinalObj.put("allTypes", jAllTypes);
+    
     if(jMode == JSONTYPE.WEB){
-	    jFinalObj.put("tracerHtml", result.getgTracerHtml());
+	    jFinalObj.put("gTracerHtml", result.getgTracerHtml());
+	    jFinalObj.put("tracerHtml", result.getTracer().getHtmlOutputForWebInterface());
 	    return jFinalObj;
-    }
+    }    
 	  
-    jFinalObj.put("tokens", loadTokens());
+    jFinalObj.put("tokens", loadTokens(jMode));
 	  return jFinalObj;
 	}
 	
 	@SuppressWarnings("unchecked")
-  private JSONArray loadTokens(){
+  private JSONArray loadTokens(JSONTYPE jMode){
 		List<Token> lstToks = input.getTokens().getTokens();
 		JSONArray jTokArr = new JSONArray();
 		for(Token tk : lstToks){
 			JSONObject jTok = new JSONObject();
-			jTok.put("stanfordId", tk.getStandfordId());
 			jTok.put("original", tk.getOriginal());
 			jTok.put("originalEnd", tk.getOriginalEnd());
 			jTok.put("beginIndex", tk.getBeginIndex());
-			jTok.put("endIndex", tk.getEndIndex());
 			jTok.put("sentence", tk.getSentence());
-			jTok.put("paragraph", tk.getParagraph());
-			jTok.put("POS", tk.getPOS());
-			jTok.put("NE", tk.getNE());
+			if (jMode != JSONTYPE.STICS) {
+			  jTok.put("stanfordId", tk.getStandfordId());
+			  jTok.put("endIndex", tk.getEndIndex());			
+  			jTok.put("paragraph", tk.getParagraph());
+  			jTok.put("POS", tk.getPOS());
+  			jTok.put("NE", tk.getNE());
+  			jTok.put("pageNumber", tk.getPageNumber());
+			}
 			jTokArr.add(jTok);
 		}
 		return jTokArr;
@@ -256,7 +276,7 @@ public class ResultProcessor {
 		ResultEntity re = result.getBestEntity(rm);
 		String url = Entity.OOKBE;
 		if (!re.isNoMatchingEntity()) {
-		  EntityMetaData entityMeta = result.getEntitiesMetaData().get(re.getEntity());
+		  EntityMetaData entityMeta = entitiesMetaData.get(re.getKbEntity());
 		  url = entityMeta.getUrl();
 		}    
 		sb.append("[[").append(url).append("|").append(rm.getMention()).append("]]");

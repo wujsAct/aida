@@ -4,6 +4,7 @@ import gnu.trove.list.array.TIntArrayList;
 import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.set.hash.TIntHashSet;
 
+import java.sql.Connection;
 import java.util.BitSet;
 
 import mpi.aida.AidaManager;
@@ -12,7 +13,6 @@ import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
 import mpi.aida.graph.similarity.EntityEntitySimilarity;
 import mpi.aida.graph.similarity.context.EntitiesContext;
-import mpi.tools.database.DBConnection;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +29,7 @@ public class InlinkOverlapEntityEntitySimilarity extends EntityEntitySimilarity 
   private TIntObjectHashMap<int[]> entity2inlink;
   private TIntObjectHashMap<BitSet> entity2vector;
 
-  DBConnection con;
+  Connection con;
 
   public InlinkOverlapEntityEntitySimilarity(EntityEntitySimilarityMeasure similarityMeasure, EntitiesContext entityContext) throws Exception {
     // not needed - uses entites directly
@@ -39,14 +39,14 @@ public class InlinkOverlapEntityEntitySimilarity extends EntityEntitySimilarity 
   }
 
   private void setupEntities(Entities entities) throws Exception {
-    if (entities.uniqueNameSize() == 0) {
-      logger.info("Skipping initialization of InlinkEntityEntitySimilarity for " + entities.uniqueNameSize() + " entities");
+    if (entities.size() == 0) {
+      logger.info("Skipping initialization of InlinkEntityEntitySimilarity for " + entities.size() + " entities");
       return;
     }
 
-    logger.info("Initializing InlinkEntityEntitySimilarity for " + entities.uniqueNameSize() + " entities");
+    logger.info("Initializing InlinkEntityEntitySimilarity for " + entities.size() + " entities");
 
-    con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "getting inlinks");
+    con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
 
     entity2inlink = DataAccess.getInlinkNeighbors(entities);
 
@@ -87,7 +87,7 @@ public class InlinkOverlapEntityEntitySimilarity extends EntityEntitySimilarity 
       entity2vector.put(entity, bs);
     }
 
-    AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+    AidaManager.releaseConnection(con);
 
     logger.info("Done initializing InlinkEntityEntitySimilarity");
   }

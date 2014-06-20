@@ -47,7 +47,7 @@ public class ExtractGraph {
     mentions = m;
     uniqueEntities = ue;
     entitySimilarity = eeSim;
-    nodesCount = m.getMentions().size() + ue.uniqueNameSize();
+    nodesCount = m.getMentions().size() + ue.size();
     graph = new Graph(graphName, nodesCount, alpha);
 
   }
@@ -60,33 +60,35 @@ public class ExtractGraph {
    */
   public Graph generateGraph() throws Exception {
     logger.debug("Building the graph ...");
-    timerId = RunningTimer.start("ExtractGraph");
+    timerId = RunningTimer.recordStartTime("ExtractGraph");
     calculateSimilarities();
     addGraphNodes();
     addGraphEdges();
-    RunningTimer.end("ExtractGraph", timerId);
+    RunningTimer.recordEndTime("ExtractGraph", timerId);
     return graph;
   }
 
   private void addGraphNodes() {
     // add mention nodes to the graph
+    Integer id = RunningTimer.recordStartTime("AddGraphNode");
     for (int i = 0; i < this.mentions.getMentions().size(); i++) {
       graph.addMentionNode(mentions.getMentions().get(i));
     }
-    for (String entity : uniqueEntities.getUniqueNames()) {
+    for (Entity entity : uniqueEntities) {
     	graph.addEntityNode(entity);
     }
+    RunningTimer.recordEndTime("AddGraphNode", id);
   }
 
   private void addGraphEdges() {
+    Integer id = RunningTimer.recordStartTime("AddGraphEdge");
     // add mention-entity edges
     for (int i = 0; i < mentions.getMentions().size(); i++) {
       Mention mention = mentions.getMentions().get(i);
       Entities entities = mention.getCandidateEntities();
       for (Entity entity : entities) {
-        String entityName = entity.getName();
         double meSimilarity = entity.getMentionEntitySimilarity();
-        graph.addEdge(mention, entityName, meSimilarity);
+        graph.addEdge(mention, entity, meSimilarity);
       }
     }
     // add entity-entity edges
@@ -95,32 +97,38 @@ public class ExtractGraph {
         if (e1.compareTo(e2) < 1) continue;
         double eeSim = getEntityEntitySimilarity(e1, e2);
         if (eeSim > 0.0) {
-          graph.addEdge(e1.getName(), e2.getName(), eeSim);
+          graph.addEdge(e1, e2, eeSim);
         }
       }
     }
+    RunningTimer.recordEndTime("AddGraphEdge", id);
   }
   
   private void calculateSimilarities() throws Exception {    
-    logger.info("Computing EE sims on '" + graph.getName( ) + "' for " + 
+    logger.debug("Computing EE sims on '" + graph.getName( ) + "' for " + 
                 uniqueEntities.size() + " entities (" + 
                 AidaConfig.get(AidaConfig.EE_NUM_THREADS) + " threads)");
     long start = System.currentTimeMillis();
-    RunningTimer.stageStart("ExtractGraph", "EESimCalc", timerId);
+    Integer id = RunningTimer.recordStartTime("EESimCalc");
 
     ParallelEntityEntityRelatednessComputation peerc = 
         new ParallelEntityEntityRelatednessComputation();
     entityEntitySimilarities = peerc.computeRelatedness(entitySimilarity, uniqueEntities, mentions);
    
-    RunningTimer.stageEnd("ExtractGraph", "EESimCalc", timerId);
+    RunningTimer.recordEndTime("EESimCalc", id);
     long dur = System.currentTimeMillis() - start;
-    logger.info("Done calculating EE sims on '" + graph.getName() + 
+    logger.debug("Done calculating EE sims on '" + graph.getName() + 
                 "' (" + dur / 1000 + "s)");
     
     // rescale mention-entity similarities and entity-entity similarities
     // to be in [0,1]
+    id = RunningTimer.recordStartTime("MentionRescale");
     rescaleMentionEdgeWeights(mentions);
+    RunningTimer.recordEndTime("MentionRescale", id);
+    
+    id = RunningTimer.recordStartTime("EntityRescale");
     rescaleEntityEdgeWeights(entityEntitySimilarities);
+    RunningTimer.recordEndTime("EntityRescale", id);
     
     // scale to make absolute values of mention-entity and entity-entity
     // edges comparable - only rescale if there are EE edges
@@ -137,11 +145,13 @@ public class ExtractGraph {
 
         // always rescale the side with the larger weights to stay inside
         // [0,1]
+        id = RunningTimer.recordStartTime("ScaleME");
         if (mentionEntityScaling > 1.0) {
           scaleMentionEntityEdges(mentions, 1 / mentionEntityScaling);
         } else {
           scaleEntityEntityEdges(uniqueEntities.getEntities(), mentionEntityScaling);
         }
+        RunningTimer.recordEndTime("ScaleME", id);
       }
     }
 
@@ -233,6 +243,7 @@ public class ExtractGraph {
   }
 
   private double calculateAverageMentionEdgeWeight(Mentions ms) {
+    Integer id = RunningTimer.recordStartTime("calcAvgMEWeight");
     double totalEdgeWeight = 0.0;
     long totalEdgeCount = 0;
     for (Mention m : ms.getMentions()) {
@@ -246,14 +257,17 @@ public class ExtractGraph {
     }
     
     if (totalEdgeCount == 0) {
+      RunningTimer.recordEndTime("calcAvgMEWeight", id);
       return 0.0;
     }
     
-    double averageEdgeWeight = totalEdgeWeight / totalEdgeCount;   
+    double averageEdgeWeight = totalEdgeWeight / totalEdgeCount;
+    RunningTimer.recordEndTime("calcAvgMEWeight", id);
     return averageEdgeWeight;
   }
 
   private double calculateAverageEntityEdgeWeight(Set<Entity> ue) {
+    Integer id = RunningTimer.recordStartTime("calcAvgEEWeight");
     double totalEdgeWeight = 0.0;
     long totalEdgeCount = 0;
     for (Entity e : ue) {
@@ -273,6 +287,7 @@ public class ExtractGraph {
 
     // each edge is counted twice (for each entity), but that doesn't affect
     // the average weight
+    RunningTimer.recordEndTime("calcAvgEEWeight", id);
     if (totalEdgeCount > 0) {
       double averageEntityEdgeWeight = totalEdgeWeight / totalEdgeCount;
       return averageEntityEdgeWeight;

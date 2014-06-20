@@ -25,7 +25,5 @@ public class ImportanceOnlyDisambiguationSettings extends DisambiguationSettings
     SimilaritySettings localIDFPsettings = new SimilaritySettings(null, null, eisConfigs, 0);
     localIDFPsettings.setIdentifier("importance");
     setSimilaritySettings(localIDFPsettings);
-    
-    setIncludeNullAsEntityCandidate(false);
   }
 }

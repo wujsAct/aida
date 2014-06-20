@@ -18,6 +18,8 @@ public class Tokens implements Iterable<Token>, Serializable {
 
   private String originalEnd = "";
 
+  private int pageNumber = -1;
+  
   private List<Pair<Integer, Integer>> sentencesBorders = null;
 
   public Tokens() {
@@ -203,5 +205,16 @@ public class Tokens implements Iterable<Token>, Serializable {
       }
     }
     return sentencesBorders;
+  }
+  
+  public int getPageNumber() {
+    return pageNumber;
+  }
+  
+  public void setPageNumber(int pNumber) {
+    pageNumber = pNumber;
+    for(Token tok : tokens){
+      tok.setPageNumber(pNumber);
+    }
   }
 }

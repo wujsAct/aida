@@ -38,7 +38,7 @@ Note that AIDA does not annotate common words (like song, musician, idea, ... ).
 
 ## Requirements
 
- * Java 6
+ * Java 7
  * A [Postgres][Postgres] database to run. We tested it starting from version 8.4, but version 9.2 will give a better performance for many queries AIDA runs, due to the ability to fetch data from the indexes.
  * The machine AIDA runs on should have a reasonable amount of main memory. If you are using graph coherence (see the Section *Configuring AIDA*), the amount of memory grows quadratically with the number of entities and thus the length of the document. Anything above 10,000 candidates will be too much for a regular desktop machine (at the time of writing) to handle and should run on a machine with more than 20GB of main memory. AIDA does the most intensive computations in parallel and thus benefits from multi-core machine.
 
@@ -50,15 +50,15 @@ To use AIDA with YAGO2, download the repository we provide on our [AIDA website]
 
 Get the Entity Repository (21 GB):
 
-    curl -O http://www.mpi-inf.mpg.de/yago-naga/aida/download/entity-repository/AIDA_entity_repository_2010-08-17v5-1.sql.bz2
+    curl -O http://www.mpi-inf.mpg.de/yago-naga/aida/download/entity-repository/AIDA_entity_repository_2010-08-17v7.sql.bz2
     
 Import it into a postgres database:
 
-    bzcat AIDA_entity_repository_2010-08-17v5-1.sql.bz2 | psql <DATABASE>
+    bzcat AIDA_entity_repository_2010-08-17v7.sql.bz2 | psql <DATABASE>
     
 where <DATABASE> is a database on a PostgreSQL server.
 
-A database dump on a more recent version of Wikipedia is also available: http://www.mpi-inf.mpg.de/yago-naga/aida/download/entity-repository/AIDA_entity_repository_2012-11-01v5-1.sql.bz2
+A database dump on a more recent version of Wikipedia is also available: http://www.mpi-inf.mpg.de/yago-naga/aida/download/entity-repository/AIDA_entity_repository_2014-01-02v7.sql.bz2
 
 ## Setting up AIDA
 
@@ -73,7 +73,7 @@ After changing these settings, run `mvn package` again to update the jar with th
 
 ## Hands-On API Example
 
-If you want to use AIDA in a maven project, add mpi.aida:aida-2.0 as dependency. Otherwise, build the jar using `mvn package` and add `target/aida-VERSION.jar` to your project's classpath.  
+If you want to use AIDA in a maven project, add mpi.aida:aida-2.X as dependency. Otherwise, build the jar using `mvn package` and add `target/aida-VERSION.jar` to your project's classpath.  
 
 The main classes in AIDA are `mpi.aida.Preparator` for preparing an input document and `mpi.aida.Disambiguator` for running the disambiguation on the prepared input.
 

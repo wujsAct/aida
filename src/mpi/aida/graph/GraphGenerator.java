@@ -1,15 +1,14 @@
 package mpi.aida.graph;
 
-import gnu.trove.iterator.TObjectDoubleIterator;
-import gnu.trove.map.hash.TObjectDoubleHashMap;
+import gnu.trove.iterator.TIntDoubleIterator;
+import gnu.trove.map.hash.TIntDoubleHashMap;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import mpi.aida.AidaManager;
 import mpi.aida.config.AidaConfig;
 import mpi.aida.config.settings.DisambiguationSettings;
 import mpi.aida.data.Context;
@@ -17,11 +16,13 @@ import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
 import mpi.aida.data.Mention;
 import mpi.aida.data.Mentions;
+import mpi.aida.data.NullEntity;
 import mpi.aida.graph.extraction.ExtractGraph;
 import mpi.aida.graph.similarity.EnsembleEntityEntitySimilarity;
 import mpi.aida.graph.similarity.EnsembleMentionEntitySimilarity;
 import mpi.aida.graph.similarity.MaterializedPriorProbability;
 import mpi.aida.util.CollectionUtils;
+import mpi.aida.util.Counter;
 import mpi.aida.util.RunningTimer;
 import mpi.experiment.trace.GraphTracer;
 import mpi.experiment.trace.NullGraphTracer;
@@ -31,6 +32,8 @@ import mpi.experiment.trace.data.MentionTracer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.Ordering;
 
 public class GraphGenerator {
   
@@ -81,10 +84,7 @@ public class GraphGenerator {
   }
 
   private Graph generateGraph() throws Exception {
-    int timerId = RunningTimer.start("GraphGenerator");
-    AidaManager.fillInCandidateEntities(
-        mentions, settings.isIncludeNullAsEntityCandidate(),
-        settings.isIncludeContextMentions(), settings.getMaxEntityRank());
+    int timerId = RunningTimer.recordStartTime("GraphGenerator");
     Set<String> mentionStrings = new HashSet<String>();
     Entities allEntities = getNewEntities();
 
@@ -93,29 +93,33 @@ public class GraphGenerator {
     }
 
     // prepare tracing
+    Integer id = RunningTimer.recordStartTime("PrepareTracer");
     for (Mention mention : mentions.getMentions()) {
       MentionTracer mt = new MentionTracer(mention);
       tracer.addMention(mention, mt);
 
       for (Entity entity : mention.getCandidateEntities()) {
-        EntityTracer et = new EntityTracer(entity.getName());
-        tracer.addEntityForMention(mention, entity.getName(), et);
+        EntityTracer et = new EntityTracer(entity.getId());
+        tracer.addEntityForMention(mention, entity.getId(), et);
       }
     }
-
+    RunningTimer.recordEndTime("PrepareTracer", id);
+    
     // gather candidate entities - and prepare tracing
+    id = RunningTimer.recordStartTime("GatherCandidateEntities");
     for (Mention mention : mentions.getMentions()) {
       MentionTracer mt = new MentionTracer(mention);
       tracer.addMention(mention, mt);
       for (Entity entity : mention.getCandidateEntities()) {
-        EntityTracer et = new EntityTracer(entity.getName());
-        tracer.addEntityForMention(mention, entity.getName(), et);
+        EntityTracer et = new EntityTracer(entity.getId());
+        tracer.addEntityForMention(mention, entity.getId(), et);
       }
 
       String mentionString = mention.getMention();
       mentionStrings.add(mentionString);
       allEntities.addAll(mention.getCandidateEntities());
     }
+    RunningTimer.recordEndTime("GatherCandidateEntities", id);
     
     // Check if the number of candidates exceeds the threshold (for memory
     // issues).
@@ -124,68 +128,151 @@ public class GraphGenerator {
           "Maximum number of candidate entites for graph exceeded " + allEntities.size());
     }
 
-    RunningTimer.stageStart("GraphGenerator", "LocalSimilarity", timerId);
+    id = RunningTimer.recordStartTime("GG-LocalSimilarityCompute");
+    
     logger.debug("Computing the mention-entity similarities...");
+    
+    // Counters for keeping track.
+    int solvedByCoherenceRobustnessHeuristic = 0;
+    int solvedByConfidenceThresholdHeuristic = 0;
+    int solvedByEasyMentionsHeuristic = 0;
+    int preGraphNullMentions = 0;
+    int prunedMentionsCount = 0;
+
     Map<Mention, Double> mentionL1s = null;
+    Integer timer = RunningTimer.recordStartTime("MentionPriorSimL1DistCompute");
     if (settings.getGraphSettings().shouldUseCoherenceRobustnessTest()) {
       mentionL1s = computeMentionPriorSimL1Distances(mentions, allEntities);
     }
-
+    RunningTimer.recordEndTime("MentionPriorSimL1DistCompute", timer);
+    
+    timer = RunningTimer.recordStartTime("EnsembleMentionEntitySimInit");
     EnsembleMentionEntitySimilarity mentionEntitySimilarity = 
         new EnsembleMentionEntitySimilarity(
             mentions, allEntities, context,
             settings.getSimilaritySettings(), tracer);
-    logger.info("Computing the mention-entity similarities...");
-
+    logger.debug("Computing the mention-entity similarities...");
+    RunningTimer.recordEndTime("EnsembleMentionEntitySimInit", timer);
     // We might drop entities here, so we have to rebuild the list of unique
     // entities
     allEntities = getNewEntities();
     // Keep the similarities for all mention-entity pairs, as some are
     // dropped later on.
-    Map<Mention, TObjectDoubleHashMap<String>> mentionEntityLocalSims =
-        new HashMap<Mention, TObjectDoubleHashMap<String>>();
+    Map<Mention, TIntDoubleHashMap> mentionEntityLocalSims =
+        new HashMap<Mention, TIntDoubleHashMap>();
+    timer = RunningTimer.recordStartTime("CalcSimAndRobustnessForCandidateEntities");
     for (int i = 0; i < mentions.getMentions().size(); i++) {
+      Counter.incrementCount("MENTIONS_TOTAL");
       Mention currentMention = mentions.getMentions().get(i);
-      TObjectDoubleHashMap<String> entityLocalSims =
-          new TObjectDoubleHashMap<String>();
+      TIntDoubleHashMap entityLocalSims = new TIntDoubleHashMap();
       mentionEntityLocalSims.put(currentMention, entityLocalSims);
-      Entities candidateEntities = currentMention.getCandidateEntities();
-      for (Entity candidate : candidateEntities) {
-        // keyphrase-based mention/entity similarity.
+      Entities originalCandidateEntities = currentMention.getCandidateEntities();
+      
+      // Compute similarities for all candidates.   
+      for (Entity candidate : originalCandidateEntities) {
+        // Keyphrase-based mention/entity similarity.
         double similarity = mentionEntitySimilarity.calcSimilarity(currentMention, context, candidate);
         candidate.setMentionEntitySimilarity(similarity);
-        entityLocalSims.put(candidate.getName(), similarity);
+        entityLocalSims.put(candidate.getId(), similarity);
       }
-      if (settings.getGraphSettings().shouldUseCoherenceRobustnessTest()) {
-         if (mentionL1s.containsKey(currentMention) &&
-             mentionL1s.get(currentMention) < 
-             settings.getGraphSettings().getCohRobustnessThreshold()) {
-          // drop all candidates, fix the mention to the one that has the
-          // highest local similarity value
-          Entity bestCandidate = getBestCandidate(currentMention);
-          if (bestCandidate != null) {
-            Entities candidates = new Entities();
-            candidates.add(bestCandidate);
-            currentMention.setCandidateEntities(candidates);
-            allEntities.add(bestCandidate);
-            // Update the confusable entities on the candidate,
-            // there are none for the mention anymore now that it is fixed.
-            Collection<Entity> confusables = bestCandidate.getConfusableEntities();
-            Set<Entity> allCandidates = new HashSet<Entity>(candidateEntities.getEntities());
-            allCandidates.remove(bestCandidate);
-            for (Entity e : allCandidates) {
-              confusables.remove(e);
-            }
-          }
-        } else {
-          allEntities.addAll(candidateEntities);
+      
+      TIntDoubleHashMap normalizedEntityLocalSims = 
+          CollectionUtils.normalizeScores(entityLocalSims);
+      
+      Entity bestEntity = null;
+
+      // Do pre-graph algorithm null-mention discovery
+      if (settings.getGraphSettings().isPreCoherenceNullMappingDiscovery()) {
+        double max = CollectionUtils.getMaxValue(normalizedEntityLocalSims);
+        if (max < settings.getGraphSettings().getPreCoherenceNullMappingDiscoveryThreshold()) {
+          bestEntity = new NullEntity();
+          ++preGraphNullMentions;
+          GraphTracer.gTracer.addMentionToEasy(
+              docId, currentMention.getMention(), currentMention.getCharOffset());
+          Counter.incrementCount("PRE_GRAPH_NULL_MENTIONS");
         }
+      }
+      
+      // If there are multiple candidates, try to determine the correct
+      // entity before running the joint disambiguation according
+      // to some heuristics.
+      if (bestEntity == null && originalCandidateEntities.size() > 1) {
+        if (bestEntity == null) {
+          bestEntity = 
+              doConfidenceThresholdCheck(currentMention, normalizedEntityLocalSims);
+          if (bestEntity != null) {
+            GraphTracer.gTracer.addMentionToConfidenceThresh(
+                docId, currentMention.getMention(), currentMention.getCharOffset());  
+            ++solvedByConfidenceThresholdHeuristic;
+            Counter.incrementCount("MENTIONS_BY_CONFIDENCE_THRESHOLD_HEURISTIC");
+          }
+        } 
+        
+        if (bestEntity == null) {
+          bestEntity = doEasyMentionsCheck(currentMention);
+          if (bestEntity != null) {
+            ++solvedByEasyMentionsHeuristic;
+            Counter.incrementCount("MENTIONS_BY_EASY_MENTIONS_HEURISTIC");
+            GraphTracer.gTracer.addMentionToEasy(
+                docId, currentMention.getMention(), currentMention.getCharOffset());
+          }
+        }  
+        
+        if (bestEntity == null) {
+          bestEntity = doCoherenceRobustnessCheck(
+              currentMention, mentionL1s);
+          if (bestEntity != null) {
+            ++solvedByCoherenceRobustnessHeuristic;
+            Counter.incrementCount("MENTIONS_BY_COHERENCE_ROBUSTNESS_HEURISTIC");
+            GraphTracer.gTracer.addMentionToLocalOnly(
+                docId, currentMention.getMention(), currentMention.getCharOffset());          
+          }
+        }                           
+      }
+      if (bestEntity != null) {
+        Entities candidates = new Entities();
+        candidates.add(bestEntity);
+        currentMention.setCandidateEntities(candidates);
+        allEntities.add(bestEntity);
       } else {
-        allEntities.addAll(candidateEntities);
+        // If all heuristics failed, prune candidates.
+        Entities candidates = pruneCandidates(currentMention);
+        if (candidates != null) {
+          allEntities.addAll(candidates);
+          currentMention.setCandidateEntities(candidates);
+          ++prunedMentionsCount;
+          Counter.incrementCount("MENTIONS_PRUNED");
+          GraphTracer.gTracer.addMentionToPruned(
+              docId, currentMention.getMention(), currentMention.getCharOffset());  
+        } else {
+          // Nothing changed from any heuristic/pruning.
+          allEntities.addAll(originalCandidateEntities);
+        }
       }
     }
-    RunningTimer.stageEnd("GraphGenerator", "LocalSimilarity", timerId);
-
+    
+    if (!(GraphTracer.gTracer instanceof NullGraphTracer)) {
+      gatherL1stats(docId, mentionL1s);
+      GraphTracer.gTracer.addStat(
+          docId, "Number of fixed mention by coherence robustness check", 
+          Integer.toString(solvedByCoherenceRobustnessHeuristic));
+      GraphTracer.gTracer.addStat(
+          docId, "Number of fixed mention by confidence threshold check", 
+          Integer.toString(solvedByConfidenceThresholdHeuristic));
+      GraphTracer.gTracer.addStat(
+          docId, "Number of fixed mention by easy mentions check", 
+          Integer.toString(solvedByEasyMentionsHeuristic));
+      GraphTracer.gTracer.addStat(
+          docId, "Number of mentions with pruned candidates", 
+          Integer.toString(prunedMentionsCount));
+      GraphTracer.gTracer.addStat(
+          docId, "Number of mentions set to null before running the algoirhtm", 
+          Integer.toString(preGraphNullMentions));
+    }
+    
+    RunningTimer.recordEndTime("CalcSimAndRobustnessForCandidateEntities", timer);
+    RunningTimer.recordEndTime("GG-LocalSimilarityCompute", id);
+    
     logger.debug("Building the graph...");
     EnsembleEntityEntitySimilarity eeSim = 
         new EnsembleEntityEntitySimilarity(
@@ -195,34 +282,125 @@ public class GraphGenerator {
             docId, mentions, allEntities, eeSim, settings.getGraphSettings().getAlpha());
     Graph gData = egraph.generateGraph();
     gData.setMentionEntitySim(mentionEntityLocalSims);
-    RunningTimer.end("GraphGenerator", timerId);    
+    RunningTimer.recordEndTime("GraphGenerator", timerId);    
     return gData;
   }
   
+  /**
+   * Checks if the coherence robustness check fires. If local sim and prior
+   * agree on an entity, use it.
+   * 
+   * @param mentionL1s
+   * @param currentMention
+   * @return best candidate or null if check failed.
+   */
+  private Entity doCoherenceRobustnessCheck(
+      Mention currentMention, Map<Mention, Double> mentionL1s) {
+    Entity bestCandidate = null;
+    if (settings.getGraphSettings().shouldUseCoherenceRobustnessTest()) {
+      if (mentionL1s.containsKey(currentMention) &&
+          mentionL1s.get(currentMention) < 
+          settings.getGraphSettings().getCohRobustnessThreshold()) {
+        bestCandidate = getBestCandidate(currentMention);
+      }
+    }
+    return bestCandidate;
+  }
+
+  /**
+   * Checks if the confidence of a mention disambiguation by local sim alone is 
+   * high enough to fix it.
+   * 
+   * @param mention
+   * @param entityLocalSims
+   * @return best candidate or null if check failed.
+   */
+  private Entity doConfidenceThresholdCheck(
+      Mention mention, TIntDoubleHashMap normalizedEntityLocalSims) {
+    Entity bestEntity = null;
+    if (settings.getGraphSettings().shouldUseConfidenceThresholdTest()) {     
+      double max = CollectionUtils.getMaxValue(normalizedEntityLocalSims);
+      if (max > settings.getGraphSettings().getConfidenceTestThreshold()) {
+        bestEntity = getBestCandidate(mention);
+      }
+    }      
+    return bestEntity;
+  }
+  
+  /**
+   * For mentions with less than K candidates, assume that local similarity
+   * is good enough to distinguish. K is given in graphSettings.
+   * 
+   * @param mention
+   * @return best candidate or null if check failed.
+   */
+  private Entity doEasyMentionsCheck(Mention mention) {
+    Entity bestEntity = null;
+    if (settings.getGraphSettings().shouldUseEasyMentionsTest()) {
+      Entities candidates = mention.getCandidateEntities();
+      if (candidates.size() < settings.getGraphSettings().getEasyMentionsTestThreshold()) {
+        bestEntity = getBestCandidate(mention);
+      }
+    }
+    return bestEntity;
+  }
+
+  /**
+   * Prunes candidates, keeping only the top K elements for each mention. K is
+   * set in graphSettings.
+   * 
+   * CAVEAT: the actual topK retrieval is done by sorting - if this is too
+   * expensive, replace by heap-based topK retrieval. 
+   * 
+   * @param mention 
+   * 
+   * @return
+   */
+  private Entities pruneCandidates(Mention mention) {
+    Entities bestEntities = null;
+    if (settings.getGraphSettings().shouldPruneCandidateEntities()) {
+      int k = settings.getGraphSettings().getPruneCandidateThreshold();
+      Entities candidates = mention.getCandidateEntities();
+      if (candidates.size() > k) {
+        Ordering<Entity> order = new Ordering<Entity>() {
+          @Override
+          public int compare(Entity e1, Entity e2) {
+            return Double.compare(
+                e1.getMentionEntitySimilarity(),
+                e2.getMentionEntitySimilarity());
+          }
+        };
+        List<Entity> topEntities = order.greatestOf(candidates, k);
+        bestEntities = new Entities();
+        bestEntities.addAll(topEntities);
+      }
+    }
+    return bestEntities;
+  }
+
   private Map<Mention, Double> computeMentionPriorSimL1Distances(
       Mentions mentions, Entities allEntities) throws Exception {
     // Precompute the l1 distances between each mentions
     // prior and keyphrase based similarity.
     Map<Mention, Double> l1s = new HashMap<Mention, Double>();
-    Set<String> mentionStrings = new HashSet<String>();
+    Set<Mention> mentionObjects = new HashSet<>();
     for (Mention m : mentions.getMentions()) {
-      mentionStrings.add(m.getMention());
+      mentionObjects.add(m);
     }    
     MaterializedPriorProbability pp = 
-        new MaterializedPriorProbability(mentionStrings);
+        new MaterializedPriorProbability(mentionObjects);
     EnsembleMentionEntitySimilarity keyphraseSimMeasure = 
         new EnsembleMentionEntitySimilarity(
             mentions, allEntities, context,
             settings.getGraphSettings().getCoherenceSimilaritySetting(),
             tracer);
 
-    int solvedByLocal = 0;
     for (Mention mention : mentions.getMentions()) {
       // get prior distribution
-      TObjectDoubleHashMap<String> priorDistribution = calcPriorDistribution(mention, pp);
+      TIntDoubleHashMap priorDistribution = calcPriorDistribution(mention, pp);
 
       // get similarity distribution per UnnormCOMB (IDF+MI)
-      TObjectDoubleHashMap<String> simDistribution = 
+      TIntDoubleHashMap simDistribution = 
           calcSimDistribution(mention, keyphraseSimMeasure);
 
       // get L1 norm of both distributions, the graph algorithm can use
@@ -230,19 +408,9 @@ public class GraphGenerator {
       // SOLVE_BY_LOCAL
       // otherwise, SOLVE_BY_COHERENCE
       double l1 = calcL1(priorDistribution, simDistribution);
-      l1s.put(mention, l1);
-      
-      if (l1 < settings.getGraphSettings().getCohRobustnessThreshold()) {
-        ++solvedByLocal;
-        GraphTracer.gTracer.addMentionToLocalOnly(docId, mention.getMention(), mention.getCharOffset());
-      }
+      l1s.put(mention, l1);     
     }
-    
-    if (!(GraphTracer.gTracer instanceof NullGraphTracer)) {
-      gatherL1stats(docId, l1s);
-      GraphTracer.gTracer.addStat(docId, "Number of fixed mention by coherence robustness", Integer.toString(solvedByLocal));
-    }
-    
+        
     return l1s;
   }
   
@@ -272,34 +440,34 @@ public class GraphGenerator {
     return entities;
   }
 
-  private TObjectDoubleHashMap<String> calcPriorDistribution(
+  private TIntDoubleHashMap calcPriorDistribution(
       Mention mention, MaterializedPriorProbability pp) {
-    TObjectDoubleHashMap<String >priors = 
-        new TObjectDoubleHashMap<String>();
+    TIntDoubleHashMap priors = 
+        new TIntDoubleHashMap();
 
     for (Entity entity : mention.getCandidateEntities()) {
-      priors.put(entity.getName(), 
-          pp.getPriorProbability(mention.getMention(), entity));
+      priors.put(entity.getId(), 
+          pp.getPriorProbability(mention, entity));
     }
 
     return priors;
   }
 
-  private TObjectDoubleHashMap<String> calcSimDistribution(
+  private TIntDoubleHashMap calcSimDistribution(
       Mention mention, EnsembleMentionEntitySimilarity combSimMeasure) throws Exception {
-    TObjectDoubleHashMap<String> sims = new TObjectDoubleHashMap<String>();
+    TIntDoubleHashMap sims = new TIntDoubleHashMap();
     for (Entity e : mention.getCandidateEntities()) {
-      sims.put(e.getName(),
+      sims.put(e.getId(),
               combSimMeasure.calcSimilarity(mention, context, e));
     }
     return CollectionUtils.normalizeScores(sims);
   }
 
-  private double calcL1(TObjectDoubleHashMap<String> priorDistribution, 
-                        TObjectDoubleHashMap<String> simDistribution) {
+  private double calcL1(TIntDoubleHashMap priorDistribution, 
+      TIntDoubleHashMap simDistribution) {
     double l1 = 0.0;
 
-    for (TObjectDoubleIterator<String> itr = priorDistribution.iterator(); 
+    for (TIntDoubleIterator itr = priorDistribution.iterator(); 
         itr.hasNext(); ) {
       itr.advance();
       double prior = itr.value();

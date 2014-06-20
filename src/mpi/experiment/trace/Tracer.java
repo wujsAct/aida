@@ -1,5 +1,8 @@
 package mpi.experiment.trace;
 
+import gnu.trove.map.hash.TIntObjectHashMap;
+import gnu.trove.set.hash.TIntHashSet;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -11,11 +14,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import mpi.tools.javatools.parsers.Char;
+import mpi.aida.access.DataAccess;
+import mpi.aida.data.EntityMetaData;
 import mpi.aida.data.Mention;
 import mpi.experiment.trace.data.EntityTracer;
 import mpi.experiment.trace.data.MentionTracer;
 import mpi.experiment.trace.measures.MeasureTracer;
+import mpi.tools.javatools.parsers.Char;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +39,18 @@ public class Tracer {
 
   private List<MentionTracer> mentionsList = new LinkedList<MentionTracer>();
 
+  private TIntObjectHashMap<EntityMetaData> entitiesMetaData = null;
+  
+  /**
+   *  Use only when the tracing output isn't to be stored on disk, but returned
+   *  instead (e.g. for the web interface)
+   * @param docId
+   */
+  public Tracer(String docId) {
+    this.docId = docId;
+    mentions = new HashMap<Mention, MentionTracer>();
+  }
+
   public Tracer(String path, String docId) {
     this.docId = docId;
     this.path = path;
@@ -48,24 +65,25 @@ public class Tracer {
     mentions.put(m, mt);
   }
 
-  public void addEntityForMention(Mention mention, String entity, EntityTracer entityTracer) {
+  public void addEntityForMention(Mention mention, int entity, EntityTracer entityTracer) {
     MentionTracer mt = mentions.get(mention);
     mt.addEntityTracer(entity, entityTracer);
   }
 
-  public void addMeasureForMentionEntity(Mention mention, String entity, MeasureTracer measure) {
+  public void addMeasureForMentionEntity(Mention mention, int entity, MeasureTracer measure) {
     MentionTracer mt = mentions.get(mention);
     EntityTracer et = mt.getEntityTracer(entity);
     et.addMeasureTracer(measure);
   }
 
-  public void setMentionEntityTotalSimilarityScore(Mention mention, String entity, double score) {
+  public void setMentionEntityTotalSimilarityScore(Mention mention, int entity, double score) {
     MentionTracer mt = mentions.get(mention);
     EntityTracer et = mt.getEntityTracer(entity);
     et.setTotalScore(score);
   }
 
   public void writeOutput(String resultFileName, boolean withYago, boolean relatedness) throws InterruptedException {
+    loadEntitiesMetaData();
     String outputPath;
     if (withYago) {
       outputPath = path + "/html/yago/" + resultFileName + "/" + docId + "/";
@@ -87,7 +105,7 @@ public class Tracer {
       writer.write(generateCss());
       writer.write(generateScript());
       writer.write("</head><body>");
-      writer.write(eeTracing.getHtml());
+      writer.write(eeTracing.getHtml(entitiesMetaData));
       writer.write("</body></html>");
       writer.flush();
       writer.close();
@@ -97,7 +115,7 @@ public class Tracer {
     
     for (MentionTracer m : mentionsList) {
       File outFile = new File(outputPath + m.getOffset() + ".html");
-      String out = getMentionOutput(m);
+      String out = getMentionOutput(m, false);
       try {
         BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outFile), "UTF-8"));
         writer.write(out);
@@ -122,10 +140,12 @@ public class Tracer {
     }
   }
 
-  private String getMentionOutput(MentionTracer m) {
+  private String getMentionOutput(MentionTracer m, boolean isWebInterface) {
     StringBuilder sb = new StringBuilder();
-    sb.append("<script language='JavaScript'> function setVisibility(id, visibility) {document.getElementById(id).style.display = visibility;}</script> ");
-    sb.append("<h1>" + m.getName() + "</h1>");
+    if(!isWebInterface) {
+      sb.append("<script language='JavaScript'> function setVisibility(id, visibility) {document.getElementById(id).style.display = visibility;}</script> ");
+      sb.append("<h1>" + m.getName() + "</h1>");
+    }
 
     if (m.getEntityTracers().size() > 0) {
       sb.append("<table border='1'><tr>");
@@ -144,7 +164,9 @@ public class Tracer {
 
       // write single entities in order of decreasing score
       for (EntityTracer e : es) {
-        sb.append("<tr><td valign='top'>" + buildWikipediaLinkToEntity(e.getName()) + "<br /> <strong>" + e.getTotalScore() + " </strong></td>");
+        sb.append("<tr><td valign='top'>" + buildEntityUriAnchor(e.getEntityId())
+            + "<br /> <strong>" + e.getTotalScore() + " </strong> <br />"
+            + "<a target='_blank' href='entity.jsp?entity=" + e.getEntityId() + "'>Info</a></td>");
 
         for (MeasureTracer mt : e.getMeasureTracers()) {
           sb.append("<td valign='top'>" + mt.getOutput() + "</td>");
@@ -156,9 +178,18 @@ public class Tracer {
     return sb.toString();
   }
 
-  private String buildWikipediaLinkToEntity(String entityName) {
-    String urlName = Char.encodeURIPathComponent(entityName);
-    return "<a target='_blank' href='http://en.wikipedia.org/wiki/" + urlName + "'>" + entityName + "</a>";
+  private String buildEntityUriAnchor(int entityId) {
+    String uriString = "NO_METADATA";
+    String displayString = new Integer(entityId).toString();
+    if (entitiesMetaData != null && entitiesMetaData.size() > 0) {
+      EntityMetaData md = entitiesMetaData.get(entityId);
+      if (md != null) {
+        uriString = entitiesMetaData.get(entityId).getUrl();
+        displayString = Char.toHTML(entitiesMetaData.get(entityId).getHumanReadableRepresentation());
+      }
+    }
+    String entityAnchor = "<a class='entityAnchor' target='_blank' href='" + uriString + "'>" + displayString + "</a>";
+    return entityAnchor;
   }
 
   public void enableEETracing() {
@@ -200,18 +231,28 @@ public class Tracer {
 	  return sb.toString();
   }
 
-  public String getHtmlOutput() {
-
+  public String getHtmlOutputForWebInterface() {
+    loadEntitiesMetaData();
 		StringBuilder sb = new StringBuilder();
-		sb.append("<div id='entities_keyphrases'>");
 		for (MentionTracer m : mentionsList) {
-			sb.append("<h3><a href=\"#\">" + m.getMentionStr() + "</a></h3>");
+			sb.append("<h3><a href=\"#\">"  + m.getMentionStr() + "</a></h3>");
 			sb.append("<div>");
-			sb.append(getMentionOutput(m));
+			sb.append(getMentionOutput(m, true));
 			sb.append("</div>");
 		}
-		sb.append("</div>");
 		return sb.toString();
 	}
+  
+  private void loadEntitiesMetaData() {
+    TIntHashSet entities = new TIntHashSet();
+    for (MentionTracer m : mentionsList) { 
+        for(EntityTracer e : m.getEntityTracers()) {
+          entities.add(e.getEntityId());
+        }
+    }
+
+    entitiesMetaData = DataAccess.getEntitiesMetaData(entities.toArray());
+  }
+
 }
   

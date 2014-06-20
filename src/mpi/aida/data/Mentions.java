@@ -15,7 +15,7 @@ public class Mentions implements Serializable {
   private List<Mention> mentions = null;
 
   private HashMap<Integer, Integer> subStrings = null;
-  
+    
   /**
    * The expected types for entities to which those mentions will be disambiguated
    */
@@ -107,5 +107,13 @@ public class Mentions implements Serializable {
 
   public void setEntitiesTypes(Set<Type> entitiesTypes) {
     this.entitiesTypes = entitiesTypes;
+  }
+
+  public Entities getAllCandidateEntities() {
+    Entities candidates = new Entities();
+    for (Mention m : mentions) {
+      candidates.addAll(m.getCandidateEntities());
+    }
+    return candidates;
   }
 }

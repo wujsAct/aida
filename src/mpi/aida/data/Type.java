@@ -10,9 +10,7 @@ public class Type {
     super();
     this.knowledgeBase = knowledgeBase;
     this.name = name;
-  }
-  
-  
+  }  
   
   public String getKnowledgeBase() {
     return knowledgeBase;
@@ -39,6 +37,10 @@ public class Type {
   public boolean equals(Object obj) {
     Type type = (Type) obj;
     return knowledgeBase.equals(type.knowledgeBase) && name.equals(type.name);
+  }
+  
+  public String getIdentifierInKb() {
+    return knowledgeBase + ":" + name;
   }
   
   @Override

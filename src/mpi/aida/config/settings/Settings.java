@@ -13,7 +13,7 @@ public class Settings implements Serializable {
   }
 
   public enum ALGORITHM {
-    COCKTAIL_PARTY, COCKTAIL_PARTY_SIZE_CONSTRAINED, RANDOM_WALK
+    COCKTAIL_PARTY, COCKTAIL_PARTY_SIZE_CONSTRAINED, SIMPLE_GREEDY, RANDOM_WALK
   }
   
   private static final long serialVersionUID = -6602287193597852191L;

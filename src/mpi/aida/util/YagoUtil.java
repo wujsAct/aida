@@ -1,20 +1,22 @@
 package mpi.aida.util;
 
-import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.set.hash.TIntHashSet;
 
 import java.sql.SQLException;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
+import mpi.aida.AidaManager;
 import mpi.aida.access.DataAccess;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
+import mpi.aida.data.KBIdentifiedEntity;
+import mpi.tools.basics.Normalize;
 
 import org.apache.commons.lang.StringUtils;
-
-import mpi.tools.basics.Normalize;
 
 /**
  * This class contains some convenience wrappers for accessing YAGO data.
@@ -37,32 +39,6 @@ public class YagoUtil {
    */
   public static boolean isYagoEntity(Entity entity) throws SQLException {
     return DataAccess.isYagoEntity(entity);
-  }
-  
-  public static Entity getEntityForId(int id) {
-    return new Entity(DataAccess.getYagoEntityIdForId(id), id);
-  }
-  
-  public static Entities getEntitiesForIds(int[] ids) {
-    TIntObjectHashMap<String> yagoEntityIds =
-        DataAccess.getYagoEntityIdsForIds(ids);
-    Entities entities = new Entities();
-    for (int i = 0; i < ids.length; ++i) {
-      entities.add(new Entity(yagoEntityIds.get(ids[i]), ids[i]));
-    }
-    return entities;
-  }
-  
-  public static Entity getEntityForYagoId(String id) {
-    return new Entity(id, DataAccess.getIdForYagoEntityId(id));
-  }
-  
-  public static Entities getEntitiesForYagoEntityIds(Collection<String> names) {
-    Entities entities = new Entities();
-    for (String name : names) {
-      entities.add(new Entity(name, DataAccess.getIdForYagoEntityId(name)));
-    }
-    return entities;
   }
   
   /**
@@ -109,5 +85,33 @@ public class YagoUtil {
       }
     }
     return sb.toString();
-  }  
+  }
+
+  public static Entity getEntityForYagoId(String targetEntity) {
+    return AidaManager.getEntity(new KBIdentifiedEntity(targetEntity, "YAGO"));
+  }
+  
+  public static Entities getEntityForYagoId(Set<String> targetEntities) {
+    Set<KBIdentifiedEntity> kbEntities = new HashSet<KBIdentifiedEntity>();
+    for(String e: targetEntities) {
+      kbEntities.add(new KBIdentifiedEntity(e, "YAGO"));
+    }
+    return AidaManager.getEntities(kbEntities);
+  }
+  
+  public static boolean isNamedEntity(String entity) {
+    if (Normalize.unWordNetEntity(entity) == null && Normalize.unWikiCategory(entity) == null && Normalize.unGeonamesClass(entity) == null
+        && Normalize.unGeonamesEntity(entity) == null && !entity.equals("male") && !entity.equals("female")) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  public static final String YAGO2_HAS_CITATIONS_TITLE_RELATION = "hasCitationTitle";
+  public static final String YAGO2_HAS_WIKIPEDIA_CATEGORY_RELATION = "hasWikipediaCategory";
+  public static final String YAGO2_HAS_WIKIPEDIA_ANCHOR_TEXT_RELATION = "hasWikipediaAnchorText";
+  public static final String YAGO2_HAS_INTERNAL_WIKIPEDIA_LINK_TO_RELATION = "hasInternalWikipediaLinkTo";
+  public static final String YAGO2_TYPE_RELATION = "type";
+  public static final String YAGO2_SUBCLASSOF_RELATION = "subclassOf";
 }

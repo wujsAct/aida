@@ -9,6 +9,7 @@ import java.util.Map.Entry;
 
 import mpi.aida.AidaManager;
 import mpi.aida.Preparator;
+import mpi.aida.access.DataAccessForTesting;
 import mpi.aida.config.AidaConfig;
 import mpi.aida.config.settings.DisambiguationSettings;
 import mpi.aida.config.settings.PreparationSettings;
@@ -20,8 +21,6 @@ import mpi.aida.data.PreparedInput;
 import mpi.aida.data.PreparedInputChunk;
 import mpi.aida.data.ResultEntity;
 import mpi.aida.data.ResultMention;
-import mpi.aida.graph.Graph;
-import mpi.aida.graph.GraphGenerator;
 import mpi.experiment.trace.NullTracer;
 import mpi.experiment.trace.Tracer;
 
@@ -45,9 +44,9 @@ public class CocktailPartyTest {
     String e3 = "Jimmy_Page";
 
     Entities entities = new Entities();
-    entities.add(new Entity(e1, 1));
-    entities.add(new Entity(e2, 2));
-    entities.add(new Entity(e3, 2));
+    entities.add(DataAccessForTesting.getTestEntity(e1));
+    entities.add(DataAccessForTesting.getTestEntity(e2));
+    entities.add(DataAccessForTesting.getTestEntity(e3));
 
     PreparationSettings prepSettings = new StanfordHybridPreparationSettings();
 
@@ -58,16 +57,13 @@ public class CocktailPartyTest {
     PreparedInputChunk chunk = input.iterator().next();
 
     DisambiguationSettings disSettings = new CocktailPartyDisambiguationSettings();
-
-    GraphGenerator gg = new GraphGenerator(chunk.getMentions(), chunk.getContext(), chunk.getChunkId(), disSettings, tracer);
-    Graph gData = gg.run();
-
-    //KeyphrasesContext kpContext = new KeyphrasesContext(entities);
-
-    DisambiguationAlgorithm da = null;
-    da = new CocktailParty(gData, disSettings.getGraphSettings(),
-        disSettings.shouldComputeConfidence(),
-        disSettings.getConfidenceSettings());
+    disSettings.setComputeConfidence(false);
+    
+    AidaManager.fillInCandidateEntities(chunk.getMentions(),
+        disSettings.isIncludeNullAsEntityCandidate(), 
+        disSettings.isIncludeContextMentions(), disSettings.getMaxEntityRank());
+    
+    DisambiguationAlgorithm da = new CocktailParty(chunk, disSettings, tracer);
     Map<ResultMention, List<ResultEntity>> results = da.disambiguate();
     Map<String, ResultEntity> mappings = repackageMappings(results);
 
@@ -102,9 +98,9 @@ public class CocktailPartyTest {
     String e3 = "Jimmy_Page";
 
     Entities entities = new Entities();
-    entities.add(AidaManager.getEntity(e1));
-    entities.add(AidaManager.getEntity(e2));
-    entities.add(AidaManager.getEntity(e3));
+    entities.add(DataAccessForTesting.getTestEntity(e1));
+    entities.add(DataAccessForTesting.getTestEntity(e2));
+    entities.add(DataAccessForTesting.getTestEntity(e3));
 
     PreparationSettings prepSettings = new StanfordHybridPreparationSettings();
 
@@ -118,15 +114,13 @@ public class CocktailPartyTest {
     disSettings.setComputeConfidence(true);
     disSettings.getConfidenceSettings().setConfidenceBalance(1.0f);
 
-    GraphGenerator gg = new GraphGenerator(chunk.getMentions(), chunk.getContext(), chunk.getChunkId(), disSettings, tracer);
-    Graph gData = gg.run();
-
-    //KeyphrasesContext kpContext = new KeyphrasesContext(entities);
+    AidaManager.fillInCandidateEntities(chunk.getMentions(),
+        disSettings.isIncludeNullAsEntityCandidate(), 
+        disSettings.isIncludeContextMentions(), disSettings.getMaxEntityRank());
+    
 
     DisambiguationAlgorithm da = null;
-    da = new CocktailParty(gData, disSettings.getGraphSettings(),
-        disSettings.shouldComputeConfidence(),
-        disSettings.getConfidenceSettings());
+    da = new CocktailParty(chunk, disSettings, tracer);
     Map<ResultMention, List<ResultEntity>> results = da.disambiguate();
     Map<String, ResultEntity> mappings = repackageMappings(results);
 

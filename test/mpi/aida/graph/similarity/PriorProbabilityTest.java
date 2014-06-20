@@ -7,10 +7,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 import mpi.aida.AidaManager;
+import mpi.aida.access.DataAccessForTesting;
 import mpi.aida.config.AidaConfig;
 import mpi.aida.data.Entity;
-import mpi.aida.graph.similarity.MaterializedPriorProbability;
-import mpi.aida.graph.similarity.PriorProbability;
+import mpi.aida.data.Mention;
 
 import org.junit.Test;
 
@@ -24,26 +24,33 @@ public class PriorProbabilityTest {
   
   @Test
   public void test() throws Exception {
-    Set<String> mentions = new HashSet<String>();
-    mentions.add("Kashmir");
-    mentions.add("Page");
+    Set<Mention> mentions = new HashSet<>();
+    Mention kashmirMention = new Mention();
+    kashmirMention.setMention("Kashmir");
     
-    Entity kashmir = AidaManager.getEntity("Kashmir");
-    Entity kashmirSong = AidaManager.getEntity("Kashmir_(song)");
-    Entity jimmy = AidaManager.getEntity("Jimmy_Page");
-    Entity larry = AidaManager.getEntity("Larry_Page");
+    Mention pageMention = new Mention();
+    pageMention.setMention("Page");
+    
+    
+    mentions.add(kashmirMention);
+    mentions.add(pageMention);
+    
+    Entity kashmir = DataAccessForTesting.getTestEntity("Kashmir");
+    Entity kashmirSong = DataAccessForTesting.getTestEntity("Kashmir_(song)");
+    Entity jimmy = DataAccessForTesting.getTestEntity("Jimmy_Page");
+    Entity larry = DataAccessForTesting.getTestEntity("Larry_Page");
     
     PriorProbability pp = new MaterializedPriorProbability(mentions);
     
-    double ppKashmirKashmir = pp.getPriorProbability("Kashmir", kashmir);
-    double ppKashmirKashmirSong = pp.getPriorProbability("Kashmir", kashmirSong);
+    double ppKashmirKashmir = pp.getPriorProbability(kashmirMention, kashmir);
+    double ppKashmirKashmirSong = pp.getPriorProbability(kashmirMention, kashmirSong);
         
     assertTrue(ppKashmirKashmir > ppKashmirKashmirSong);
     assertEquals(0.9, ppKashmirKashmir, 0.001);
     assertEquals(1.0, ppKashmirKashmir + ppKashmirKashmirSong, 0.001);
 
-    double ppPageJimmy = pp.getPriorProbability("Page", jimmy);
-    double ppPageLarry = pp.getPriorProbability("Page", larry);
+    double ppPageJimmy = pp.getPriorProbability(pageMention, jimmy);
+    double ppPageLarry = pp.getPriorProbability(pageMention, larry);
     
     assertTrue(ppPageJimmy < ppPageLarry);
     assertEquals(0.3, ppPageJimmy, 0.001);

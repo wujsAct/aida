@@ -41,7 +41,7 @@
 <h2 id="requirements">Requirements</h2>
 
 <ul>
-<li>Java 6</li>
+<li>Java 7</li>
 <li>A <a href="http://www.postgresql.org">Postgres</a> database to run. We tested it starting from version 8.4, but version 9.2 will give a better performance for many queries AIDA runs, due to the ability to fetch data from the indexes.</li>
 <li>The machine AIDA runs on should have a reasonable amount of main memory. If you are using graph coherence (see the Section <em>Configuring AIDA</em>), the amount of memory grows quadratically with the number of entities and thus the length of the document. Anything above 10,000 candidates will be too much for a regular desktop machine (at the time of writing) to handle and should run on a machine with more than 20GB of main memory. AIDA does the most intensive computations in parallel and thus benefits from multi-core machine.</li>
 </ul>
@@ -54,17 +54,17 @@
 
 <p>Get the Entity Repository (21 GB):</p>
 
-<pre><code>curl -O http://www.mpi-inf.mpg.de/yago-naga/aida/download/entity-repository/AIDA_entity_repository_2010-08-17v5-1.sql.bz2
+<pre><code>curl -O http://www.mpi-inf.mpg.de/yago-naga/aida/download/entity-repository/AIDA_entity_repository_2010-08-17v7.sql.bz2
 </code></pre>
 
 <p>Import it into a postgres database:</p>
 
-<pre><code>bzcat AIDA_entity_repository_2010-08-17v5-1.sql.bz2 | psql &lt;DATABASE&gt;
+<pre><code>bzcat AIDA_entity_repository_2010-08-17v7.sql.bz2 | psql &lt;DATABASE&gt;
 </code></pre>
 
 <p>where <DATABASE> is a database on a PostgreSQL server.</p>
 
-<p>A database dump on a more recent version of Wikipedia is also available: http://www.mpi-inf.mpg.de/yago-naga/aida/download/entity-repository/AIDA_entity_repository_2012&#8211;11&#8211;01v5&#8211;1.sql.bz2</p>
+<p>A database dump on a more recent version of Wikipedia is also available: http://www.mpi-inf.mpg.de/yago-naga/aida/download/entity-repository/AIDA_entity_repository_2014&#8211;01&#8211;02v7.sql.bz2</p>
 
 <h2 id="settingupaida">Setting up AIDA</h2>
 
@@ -398,7 +398,7 @@ entityEntitySimilarity = MilneWittenEntityEntitySimilarity:1.0
 
 <ul>
 <li>Our AIDA project website: <a href="http://www.mpi-inf.mpg.de/yago-naga/aida/">http://www.mpi-inf.mpg.de/yago-naga/aida/</a></li>
-<li>Our news mailing list: Mail to <a href="&#x6d;&#x61;&#x69;&#108;&#116;&#111;&#58;&#97;&#x69;&#x64;&#97;&#x2d;&#110;&#101;&#x77;&#x73;&#x2d;&#x73;&#117;&#98;&#x73;&#x63;&#x72;&#x69;&#98;&#x65;&#x40;&#108;&#105;&#x73;&#x74;&#115;&#46;&#x6d;&#112;&#x69;&#x2d;&#x69;&#x6e;&#x66;&#x2e;&#109;&#x70;&#103;&#x2e;&#x64;&#101;">&#x61;&#105;&#x64;&#x61;&#x2d;&#110;&#101;&#119;&#115;&#45;&#115;&#117;&#x62;&#115;&#99;&#x72;&#105;&#x62;&#x65;&#x40;&#108;&#105;&#x73;&#116;&#x73;&#x2e;&#x6d;&#x70;&#105;&#x2d;&#105;&#x6e;&#x66;&#x2e;&#109;&#x70;&#x67;&#x2e;&#x64;&#x65;</a> to get news and updates about releases.</li>
+<li>Our news mailing list: Mail to <a href="&#109;&#97;&#105;&#108;&#x74;&#111;&#x3a;&#x61;&#x69;&#100;&#x61;&#x2d;&#x6e;&#x65;&#119;&#115;&#45;&#115;&#117;&#98;&#115;&#99;&#x72;&#105;&#98;&#x65;&#x40;&#x6c;&#x69;&#115;&#x74;&#x73;&#46;&#109;&#112;&#x69;&#45;&#x69;&#x6e;&#x66;&#46;&#x6d;&#112;&#x67;&#x2e;&#100;&#x65;">&#x61;&#x69;&#x64;&#x61;&#x2d;&#110;&#x65;&#x77;&#115;&#x2d;&#x73;&#117;&#x62;&#115;&#x63;&#114;&#105;&#x62;&#x65;&#64;&#108;&#x69;&#x73;&#116;&#115;&#x2e;&#109;&#112;&#105;&#x2d;&#x69;&#110;&#x66;&#x2e;&#x6d;&#112;&#103;&#46;&#x64;&#x65;</a> to get news and updates about releases.</li>
 <li>Build status: <a href="https://travis-ci.org/yago-naga/aida"><img src="https://travis-ci.org/yago-naga/aida.png" alt="Build Status" /></a></li>
 </ul>
 

@@ -9,14 +9,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
+import java.util.Set;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.math3.util.ArithmeticUtils;
 
 
 public class CollectionUtils {
@@ -45,7 +48,7 @@ public class CollectionUtils {
     }
     return result;
   }
-  
+    
   public static Map<String, Double> getWeightStringsAsMap(List<String[]> weightStrings) {
     Map<String, Double> weights = new HashMap<String, Double>();
     for (String[] s : weightStrings) {
@@ -113,6 +116,16 @@ public class CollectionUtils {
       normalizedScores.put(itr.key(), normalizedScore);
     }
     return normalizedScores;
+  }
+  
+  public static double getMaxValue(TIntDoubleHashMap map) {
+    double max = -Double.MAX_VALUE;
+    for (TIntDoubleIterator itr = map.iterator();
+        itr.hasNext(); ) {
+      itr.advance();
+      max = Math.max(itr.value(), max);
+    }
+    return max;
   }
   
   public static <T> TObjectDoubleHashMap<T> normalizeScores(TObjectDoubleHashMap<T> scores) {
@@ -246,5 +259,84 @@ public class CollectionUtils {
       ++i;
     }
     return getConditionalElement(elements, probs, rand);
+  }
+  
+  /**
+   * Get top k entries in map.
+   * 
+   * CAVEAT: This is done by sorting, heap-based topK retrieval would give 
+   * better performance!
+   * 
+   * @param map
+   * @param limit
+   * @return  Best entries of the passed map.
+   */
+  public static <K, V extends Comparable<? super V>> List<K> getTopKeys(Map<K, V> map, int limit) {
+    map = CollectionUtils.sortMapByValue(map, true);
+    List<K> topKeys = new ArrayList<>(limit);
+    int i = 0;
+    for (K k : map.keySet()) {
+      if (++i > limit) {
+        break;
+      }
+      topKeys.add(k);
+    }
+    return topKeys;
+  }
+    
+  /**
+   * Generates all combinations of items in the input of the given length.
+   * 
+   * @param input   Input to generate the combinations from.
+   * @param length  Number of items per combination.
+   * @return  All combinations of length in the input. 
+   */
+  public static <T> Set<List<T>> getAllItemCombinations(T[] input, int length) {
+    if (length > input.length) {
+      throw new IllegalArgumentException(
+          "Length must not be larger than the length of the input.");
+    }
+    if (input == null || input.length == 0) {
+      return new HashSet<>();
+    }
+    long totalCombinations = 
+        ArithmeticUtils.binomialCoefficient(input.length, length);
+    if (totalCombinations > Integer.MAX_VALUE) {
+      throw new IllegalArgumentException(
+          "Too many combinations for the given input and length");
+    }    
+    Set<List<T>> allCombinations = 
+        new HashSet<>((int) totalCombinations);
+    computeAllItemCombinationsRecursive(input, allCombinations, null, 0, length);
+    return allCombinations;
+  }
+  
+  private static <T> void computeAllItemCombinationsRecursive(
+      T[] input, Set<List<T>> output, List<T> combination,
+      int pos, int maxLength) {
+   if (pos == input.length && combination.size() == maxLength) {
+     output.add(combination);
+   }
+   
+   if (pos < input.length) {
+      if (combination != null) {
+        combination.add(input[pos]);
+        if (combination.size() == maxLength) {
+          output.add(combination);
+        } else {
+          for (int i = pos; i < input.length; ++i) {
+            computeAllItemCombinationsRecursive(
+                input, output, combination, i + 1, maxLength);
+          }
+        }
+      }
+      int lastPosToStartFrom = input.length - maxLength + 1;
+      for (int i = pos; i < lastPosToStartFrom; ++i) {
+        combination = new ArrayList<>(maxLength);
+        combination.add(input[pos]);
+        computeAllItemCombinationsRecursive(
+            input, output, combination, i + 1, maxLength);
+      }
+    }
   }
 }

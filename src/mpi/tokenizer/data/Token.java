@@ -32,6 +32,8 @@ public class Token implements Serializable {
   private String ne = null;
 
   private String lemma = null;
+  
+  private int pageNumber = -1;
 
   private HashMap<String, Pair<String, Integer>> mapDataIdToEntity = null;
 
@@ -202,5 +204,13 @@ public class Token implements Serializable {
       return mapDataIdToEntity.get(Id).first;
     }
     return null;
+  }
+  
+  public int getPageNumber() {
+    return pageNumber;
+  }
+  
+  public void setPageNumber(int pNumber) {
+    pageNumber = pNumber;  
   }
 }

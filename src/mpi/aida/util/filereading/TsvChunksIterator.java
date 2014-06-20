@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 import mpi.aida.util.TsvUtils;
-
 import mpi.tools.javatools.datatypes.Pair;
 
 

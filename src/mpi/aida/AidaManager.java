@@ -1,5 +1,12 @@
 package mpi.aida;
 
+import gnu.trove.iterator.TIntObjectIterator;
+import gnu.trove.iterator.TObjectIntIterator;
+import gnu.trove.map.hash.TIntObjectHashMap;
+import gnu.trove.map.hash.TObjectIntHashMap;
+
+import java.io.IOException;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -10,25 +17,29 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
 
+import javax.sql.DataSource;
+
 import mpi.aida.access.DataAccess;
+import mpi.aida.config.AidaConfig;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
+import mpi.aida.data.KBIdentifiedEntity;
 import mpi.aida.data.Mention;
 import mpi.aida.data.Mentions;
-import mpi.aida.data.ResultEntity;
+import mpi.aida.data.OokbEntity;
 import mpi.aida.data.Type;
 import mpi.aida.util.ClassPathUtils;
+import mpi.aida.util.RunningTimer;
 import mpi.aida.util.YagoUtil.Gender;
 import mpi.tokenizer.data.Tokenizer;
 import mpi.tokenizer.data.TokenizerManager;
 import mpi.tokenizer.data.Tokens;
-import mpi.tools.basics.Normalize;
-import mpi.tools.database.DBConnection;
-import mpi.tools.database.DBSettings;
-import mpi.tools.database.MultipleDBManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
 public class AidaManager {
 
@@ -52,6 +63,8 @@ public class AidaManager {
 
   public static final String DB_HYENA = "DatabaseHYENA";
 
+  public static final String DB_WEBSERVICE_LOGGER = "DatabaseWSLogger";
+  
   public static String databaseAidaConfig = "database_aida.properties";
   
   private static String databaseYago2Config = "database_yago2.properties";
@@ -60,6 +73,8 @@ public class AidaManager {
 
   private static String databaseRMILoggerConfig = "databaseRmiLogger.properties";
 
+  private static String databaseWSLoggerConfig = "databaseWsLogger.properties";
+  
   private static String databaseHYENAConfig = "database_hyena.properties";
 
   public static final String WIKIPEDIA_PREFIX = "http://en.wikipedia.org/wiki/";
@@ -67,6 +82,10 @@ public class AidaManager {
   public static final String YAGO_PREFIX = "http://yago-knowledge.org/resource/";
 
   private static Map<String, String> dbIdToConfig = new HashMap<String, String>();
+  
+  private static Map<String, Properties> dbIdToProperties = new HashMap<String, Properties>();
+  
+  private static Map<String, DataSource> dbIdToDataSource = new HashMap<>();
 
   static {
     dbIdToConfig.put(DB_AIDA, databaseAidaConfig);
@@ -74,6 +93,7 @@ public class AidaManager {
     dbIdToConfig.put(DB_YAGO2_SPOTLX, databaseYAGO2SPOTLXConfig);
     dbIdToConfig.put(DB_RMI_LOGGER, databaseRMILoggerConfig);
     dbIdToConfig.put(DB_HYENA, databaseHYENAConfig);
+    dbIdToConfig.put(DB_WEBSERVICE_LOGGER, databaseWSLoggerConfig);
   }
 
   private static AidaManager tasks = null;
@@ -129,11 +149,11 @@ public class AidaManager {
    * @return
    */
   public static Tokens tokenize(String text, boolean lemmatize) {
-    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.tokens, lemmatize);
+    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.TOKENS, lemmatize);
   }
 
   public static Tokens tokenize(String text) {
-    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.tokens, false);
+    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.TOKENS, false);
   }
 
   /**
@@ -144,7 +164,7 @@ public class AidaManager {
    * @return
    */
   public static Tokens tokenizeNER( String text, boolean lemmatize) {
-    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.ner, lemmatize);
+    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.NER, lemmatize);
   }
 
   /**
@@ -155,7 +175,7 @@ public class AidaManager {
    * @return
    */
   public static Tokens tokenizePOS(String text, boolean lemmatize) {
-    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.pos, lemmatize);
+    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.POS, lemmatize);
   }
 
   /**
@@ -166,7 +186,7 @@ public class AidaManager {
    * @return
    */
   public static Tokens tokenizePARSE(String text, boolean lemmatize) {
-    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.parse, lemmatize);
+    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.PARSE, lemmatize);
   }
 
   /**
@@ -180,53 +200,94 @@ public class AidaManager {
     return AidaManager.getTasksInstance().tokenize(text, type, lemmatize);
   }
 
-  public static synchronized DBConnection getConnectionForDatabase(String dbId, String req) throws SQLException {
-    if (!MultipleDBManager.isConnected(dbId)) {
+  public static Connection getConnectionForDatabase(String dbId) throws SQLException {
+    Properties prop = dbIdToProperties.get(dbId);
+    if (prop == null) {
       try {
-        Properties prop = ClassPathUtils.getPropertiesFromClasspath(dbIdToConfig.get(dbId));
-        String type = prop.getProperty("type");
-        String service = null;
-        if (type.equalsIgnoreCase("Oracle")) {
-          service = prop.getProperty("serviceName");
-        } else if (type.equalsIgnoreCase("PostGres")) {
-          service = prop.getProperty("schema");
-        }
-        String hostname = prop.getProperty("hostname");
-        Integer port = Integer.parseInt(prop.getProperty("port"));
-        String username = prop.getProperty("username");
-        String password = prop.getProperty("password");
-        Integer maxCon = Integer.parseInt(prop.getProperty("maxConnection"));
-
-        DBSettings settings = new DBSettings(hostname, port, username, password, maxCon, type, service);
-        MultipleDBManager.addDatabase(dbId, settings);
-        slogger_.info("Connecting to " + type + " database " + username + "@" + hostname + ":" + port + "/" + service);
-      } catch (Exception e) {
-        slogger_.error("Error connecting to the AIDA database: " + e.getLocalizedMessage());
+        prop = ClassPathUtils.getPropertiesFromClasspath(dbIdToConfig.get(dbId));
+        dbIdToProperties.put(dbId, prop);
+      } catch (IOException e) {
+        throw new SQLException(e);
       }
     }
-    if (!MultipleDBManager.isConnected(dbId)) {
-      slogger_.error("Could not connect to the AIDA database. " + "Please check the settings in 'settings/database_aida.properties'"
-          + "and make sure the Postgres server is up and running.");
+    return getConnectionForNameAndProperties(dbId, prop);
+  }
+  
+  public static Connection getConnectionForNameAndProperties(String dbId, Properties prop) throws SQLException {
+    DataSource ds = null;
+    synchronized (dbIdToDataSource) {
+      ds = dbIdToDataSource.get(dbId);
+      if (ds == null) {
+        try {
+          String serverName = prop.getProperty("dataSource.serverName");
+          String database = prop.getProperty("dataSource.databaseName");
+          String username = prop.getProperty("dataSource.user");
+          slogger_.info("Connecting to database " + username + "@" + serverName + ":" + "/" + database);
+
+          HikariConfig config = new HikariConfig(prop);
+          ds = new HikariDataSource(config);
+          dbIdToDataSource.put(dbId, ds);
+        } catch (Exception e) {
+          slogger_.error("Error connecting to the database: " + e.getLocalizedMessage());
+          e.printStackTrace();
+        }
+      }
+    }
+    if (ds == null) {
+      slogger_.error("Could not connect to the database. " + 
+          "Please check the settings in '" + dbIdToConfig.get(dbId) +
+          "' and make sure the Postgres server is up and running.");
       return null;
     }
-    return MultipleDBManager.getConnection(dbId, req);
+    Integer id = RunningTimer.recordStartTime("getConnection");
+    Connection connection = ds.getConnection();
+    RunningTimer.recordEndTime("getConnection", id);
+    return connection;
   }
 
-  public static void releaseConnection(String dbId, DBConnection con) {
-    MultipleDBManager.releaseConnection(dbId, con);
+  public static Properties getDatabaseProperties(
+      String hostname, Integer port, String username, String password,
+      Integer maxCon, String database) {
+    Properties prop = new Properties();
+    prop.put("dataSourceClassName", "org.postgresql.ds.PGSimpleDataSource");
+    prop.put("maximumPoolSize", maxCon);    
+    prop.put("dataSource.user", username);
+    prop.put("dataSource.password", password);
+    prop.put("dataSource.databaseName", database);
+    prop.put("dataSource.serverName", hostname);
+    return prop;
+  }
+
+  public static void releaseConnection(Connection con) {
+    try {
+      con.close();
+    } catch (SQLException e) {
+      slogger_.error("Could not release connection: " + e.getLocalizedMessage());
+    }
   }
 
   /**
-   * Gets an AIDA entity for the given YAGO entity id.
+   * Gets an AIDA entity for the given entity id.
    * This is slow, as it accesses the DB for each call.
    * Do in batch using DataAccess directly for a larger number 
    * of entities.
    * 
-   * @param yagoEntityId  ID in YAGO2 format
    * @return              AIDA Entity
    */
-  public static Entity getEntity(String yagoEntityId) {
-    return new Entity(yagoEntityId, DataAccess.getIdForYagoEntityId(yagoEntityId));
+  public static Entity getEntity(KBIdentifiedEntity entity) {
+    int id = DataAccess.getInternalIdForKBEntity(entity);
+    return new Entity(entity, id);
+  }
+
+  public static Entities getEntities(Set<KBIdentifiedEntity> kbEntities) {
+    TObjectIntHashMap<KBIdentifiedEntity> ids = 
+        DataAccess.getInternalIdsForKBEntities(kbEntities);
+    Entities entities = new Entities();
+    for(TObjectIntIterator<KBIdentifiedEntity> itr = ids.iterator(); itr.hasNext(); ) {
+      itr.advance();
+      entities.add(new Entity(itr.key(), itr.value()));
+    }
+    return entities;
   }
 
   /**
@@ -239,71 +300,24 @@ public class AidaManager {
    * @return          AIDA Entity
    */
   public static Entity getEntity(int entityId) {
-    return new Entity(DataAccess.getYagoEntityIdForId(entityId), entityId);
+    KBIdentifiedEntity kbEntity = DataAccess.getKnowlegebaseEntityForInternalId(entityId);
+    return new Entity(kbEntity, entityId);
   }
 
   /**
-   * Creates the Wikipedia link for a given ResultEntity.
-   * 
-   * @param resultEntity  Given AIDA ResultEntity.
-   * @return  Wikipedia Link for the entity.
-   */
-  public static String getWikipediaUrl(ResultEntity resultEntity) {
-    Entity entity = getEntity(resultEntity.getEntity());
-    String titlePart = Normalize.unEntity(entity.getName()).replace(' ', '_');
-    return WIKIPEDIA_PREFIX + titlePart;
-  }
-
-  /**
-   * Creates the YAGO identifier for a given ResultEntity.
-   * 
-   * @param resultEntity  Given AIDA ResultEntity.
-   * @return  YAGO Resource for the entity.
-   */
-  public static String getYAGOIdentifier(ResultEntity resultEntity) {
-    Entity entity = getEntity(resultEntity.getEntity());
-    String titlePart = Normalize.unEntity(entity.getName()).replace(' ', '_');
-    return YAGO_PREFIX + titlePart;
-  }
-
-  /**
-   * Creates the Wikipedia link for a given entity.
-   * 
-   * @param entity  Given AIDA entity.
-   * @return  Wikipedia Link for the entity.
-   */
-  public static String getWikipediaUrl(Entity entity) {
-    String titlePart = Normalize.unEntity(entity.getName()).replace(' ', '_');
-    return WIKIPEDIA_PREFIX + titlePart;
-  }
-
-  /**
-   * Creates the YAGO identifier for a given entity.
-   * 
-   * @param entity  Given AIDA entity.
-   * @return  YAGO Resource for the entity.
-   */
-  public static String getYAGOIdentifier(Entity entity) {
-    String titlePart = Normalize.unEntity(entity.getName()).replace(' ', '_');
-    return YAGO_PREFIX + titlePart;
-  }
-
-  /**
-   * Returns the potential entity candidates for a mention (via the YAGO
-   * 'means' relation)
+   * Returns the potential entity candidates for a mention (from AIDA dictionary)
    * 
    * @param mention
    *            Mention to get entity candidates for
    * @return Candidate entities for this mention.
    * 
    */
-  public static Entities getEntitiesForMention(String mention) {
-    return DataAccess.getEntitiesForMention(mention, 1.0);
+  public static Entities getEntitiesForMention(Mention mention) {
+    return getEntitiesForMention(mention, 1.0);
   }
 
   /**
-   * Returns the potential entity candidates for a mention (via the YAGO
-   * 'means' relation)
+   * Returns the potential entity candidates for a mention (from AIDA dictionary)
    * 
    * @param mention
    *            Mention to get entity candidates for
@@ -313,13 +327,18 @@ public class AidaManager {
    * 
    */
   public static Entities getEntitiesForMention(Mention mention, double maxEntityRank) {
-    return DataAccess.getEntitiesForMention(mention.getMention(), maxEntityRank);
+    Set<String> normalizedMentions = mention.getNormalizedMention();
+    Entities entities = new Entities();
+    Map<String, Entities> entitiesMap = DataAccess.getEntitiesForMentions(normalizedMentions, maxEntityRank);
+    for(Entry<String, Entities> entry : entitiesMap.entrySet()) {
+      entities.addAll(entry.getValue());
+    }
+    return entities;
   }
 
   /**
-   * Returns the potential entity candidates for a mention (via the YAGO
-   * 'means' relation) and filters those candidates against the given list of
-   * types
+   * Returns the potential entity candidates for a mention (via the candidates 
+   * dictionary) and filters those candidates against the given list of types
    * 
    * @param mention
    *            Mention to get entity candidates for
@@ -330,15 +349,15 @@ public class AidaManager {
   public static Entities getEntitiesForMention(Mention mention, Set<Type> filteringTypes, double maxEntityRank) throws SQLException {
     Entities entities = getEntitiesForMention(mention, maxEntityRank);
     Entities filteredEntities = new Entities();
-    Set<String> entityNames = entities.getUniqueNames();
-    Map<String, Set<Type>> entitiesTypes = DataAccess.getTypes(entityNames);
-    for (Entry<String, Set<Type>> entry : entitiesTypes.entrySet()) {
-      String entityName = entry.getKey();
-      Set<Type> entityTypes = entry.getValue();
+    TIntObjectHashMap<Set<Type>> entitiesTypes = DataAccess.getTypes(entities);
+    for (TIntObjectIterator<Set<Type>> itr = entitiesTypes.iterator(); 
+        itr.hasNext(); ) {
+      itr.advance();
+      int id = itr.key();
+      Set<Type> entityTypes = itr.value();
       for (Type t : entityTypes) {
         if (filteringTypes.contains(t)) {
-          filteredEntities.add(new Entity(entityName, entities
-              .getId(entityName)));
+          filteredEntities.add(entities.getEntityById(id));
           break;
         }
       }
@@ -346,7 +365,7 @@ public class AidaManager {
     return filteredEntities;
   }
 
-  public static Map<String, Gender> getGenderForEntities(Entities entities) {
+  public static TIntObjectHashMap<Gender> getGenderForEntities(Entities entities) {
     return DataAccess.getGenderForEntities(entities);
   }
 
@@ -366,23 +385,39 @@ public class AidaManager {
    * @throws SQLException
    */
   public static void fillInCandidateEntities(Mentions mentions, boolean includeNullEntityCandidates, boolean includeContextMentions,
-      double maxEntityRank) throws SQLException {    
+      double maxEntityRank) throws SQLException {
+    //flag to be used when having entities from different knowledge bases
+    //and some of them are linked by a sameAs relation
+    //currently applicable only for the configuration GND_PLUS_YAGO
+    Integer id = RunningTimer.recordStartTime("AidaManager:fillInCandidates");
+    
     Set<Type> filteringTypes = mentions.getEntitiesTypes();
+    //TODO This method shouldn't be doing one DB call per mention!
     for (int i = 0; i < mentions.getMentions().size(); i++) {
       Mention m = mentions.getMentions().get(i);
       Entities mentionCandidateEntities;
       if (malePronouns.contains(m.getMention()) || femalePronouns.contains(m.getMention())) {
         setCandiatesFromPreviousMentions(mentions, i);
       } else {
-
         if (filteringTypes != null) {
           mentionCandidateEntities = AidaManager.getEntitiesForMention(m, filteringTypes, maxEntityRank);
         } else {
           mentionCandidateEntities = AidaManager.getEntitiesForMention(m, maxEntityRank);
         }
+        
+        // Check for fallback options when no candidate was found using direct lookup.
+        if(mentionCandidateEntities.size() == 0) {
+          slogger_.debug("No candidates found for " + m);
+          
+          boolean doDictionaryFuzzyMatching = AidaConfig.getBoolean(AidaConfig.DICTIONARY_FUZZY_MATCHING);
+          if (doDictionaryFuzzyMatching) {
+            double minSim = AidaConfig.getDouble(AidaConfig.DICTIONARY_FUZZY_MATCHING_MIN_SIM);
+            mentionCandidateEntities = DataAccess.getEntitiesForMentionByFuzzyMatcyhing(m.getMention(), minSim);
+          }
+        }          
 
         if (includeNullEntityCandidates) {
-          Entity nmeEntity = new Entity(Entities.getMentionNMEKey(m.getMention()), -1);
+          Entity nmeEntity = new OokbEntity(m.getMention()); 
 
           // add surrounding mentions as context
           if (includeContextMentions) {
@@ -398,10 +433,11 @@ public class AidaManager {
           }
 
           mentionCandidateEntities.add(nmeEntity);
-        }
+        }      
         m.setCandidateEntities(mentionCandidateEntities);
       }
     }
+    RunningTimer.recordEndTime("AidaManager:fillInCandidates", id);
   }
 
   private static void setCandiatesFromPreviousMentions(Mentions mentions, int mentionIndex) {
@@ -415,11 +451,11 @@ public class AidaManager {
     for (int i = 0; i < mentionIndex; i++) {
       Mention m = mentions.getMentions().get(i);
       for (Entity e : m.getCandidateEntities()) {
-        allPrevCandidates.add(new Entity(e.getName(), e.getId()));
+        allPrevCandidates.add(e);
       }
     }
 
-    Map<String, Gender> entitiesGenders = AidaManager.getGenderForEntities(allPrevCandidates);
+    TIntObjectHashMap<Gender> entitiesGenders = AidaManager.getGenderForEntities(allPrevCandidates);
 
     Gender targetGender = null;
     if (malePronouns.contains(mention.getMention())) targetGender = Gender.MALE;
@@ -427,21 +463,11 @@ public class AidaManager {
 
     Entities filteredCandidates = new Entities();
     for (Entity e : allPrevCandidates) {
-      if (entitiesGenders != null && entitiesGenders.containsKey(e.getName()) && entitiesGenders.get(e.getName()) == targetGender) filteredCandidates
+      if (entitiesGenders != null && entitiesGenders.containsKey(e.getId()) 
+          && entitiesGenders.get(e.getId()) == targetGender) filteredCandidates
           .add(e);
     }
     mention.setCandidateEntities(filteredCandidates);
-  }
-
-  public static boolean isNamedEntity(String entity) {
-    return AidaManager.getTasksInstance().checkIsNamedEntity(entity);
-  }
-
-  public static void main(String[] args) throws SQLException {
-    Entities entities = getEntitiesForMention("Germany");
-    for (Entity entity : entities) {
-      System.out.println(entity.getName());
-    }
   }
 
   private AidaManager() {
@@ -450,14 +476,5 @@ public class AidaManager {
 
   private Tokens tokenize(String text, Tokenizer.type type, boolean lemmatize) {
     return TokenizerManager.tokenize(text, type, lemmatize);
-  }
-
-  private boolean checkIsNamedEntity(String entity) {
-    if (Normalize.unWordNetEntity(entity) == null && Normalize.unWikiCategory(entity) == null && Normalize.unGeonamesClass(entity) == null
-        && Normalize.unGeonamesEntity(entity) == null) {
-      return true;
-    } else {
-      return false;
-    }
   }
 }

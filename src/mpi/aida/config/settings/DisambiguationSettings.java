@@ -7,6 +7,7 @@ import java.util.Map;
 import mpi.aida.graph.similarity.util.SimilaritySettings;
 import mpi.experiment.trace.GraphTracer.TracingTarget;
 
+
 /**
  * Settings for the Disambigutor. Configures the disambiguation process.
  * Pre-configured settings are available in the 
@@ -63,7 +64,7 @@ public class DisambiguationSettings implements Serializable {
    * If true, compute the confidence of the mapping instead of assigning
    * the local (mention-entity) similarity as score.
    */
-  private boolean computeConfidence = false;
+  private boolean computeConfidence = true;
     
   /**
    * Settings to use for confidence computation.

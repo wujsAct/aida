@@ -6,10 +6,13 @@ import gnu.trove.map.hash.TIntDoubleHashMap;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 import org.junit.Test;
 
@@ -121,5 +124,42 @@ public class CollectionUtilsTest {
     assertEquals(0.05, actualProbs.get(2), 0.001);
     assertEquals(0.15, actualProbs.get(3), 0.001);
     assertEquals(0.4, actualProbs.get(4), 0.001);
+  }
+  
+  @Test
+  public void testGetAllItemCombinations() {
+    Set<List<Integer>> should =
+        new HashSet<>();
+    should.add(Arrays.asList(new Integer[] { 1 }));
+    assertEquals(should, 
+        CollectionUtils.getAllItemCombinations(new Integer[] { 1 }, 1));
+    
+    should =
+        new HashSet<>();
+    should.add(Arrays.asList(new Integer[] { 1, 2 }));
+    assertEquals(should, 
+        CollectionUtils.getAllItemCombinations(new Integer[] { 1, 2 }, 2));
+    
+    should =
+        new HashSet<>();
+    should.add(Arrays.asList(new Integer[] { 1, 2 }));
+    should.add(Arrays.asList(new Integer[] { 2, 3 }));
+    should.add(Arrays.asList(new Integer[] { 1, 3 }));
+    assertEquals(should, 
+        CollectionUtils.getAllItemCombinations(new Integer[] { 1, 2, 3 }, 2));
+    
+    should =
+        new HashSet<>();
+    should.add(Arrays.asList(new Integer[] { 1 }));
+    should.add(Arrays.asList(new Integer[] { 2 }));
+    should.add(Arrays.asList(new Integer[] { 3 }));
+    assertEquals(should, 
+        CollectionUtils.getAllItemCombinations(new Integer[] { 1, 2, 3 }, 1));
+    
+    should =
+        new HashSet<>();
+    should.add(Arrays.asList(new Integer[] { 1, 2, 3 }));
+    assertEquals(should, 
+        CollectionUtils.getAllItemCombinations(new Integer[] { 1, 2, 3 }, 3));
   }
 }

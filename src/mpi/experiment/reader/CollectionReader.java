@@ -8,12 +8,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
-import mpi.tools.javatools.util.FileUtils;
 import mpi.aida.data.Context;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Mention;
 import mpi.aida.data.Mentions;
 import mpi.aida.data.PreparedInput;
+import mpi.tools.javatools.util.FileUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +37,7 @@ public abstract class CollectionReader implements Iterable<PreparedInput> {
   protected CollectionReaderSettings settings;
 
   public static enum DataSource {
-    CONLL, WIKIPEDIA_YAGO2, AIDA, NEWSSTREAMS, GIGAWORD5, AIDA_SINGLE, DNB, NONE 
+    CONLL, WIKIPEDIA_YAGO2, AIDA, NEWSSTREAMS, GIGAWORD5, AIDA_SINGLE, DNB, MICROPOSTS, NONE 
   }
 
   public static final String CONLL = "CONLL";
@@ -180,5 +180,15 @@ public abstract class CollectionReader implements Iterable<PreparedInput> {
       .append(mentionCount).append(" mentions (").append(ookbeCount)
       .append(" out of knowledge base).");
     return sb.toString();
+  }
+  
+  public PreparedInput getPreparedInputForDocId(String docId) {
+    PreparedInput prep = null;
+    for (PreparedInput p : this) {
+      if (p.getDocId().equals(docId)) {
+        prep = p;
+      }
+    }
+    return prep;
   }
 }

@@ -1,14 +1,14 @@
 package mpi.experiment.trace.data;
 
+import gnu.trove.map.hash.TIntObjectHashMap;
+
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
 
 import mpi.aida.data.Mention;
 
 public class MentionTracer {
 
-	private Map<String, EntityTracer> entities = new HashMap<String, EntityTracer>();
+	private TIntObjectHashMap<EntityTracer> entities = new TIntObjectHashMap<EntityTracer>();
 
 	private Mention mention;
 
@@ -20,7 +20,7 @@ public class MentionTracer {
 		return mention.getMention();
 	}
 
-	public EntityTracer getEntityTracer(String entity) {
+	public EntityTracer getEntityTracer(int entity) {
 		return entities.get(entity);
 	}
 
@@ -28,12 +28,12 @@ public class MentionTracer {
 		return mention.getCharOffset();
 	}
 
-	public void addEntityTracer(String entity, EntityTracer entityTracer) {
+	public void addEntityTracer(int entity, EntityTracer entityTracer) {
 		entities.put(entity, entityTracer);
 	}
 
 	public Collection<EntityTracer> getEntityTracers() {
-		return entities.values();
+		return entities.valueCollection();
 	}
 
 	public int getLength() {
@@ -41,6 +41,6 @@ public class MentionTracer {
 	}
 	
 	public String getMentionStr() {
-		return mention.getMention() + ":" + mention.getStartToken();
+		return mention.getCharOffset() + ": " + mention.getMention();
 	}
 }

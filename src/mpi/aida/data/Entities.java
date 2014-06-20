@@ -1,11 +1,15 @@
 package mpi.aida.data;
 
+import gnu.trove.map.hash.TIntObjectHashMap;
+
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
+
+import org.apache.commons.lang.ArrayUtils;
 
 public class Entities implements Serializable, Iterable<Entity> {
 
@@ -13,51 +17,37 @@ public class Entities implements Serializable, Iterable<Entity> {
   
   private boolean includesOokbeEntities;
     
-  private HashMap<String, Integer> entitiesNames;
+  private TIntObjectHashMap<Entity> id2entity;
 
   private Set<Entity> entities = null;
 
   public Entities() {
-    this.entitiesNames = new HashMap<String, Integer>();
+    id2entity = new TIntObjectHashMap<Entity>(16, 0.75f, -1);
     entities = new HashSet<Entity>();
   }
 
   public Entities(Set<Entity> entities) {
     this.entities = entities;
-    this.entitiesNames = new HashMap<String, Integer>();
+    id2entity = new TIntObjectHashMap<Entity>(entities.size(), 1.0f, -1);
     for (Entity entity : entities) {
-      this.entitiesNames.put(entity.getName(), entity.getId());
+      id2entity.put(entity.getId(), entity);
     }
-  }
-
-  public int getId(String entity) {
-    return entitiesNames.get(entity);
-  }
-
-  public boolean contains(String entity) {
-    return entitiesNames.containsKey(entity);
-  }
-
-  public Set<String> getUniqueNames() {
-    return entitiesNames.keySet();
-  }
-  
-  public Set<String> getUniqueNamesNormalizingNME() {
-    Set<String> names = new HashSet<String>();
-    
-    for (Entity e : entities) {
-      if (e.isOOKBentity()) {
-        names.add(e.getNMEnormalizedName());
-      } else {
-        names.add(e.getName());
-      }
-    }
-    
-    return names;
   }
   
   public Collection<Integer> getUniqueIds() {
-    return entitiesNames.values();
+    return Arrays.asList(ArrayUtils.toObject(id2entity.keys()));
+  }
+  
+  public Collection<String> getUniqueNames() {
+    Set<String> names = new HashSet<String>();
+    for (Entity e : entities) {
+      names.add(e.getIdentifierInKb());
+    }
+    return names;
+  }
+  
+  public int[] getUniqueIdsAsArray() {
+    return id2entity.keys();
   }
 
   public Set<Entity> getEntities() {
@@ -71,20 +61,34 @@ public class Entities implements Serializable, Iterable<Entity> {
    */
   public void add(Entity entity) {
     entities.add(entity);
-    entitiesNames.put(entity.getName(), entity.getId());
+    id2entity.put(entity.getId(), entity);
   }
 
   public void addAll(Entities entities) {
     this.entities.addAll(entities.entities);
-    this.entitiesNames.putAll(entities.entitiesNames);
+    for(Entity e: entities) {
+      id2entity.put(e.getId(), e);
+    }
   }
-
-  public int uniqueNameSize() {
-    return entitiesNames.size();
+  
+  /**
+   * Adds all entities to the collection. Make sure not to add duplicates!
+   * 
+   * @param entities
+   */
+  public void addAll(Collection<Entity> entities) {
+    this.entities.addAll(entities);
+    for(Entity e: entities) {
+      id2entity.put(e.getId(), e);
+    }
   }
 
   public int size() {
     return entities.size();
+  }
+  
+  public boolean contains(int id) {
+    return id2entity.containsKey(id);
   }
 
   @Override
@@ -104,10 +108,6 @@ public class Entities implements Serializable, Iterable<Entity> {
     this.includesOokbeEntities = includesOokbeEntities;
   }
 
-  public static String getMentionNMEKey(String mentionName) {
-    return mentionName+"-"+Entity.OOKBE;
-  }
-
   public static boolean isOokbeName(String name) {
     return (name.endsWith("-"+Entity.OOKBE) || name.endsWith("---NME--"));
   }
@@ -116,8 +116,16 @@ public class Entities implements Serializable, Iterable<Entity> {
     return (entity.equals(Entity.OOKBE) || entity.equals("--NME--"));
   }
   
+  public static boolean isOokbEntity(KBIdentifiedEntity entity) {
+    return isOokbEntity(entity.getIdentifier());
+  }
+  
   public static String getNameForOokbe(String nmeName) {
     String name = nmeName.replace("-" + Entity.OOKBE, "");
     return name;
+  }
+
+  public Entity getEntityById(int id) {
+    return id2entity.get(id);
   }
 }

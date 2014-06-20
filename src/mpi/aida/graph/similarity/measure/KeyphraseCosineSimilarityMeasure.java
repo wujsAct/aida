@@ -97,16 +97,16 @@ public class KeyphraseCosineSimilarityMeasure extends EntityEntitySimilarityMeas
         matchedKeywords.put(kp, tt);
       }
       
-      tracer.eeTracing().addEntityContext(a.getName(), e1keyphrases);
-      tracer.eeTracing().addEntityContext(b.getName(), e2keyphrases);
+      tracer.eeTracing().addEntityContext(a.getId(), e1keyphrases);
+      tracer.eeTracing().addEntityContext(b.getId(), e2keyphrases);
 
       KeytermEntityEntityMeasureTracer mt = new KeytermEntityEntityMeasureTracer("KeyphraseCosineSim", 0.0, e2keyphrases, matchedKeywords);
       mt.setScore(sim);
-      tracer.eeTracing().addEntityEntityMeasureTracer(a.getName(), b.getName(), mt);
+      tracer.eeTracing().addEntityEntityMeasureTracer(a.getId(), b.getId(), mt);
       
       KeytermEntityEntityMeasureTracer mt2 = new KeytermEntityEntityMeasureTracer("KeyphraseCosineSim", 0.0, e1keyphrases, matchedKeywords);
       mt2.setScore(sim);
-      tracer.eeTracing().addEntityEntityMeasureTracer(b.getName(), a.getName(), mt2);
+      tracer.eeTracing().addEntityEntityMeasureTracer(b.getId(), a.getId(), mt2);
     }
     
     return sim;

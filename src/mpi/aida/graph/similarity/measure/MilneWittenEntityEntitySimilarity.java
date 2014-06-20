@@ -28,8 +28,8 @@ public class MilneWittenEntityEntitySimilarity extends EntityEntitySimilarity {
   }
 
   private void setupEntities(Entities entities) throws Exception {
-    logger.info("Initializing MilneWittenEntityEntitySimilarity for " + 
-                entities.uniqueNameSize() + " entities");
+    logger.debug("Initializing MilneWittenEntityEntitySimilarity for " + 
+                entities.size() + " entities");
 
     collectionSize = DataAccess.getCollectionSize();
     
@@ -51,8 +51,8 @@ public class MilneWittenEntityEntitySimilarity extends EntityEntitySimilarity {
       entity2vector.put(entity, bs);
     }
     
-    logger.info("Done initializing MilneWittenEntityEntitySimilarity for " + 
-                entities.uniqueNameSize() + " entities");
+    logger.debug("Done initializing MilneWittenEntityEntitySimilarity for " + 
+                entities.size() + " entities");
   }
 
   @Override

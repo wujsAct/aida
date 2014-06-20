@@ -11,12 +11,22 @@ public class EntityMetaData implements Serializable{
   private String humanReadableRepresentation;
 
   private String url;
+  
+  private String knowledgebase;
+  
+  private String depictionurl;
+  
+  private String depictionthumbnailurl;
 
-  public EntityMetaData(int id, String humanReadableRepresentation, String url) {
+  public EntityMetaData(int id, String humanReadableRepresentation, String url, 
+      String knowledgebase, String depictionurl, String depictionthumbnailurl) {
     super();
     this.id = id;
     this.humanReadableRepresentation = humanReadableRepresentation;
     this.url = url;
+    this.knowledgebase = knowledgebase;
+    this.depictionurl = depictionurl;
+    this.depictionthumbnailurl = depictionthumbnailurl;
   }
 
   public int getId() {
@@ -41,6 +51,36 @@ public class EntityMetaData implements Serializable{
 
   public void setUrl(String url) {
     this.url = url;
+  }
+
+  
+  public String getKnowledgebase() {
+    return knowledgebase;
+  }
+
+  
+  public void setKnowledgebase(String knowledgebase) {
+    this.knowledgebase = knowledgebase;
+  }
+
+  
+  public String getDepictionurl() {
+    return depictionurl;
+  }
+
+  
+  public void setDepictionurl(String depictionurl) {
+    this.depictionurl = depictionurl;
+  }
+
+  
+  public String getDepictionthumbnailurl() {
+    return depictionthumbnailurl;
+  }
+
+  
+  public void setDepictionthumbnailurl(String depictionthumbnailurl) {
+    this.depictionthumbnailurl = depictionthumbnailurl;
   }
 
 }

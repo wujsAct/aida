@@ -16,6 +16,7 @@ import mpi.aida.data.Mention;
 import mpi.aida.data.Mentions;
 import mpi.aida.graph.similarity.importance.EntityImportance;
 import mpi.aida.graph.similarity.util.SimilaritySettings;
+import mpi.aida.util.RunningTimer;
 import mpi.experiment.trace.Tracer;
 import mpi.experiment.trace.measures.EntityImportanceMeasureTracer;
 import mpi.experiment.trace.measures.PriorMeasureTracer;
@@ -76,9 +77,9 @@ public class EnsembleMentionEntitySimilarity {
   private void init(Mentions mentions, Entities entities, Map<Mention, Context> mentionsContexts, SimilaritySettings settings, Tracer tracer) throws Exception {
     this.settings = settings;
     double prior = settings.getPriorWeight();
-    Set<String> mentionNames = new HashSet<String>();
+    Set<Mention> mentionNames = new HashSet<>();
     for (Mention m : mentions.getMentions()) {
-      mentionNames.add(m.getMention());
+      mentionNames.add(m);
     }
     pp = new MaterializedPriorProbability(mentionNames);
     pp.setWeight(prior);
@@ -179,7 +180,8 @@ public class EnsembleMentionEntitySimilarity {
   }
 
   public double calcSimilarity(Mention mention, Context context, Entity entity) throws Exception {
-    double bestPrior = pp.getBestPrior(mention.getMention());
+    Integer id = RunningTimer.recordStartTime("EnsembleMESCalcSim");
+    double bestPrior = pp.getBestPrior(mention);
     boolean shouldSwitch = settings.getPriorThreshold() > 0.0; 
     // If non-switch sim is computed, prior is always used. Otherwise determine based on the threshold and the distribution.
     boolean shouldUsePrior = !shouldSwitch || shouldIncludePrior(bestPrior, settings.getPriorThreshold(), mention);
@@ -195,26 +197,51 @@ public class EnsembleMentionEntitySimilarity {
       weightedSimilarity += singleSimilarity * s.getWeight();
     }
 
-    for (EntityImportance ei : eis) {
-      double singleImportance = ei.getImportance(entity);
-      weightedSimilarity += singleImportance * ei.getWeight();
-      
-      EntityImportanceMeasureTracer mt = new EntityImportanceMeasureTracer(ei.getIdentifier(), ei.getWeight());
-      mt.setScore(singleImportance);
-      tracer.addMeasureForMentionEntity(mention, entity.getName(), mt);
+    switch (settings.getImportanceAggregationStrategy()) {
+      case LINEAR_COMBINATION:
+        for (EntityImportance ei : eis) {
+          double singleImportance = ei.getImportance(entity);
+          weightedSimilarity += singleImportance * ei.getWeight();
+          
+          EntityImportanceMeasureTracer mt = 
+              new EntityImportanceMeasureTracer(ei.getIdentifier(), ei.getWeight());
+          mt.setScore(singleImportance);
+          tracer.addMeasureForMentionEntity(mention, entity.getId(), mt);
+        }
+        break;
+      case AVERGAE:
+        int count = 0;
+        double importancesSum = 0;
+        for (EntityImportance ei : eis) {
+          double singleImportance = ei.getImportance(entity);
+          if (singleImportance >= 0) { //entity has an importance from that measure
+            importancesSum += singleImportance * ei.getWeight();
+            count++;
+          }
+          EntityImportanceMeasureTracer mt = new EntityImportanceMeasureTracer(ei.getIdentifier(), ei.getWeight());
+          mt.setScore(singleImportance);
+          tracer.addMeasureForMentionEntity(mention, entity.getId(), mt);
+        }
+        if (count != 0) {
+          weightedSimilarity += (importancesSum / count);
+        }
+        break;
+      default:
+        logger.error("Unknown ImportanceAggregationStrategy");
+        break;
     }
 
     if (shouldUsePrior && pp != null && settings.getPriorWeight() > 0.0) {
-      double weightedPrior = pp.getPriorProbability(mention.getMention(), entity);
+      double weightedPrior = pp.getPriorProbability(mention, entity);
       weightedSimilarity += weightedPrior * pp.getWeight();
 
       PriorMeasureTracer mt = new PriorMeasureTracer("Prior", pp.getWeight());
       mt.setScore(weightedPrior);
-      tracer.addMeasureForMentionEntity(mention, entity.getName(), mt);
+      tracer.addMeasureForMentionEntity(mention, entity.getId(), mt);
     }
     
-    tracer.setMentionEntityTotalSimilarityScore(mention, entity.getName(), weightedSimilarity);
-
+    tracer.setMentionEntityTotalSimilarityScore(mention, entity.getId(), weightedSimilarity);
+    RunningTimer.recordEndTime("EnsembleMESCalcSim", id);
     return weightedSimilarity;
   }
 
@@ -260,7 +287,7 @@ public class EnsembleMentionEntitySimilarity {
       for (Entity e : mention.getCandidateEntities()) {
         total++;
 
-        if (pp.getPriorProbability(mention.getMention(), e) > 0.0) {
+        if (pp.getPriorProbability(mention, e) > 0.0) {
           withPrior++;
         }
       }

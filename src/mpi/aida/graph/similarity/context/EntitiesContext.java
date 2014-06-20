@@ -8,11 +8,10 @@ import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
 import mpi.tokenizer.data.Token;
 import mpi.tokenizer.data.Tokens;
+import mpi.tools.basics.Normalize;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import mpi.tools.basics.Normalize;
 
 public abstract class EntitiesContext {
   private static final Logger logger = 

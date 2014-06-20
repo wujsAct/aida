@@ -72,7 +72,14 @@ public class AidaRESTJsonResults {
 		while(it.hasNext()){
 			JSONObject jEntity = (JSONObject)it.next();
 			int id = ((Long)jEntity.get("id")).intValue();
-			hshMetaData.put((String)jEntity.get("name"), new EntityMetaData(id, (String)jEntity.get("readableRepr"), (String)jEntity.get("url")));
+      String humanReadableRepresentation = (String)jEntity.get("readableRepr");
+      String url = (String)jEntity.get("url");
+      String knowledgebase = (String)jEntity.get("knowledgebase");
+      String depictionurl = (String)jEntity.get("depictionurl");
+      String depictionthumbnailurl = (String)jEntity.get("depictionthumbnailurl");
+			hshMetaData.put((String)jEntity.get("name"), new EntityMetaData(id, 
+			    humanReadableRepresentation, url, knowledgebase, depictionurl, 
+			    depictionthumbnailurl));
 		}
 		return hshMetaData;
 	}
@@ -102,9 +109,11 @@ public class AidaRESTJsonResults {
 			//TODO: Those variables are never used, why?
 			//int offset = ((Long)jMention.get("offset")).intValue(); 
 			//int length = ((Long)jMention.get("length")).intValue();
-			String name = (String)((JSONObject)jMention.get("bestEntity")).get("name");
+			String kbIdentifier = (String)((JSONObject)jMention.get("bestEntity")).get("kbIdentifier");
+			int indexOfColon = kbIdentifier.indexOf(":");
 			double dScore = Double.parseDouble((String)((JSONObject)jMention.get("bestEntity")).get("disambiguationScore"));
-			ResultEntity rEntity = new ResultEntity(name, dScore);
+      ResultEntity rEntity = new ResultEntity(kbIdentifier.substring(0, indexOfColon), 
+          kbIdentifier.substring(indexOfColon + 1), dScore);
 			lstEntities.add(rEntity);
 		}
 		return lstEntities;

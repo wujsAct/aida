@@ -1,8 +1,6 @@
 package mpi.aida.data;
 
 import java.io.Serializable;
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 
 import mpi.tools.javatools.parsers.Char;
@@ -11,17 +9,16 @@ public class Entity implements Serializable, Comparable<Entity>, Cloneable {
 
   private static final long serialVersionUID = 131444964369556633L;
 
-  private String name;
+  private KBIdentifiedEntity kbEntity;
   
   private List<String> surroundingMentionNames;
   
-  private int id = 0;
+  private int internalId = 0;
 
   public static final String OOKBE = "--OOKBE--";
   
   public static final String EXISTS = "--EXISTS--";
   
-  private Collection<Entity> confusableEntities = new HashSet<Entity>();
   /**
    * Use this field to represent the mention-entity similarity computed with 
    * some method (not the score stored in the DB). This field will not be set 
@@ -29,26 +26,26 @@ public class Entity implements Serializable, Comparable<Entity>, Cloneable {
    */
   private double mentionEntitySimilarity;
 
-  public Entity(String name, int id) {
-    this.name = name;
+  public Entity(String entityId, String knowledgebase, int internalId) {
+    this.kbEntity = new KBIdentifiedEntity(entityId, knowledgebase);
     this.mentionEntitySimilarity = -1.0;
-    this.id = id;
+    this.internalId = internalId;
   }
 
-  public String getName() {
-    return name;
+  public Entity(KBIdentifiedEntity entity, int internalId) {
+    this(entity.getIdentifier(), entity.getKnowledgebase(), internalId);
   }
 
   public String toString() {
-    return name + " (" + id + ")";
+    return kbEntity + " (" + internalId + ")";
   }
 
   public String tohtmlString() {
-    return "<td></td><td></td><td>" + Char.toHTML(name) + "</td><td></td><td></td><td></td>";
+    return "<td></td><td></td><td>" + Char.toHTML(kbEntity.toString()) + "</td><td></td><td></td><td></td>";
   }
 
   public int getId() {
-    return id;
+    return internalId;
   }
 
   public double getMentionEntitySimilarity() {
@@ -60,24 +57,24 @@ public class Entity implements Serializable, Comparable<Entity>, Cloneable {
   }
 
   public int compareTo(Entity e) {
-    return name.compareTo(e.getName());
+    return getKbIdentifiedEntity().compareTo(e.getKbIdentifiedEntity());
   }
   
   public boolean equals(Object o) {
     if (o instanceof Entity) {
       Entity e = (Entity) o;
-      return name.equals(e.getName());
+      return internalId == e.getId();
     } else {
       return false;
     }
   }
   
   public int hashCode() {
-    return name.hashCode();
+    return internalId;
   }
 
   public boolean isOOKBentity() {
-    return Entities.isOokbeName(name);
+    return Entities.isOokbeName(kbEntity.getIdentifier());
   }
 
   /**
@@ -85,7 +82,7 @@ public class Entity implements Serializable, Comparable<Entity>, Cloneable {
    *         the name in it's original form.
    */
   public String getNMEnormalizedName() {
-    String normName = name.replace("-"+OOKBE, "").replace(' ', '_');
+    String normName = kbEntity.getIdentifier().replace("-"+OOKBE, "").replace(' ', '_');
     return normName;
   }
 
@@ -97,11 +94,15 @@ public class Entity implements Serializable, Comparable<Entity>, Cloneable {
     this.surroundingMentionNames = surroundingMentionNames;
   }
 
-  public void setConfusableEntities(Collection<Entity> entities) {
-    confusableEntities = entities;
+  public String getKnowledgebase() {
+    return kbEntity.getKnowledgebase();
   }
   
-  public Collection<Entity> getConfusableEntities() {
-    return confusableEntities;
+  public String getIdentifierInKb() {
+    return kbEntity.getIdentifier();
   }
+  
+  public KBIdentifiedEntity getKbIdentifiedEntity() {
+    return kbEntity;
+  }    
 }

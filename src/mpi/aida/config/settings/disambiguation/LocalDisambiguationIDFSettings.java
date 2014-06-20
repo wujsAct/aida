@@ -7,6 +7,7 @@ import mpi.aida.config.settings.DisambiguationSettings;
 import mpi.aida.config.settings.Settings.TECHNIQUE;
 import mpi.aida.graph.similarity.exception.MissingSettingException;
 import mpi.aida.graph.similarity.util.SimilaritySettings;
+import mpi.aida.graph.similarity.util.SimilaritySettings.ImportanceAggregationStrategy;
 
 /**
  * Preconfigured settings for the {@see Disambiguator} using only the 
@@ -17,18 +18,21 @@ public class LocalDisambiguationIDFSettings extends DisambiguationSettings {
   private static final long serialVersionUID = -6391627336407534940L;
 
   public LocalDisambiguationIDFSettings() throws MissingSettingException {
-    setDisambiguationTechnique(TECHNIQUE.LOCAL);
+    setDisambiguationTechnique(TECHNIQUE.LOCAL);  
     
     List<String[]> simConfigs = new LinkedList<String[]>();
     simConfigs.add(new String[] { "UnnormalizedKeyphrasesBasedIDFSimilarity", "KeyphrasesContext", "0.5" });   
     
     List<String[]> eisConfigs = new LinkedList<String[]>();
-    eisConfigs.add(new String[] { "AidaEntityImportance", "0.5" });
+    //eisConfigs.add(new String[] { "AidaEntityImportance", "0.5" });
+    eisConfigs.add(new String[] { "GNDTitleDataCountBasedImportance", "0.16" });
+    eisConfigs.add(new String[] { "GNDTripleCountBasedImportance", "0.17" });
+    eisConfigs.add(new String[] { "YagoOutlinkCountBasedImportance", "0.17" });
+    
     
     SimilaritySettings localIDFPsettings = new SimilaritySettings(simConfigs, null, eisConfigs, 0);
     localIDFPsettings.setIdentifier("LocalIDF");
+    localIDFPsettings.setImportanceAggregationStrategy(ImportanceAggregationStrategy.AVERGAE);
     setSimilaritySettings(localIDFPsettings);
-    
-    setIncludeNullAsEntityCandidate(false);
   }
 }

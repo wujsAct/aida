@@ -7,6 +7,7 @@ import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import gnu.trove.set.hash.TIntHashSet;
 
+import java.sql.Connection;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -19,7 +20,6 @@ import mpi.aida.graph.similarity.context.EntitiesContextSettings.EntitiesContext
 import mpi.aida.graph.similarity.measure.WeightComputation;
 import mpi.aida.util.RunningTimer;
 import mpi.aida.util.StopWord;
-import mpi.tools.database.DBConnection;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,7 +52,7 @@ public class KeyphrasesContext extends EntitiesContext {
     
   private int collectionSize_;
   
-  DBConnection con;
+  Connection con;
 
 
   public KeyphrasesContext(Entities entities) throws Exception {
@@ -121,9 +121,8 @@ public class KeyphrasesContext extends EntitiesContext {
     }
   
     logger.debug("Retrieving all entity keyphrases/keywords + weights");
-    Integer uniqueId = RunningTimer.start(getIdentifier());
-    RunningTimer.stageStart(
-        getIdentifier(), "EntityKeyphrasesTokensMI", uniqueId);
+    Integer uniqueId = RunningTimer.recordStartTime(getIdentifier());
+    Integer childModId = RunningTimer.recordStartTime("EntityKeyphrasesTokensMI");
     // By default there is no restriction.
     double minEntityKeyphraseWeight = 0.0;
     int maxEntityKeyphraseCount = Integer.MAX_VALUE;
@@ -140,41 +139,35 @@ public class KeyphrasesContext extends EntitiesContext {
     kpTokens = keyphrases.getKeyphraseTokens();
     entity2keyword2mi = keyphrases.getEntityKeywordWeights();
     entity2keyphrase2mi = keyphrases.getEntityKeyphraseWeights();
-    RunningTimer.stageEnd(
-        getIdentifier(), "EntityKeyphrasesTokensMI", uniqueId);
+    RunningTimer.recordEndTime("EntityKeyphrasesTokensMI", childModId);
     
     // Store all keywords and keywords without stopwords.
     allKeyphrases = new TIntHashSet();
     allKeywords = new TIntHashSet();
     kpTokensNoStopwords = new TIntObjectHashMap<int[]>();
   
-    for (int keyphrase : kpTokens.keys()) {
-      allKeyphrases.add(keyphrase);
-      int[] keywords = kpTokens.get(keyphrase); 
-      allKeywords.addAll(keywords);
-      TIntLinkedList keywordsNoStopwords = new TIntLinkedList();
-      for (int keyword : keywords) {
-        if (!StopWord.isStopwordOrSymbol(keyword)) {
-          keywordsNoStopwords.add(keyword);
+    for(int entityId : eKps.keys()) {
+      for(int keyphrase : eKps.get(entityId)) {
+        allKeyphrases.add(keyphrase);
+        int[] keywords = kpTokens.get(keyphrase);
+        allKeywords.addAll(keywords);
+        TIntLinkedList keywordsNoStopwords = new TIntLinkedList();
+        for (int keyword : keywords) {
+          if (!StopWord.isStopwordOrSymbol(keyword)) {
+            keywordsNoStopwords.add(keyword);
+          }
         }
+        kpTokensNoStopwords.put(keyphrase, keywordsNoStopwords.toArray());
       }
-      kpTokensNoStopwords.put(keyphrase, keywordsNoStopwords.toArray());
     }
     
-    logger.debug("Retrieving counts");
-    RunningTimer.stageStart(
-        getIdentifier(), "KeywordCounts", uniqueId);
+    logger.debug("Retrieving counts for " + allKeywords.size() + " keywords.");
     TIntIntHashMap keywordDF = DataAccess.getKeywordDocumentFrequencies(allKeywords);
-    RunningTimer.stageEnd(
-        getIdentifier(), "KeywordCounts", uniqueId);
     
-    logger.debug("Computing all keyword IDF weights");    
-    RunningTimer.stageStart(
-        getIdentifier(), "IDFComputation", uniqueId);
+    logger.debug("Computing all keyword IDF weights");        
     computeIDFweights(keywordDF); 
-    RunningTimer.stageEnd(
-        getIdentifier(), "IDFComputation", uniqueId);
-    RunningTimer.end(getIdentifier(), uniqueId);
+    
+    RunningTimer.recordEndTime(getIdentifier(), uniqueId);
     
     entity2keyphrase2source = keyphrases.getEntityKeyphraseSources();
     keyphraseSource2id = keyphrases.getKeyphraseSource2id();
@@ -189,10 +182,10 @@ public class KeyphrasesContext extends EntitiesContext {
     }
         
     logger.debug("Finished KeyphrasesContext for " +
-        entities.uniqueNameSize() + " entities, " +
+        entities.size() + " entities, " +
         allKeywords.size() + " keywords");
   }
-
+ 
   @SuppressWarnings("unused")
   private void computeMIweights(
       Collection<Integer> collection, TIntIntHashMap keywordDF, TIntIntHashMap entitySDS,
@@ -237,6 +230,7 @@ public class KeyphrasesContext extends EntitiesContext {
   }
   
   private void computeIDFweights(TIntIntHashMap keywordDF) {
+    Integer id = RunningTimer.recordStartTime("IDFComputation");
     for (int keyword : keywordDF.keys()) {
       if (keyword2idf.contains(keyword)) {
         continue; // first idf value computed is highest priority
@@ -259,6 +253,7 @@ public class KeyphrasesContext extends EntitiesContext {
            
       keyword2idf.put(keyword, idf);
     }
+    RunningTimer.recordEndTime("IDFComputation", id);
   }
 
   public double getKeyphraseSourceWeight(Entity entity, int keyphrase) {

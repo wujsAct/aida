@@ -1,12 +1,9 @@
 package mpi.aida;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -20,20 +17,21 @@ import mpi.aida.access.DataAccess;
 import mpi.aida.config.settings.DisambiguationSettings;
 import mpi.aida.config.settings.JsonSettings.JSONTYPE;
 import mpi.aida.config.settings.PreparationSettings;
-import mpi.aida.config.settings.disambiguation.CocktailPartyDisambiguationSettings;
-import mpi.aida.config.settings.disambiguation.CocktailPartyKOREDisambiguationSettings;
-import mpi.aida.config.settings.disambiguation.CocktailPartyKOREIDFDisambiguationSettings;
-import mpi.aida.config.settings.disambiguation.CocktailPartyKORELSHDisambiguationSettings;
-import mpi.aida.config.settings.disambiguation.LocalDisambiguationIDFSettings;
-import mpi.aida.config.settings.disambiguation.LocalDisambiguationSettings;
+import mpi.aida.config.settings.disambiguation.CocktailPartyDisambiguationWithNullSettings;
+import mpi.aida.config.settings.disambiguation.CocktailPartyKOREDisambiguationWithNullSettings;
+import mpi.aida.config.settings.disambiguation.CocktailPartyKOREIDFDisambiguationWithNullSettings;
+import mpi.aida.config.settings.disambiguation.LocalDisambiguationIDFWithNullSettings;
+import mpi.aida.config.settings.disambiguation.LocalDisambiguationWithNullSettings;
 import mpi.aida.config.settings.disambiguation.PriorOnlyDisambiguationSettings;
 import mpi.aida.config.settings.preparation.StanfordHybridPreparationSettings;
 import mpi.aida.data.DisambiguationResults;
 import mpi.aida.data.Entities;
 import mpi.aida.data.EntityMetaData;
+import mpi.aida.data.KBIdentifiedEntity;
 import mpi.aida.data.PreparedInput;
 import mpi.aida.data.ResultMention;
 import mpi.aida.data.ResultProcessor;
+import mpi.aida.util.RunningTimer;
 import mpi.aida.util.htmloutput.HtmlGenerator;
 import mpi.tools.javatools.util.FileUtils;
 
@@ -85,10 +83,19 @@ public class CommandLineDisambiguator {
         printHelp(commandLineOptions);
       }
       for (File f : FileUtils.getAllFiles(inputFile)) {
-        if (f.getName().endsWith(".txt")) {
-          files.add(f);
+        // Ignore .html/.json files (assumed to be output files).
+        if (!(f.getName().endsWith(".json") || f.getName().endsWith(".html"))) {
+          files.add(f);          
         }
       }
+    } else if (cmd.hasOption("s")) {
+      String text = cmd.getOptionValue("i");
+      int end = Math.min(text.length(), 8);
+      File tmpFile = File.createTempFile(text.substring(0, end), ".txt", new File(System.getProperty("user.dir")));
+      FileUtils.writeFileContent(tmpFile, text);
+      tmpFile.deleteOnExit();
+      files.add(tmpFile);
+      
     } else {
       if (inputFile.isDirectory()) {
         System.out.println("\n\nError: expected " + input + " to be a file.");
@@ -100,14 +107,17 @@ public class CommandLineDisambiguator {
     if (cmd.hasOption("o")) {
       outputFormat = cmd.getOptionValue("o");
     }
+    String inputFormat = "PLAIN";
+    if (cmd.hasOption("f")){
+      inputFormat = cmd.getOptionValue("f");
+    }
     PreparationSettings prepSettings = new StanfordHybridPreparationSettings();
     if (cmd.hasOption('m')) {
       int minCount = Integer.parseInt(cmd.getOptionValue('m'));
       prepSettings.setMinMentionOccurrenceCount(minCount);
       System.out.println("Dropping mentions with less than " + minCount + " occurrences in the text.");
     }
-    Preparator p = new Preparator();
-    
+
     int threadCount = 1;
     if (cmd.hasOption("c")) {
       threadCount = Integer.parseInt(cmd.getOptionValue("c"));
@@ -115,14 +125,28 @@ public class CommandLineDisambiguator {
     int resultCount = 10;
     if (cmd.hasOption("e")) {
       resultCount = Integer.parseInt(cmd.getOptionValue("e"));
-    }    
+    }
+    Double threshold = 0.0;
+    if (cmd.hasOption("r")) {
+      threshold = Double.parseDouble(cmd.getOptionValue("r"));
+    }
+    
+    boolean isTimed = false;
+    if(cmd.hasOption('z')) {
+      isTimed = true;
+    }
+    
     ExecutorService es = Executors.newFixedThreadPool(threadCount);
     System.out.println("Processing " + files.size() + " documents with " +
-        threadCount + " threads.");
+        threadCount + " threads, ignoring existing .html and .json files.");
+    
+    Preparator p = new Preparator();
     for (File f : files) {
       Processor proc = new Processor(f.getAbsolutePath(), 
-          disambiguationTechniqueSetting, p, prepSettings, outputFormat, resultCount,
-          !inputFile.isDirectory());   
+          disambiguationTechniqueSetting, p, prepSettings, inputFormat, outputFormat, resultCount,
+          !inputFile.isDirectory(), isTimed);   
+      // pass the threshold
+      proc.setThreshold(threshold);      
       es.execute(proc);
     }
     es.shutdown();
@@ -144,10 +168,16 @@ public class CommandLineDisambiguator {
             .create("i"));
     options
     .addOption(OptionBuilder
+        .withLongOpt("string")
+        .withDescription(
+            "Set to treat the -i input as a string. Will directly disambiguate.")
+        .create("s"));
+    options
+    .addOption(OptionBuilder
         .withLongOpt("directory")
         .withDescription(
             "Set to treat the -i input as directory. Will recursively process"
-            + "all .txt files in the directory.")
+            + "all files in the directory.")
         .create("d"));
     options
         .addOption(OptionBuilder
@@ -161,10 +191,18 @@ public class CommandLineDisambiguator {
     .addOption(OptionBuilder
         .withLongOpt("outputformat")
         .withDescription(
-            "Set the output-format to be used: HTML or JSON. Default is HTML.")
+            "Set the output-format to be used: HTML, JSON, ALL. Default is HTML.")
         .hasArg()
         .withArgName("FORMAT")
-        .create("o"));    
+        .create("o"));
+    options
+    .addOption(OptionBuilder
+        .withLongOpt("inputformat")
+        .withDescription(
+            "Set the input-format to be used: PLAIN, XML-ALTO, XML-TEI. Default is PLAIN.")
+        .hasArg()
+        .withArgName("INPUTFORMAT")
+        .create("f"));
     options
     .addOption(OptionBuilder
         .withLongOpt("threadcount")
@@ -189,6 +227,20 @@ public class CommandLineDisambiguator {
         .hasArg()
         .withArgName("COUNT")
         .create("e"));  
+    options
+    .addOption(OptionBuilder
+        .withLongOpt("confidencethreshold")
+        .withDescription(
+            "Sets the confidence threshold below which to drop entities. Default is given by the technique.")
+        .hasArg()
+        .withArgName("THRESHOLD")
+        .create("r"));
+    options
+    .addOption(OptionBuilder
+        .withLongOpt("timing")
+        .withDescription(
+            "To Retrieve RunningTimer overview.")
+        .create("z"));
     options.addOption(OptionBuilder.withLongOpt("help").create('h'));
     return options;
   }
@@ -206,26 +258,50 @@ public class CommandLineDisambiguator {
     private String disambiguationTechniqueSetting; 
     private Preparator p; 
     private PreparationSettings prepSettings;
+    private String inputFormat;
     private String outputFormat;
     private int resultCount;
     private boolean logResults;
+    private double threshold;
+    private boolean isTimed;
     
     public Processor(String inputFile, String disambiguationTechniqueSetting,
-        Preparator p, PreparationSettings prepSettings, String outputFormat,
-        int resultCount, boolean logResults) {
+        Preparator p, PreparationSettings prepSettings, String inputFormat, String outputFormat,
+        int resultCount, boolean logResults, boolean isTimed) {
       super();
       this.inputFile = inputFile;
       this.disambiguationTechniqueSetting = disambiguationTechniqueSetting;
       this.p = p;
       this.prepSettings = prepSettings;
+      this.inputFormat = inputFormat;
       this.outputFormat = outputFormat;
       this.resultCount = resultCount;
       this.logResults = logResults;
+      this.isTimed = isTimed;
     }    
+    
+    public void setThreshold(double threshold) {
+      this.threshold = threshold;
+    }
     
     @Override
     public void run() {
       try {
+        if (outputFormat.equals("JSON") || outputFormat.equals("ALL")) {
+          File resultFile = new File(inputFile + ".json");
+          if (resultFile.exists()) {
+            System.out.println("JSON output for " + inputFile + " exists, skipping.");
+          return;
+          }
+        }
+        if (outputFormat.equals("HTML") || outputFormat.equals("ALL")) {
+          File resultFile = new File(inputFile + ".html");
+          if (resultFile.exists()) {
+            System.out.println("HTML output for " + inputFile + " exists, skipping.");
+          return;
+          }
+        }
+        
         BufferedReader reader = new BufferedReader(new InputStreamReader(
             new FileInputStream(inputFile), "UTF-8"));
         StringBuilder content = new StringBuilder();
@@ -236,74 +312,88 @@ public class CommandLineDisambiguator {
         }
         reader.close();
         
-        PreparedInput input = p.prepare(inputFile, content.toString(), prepSettings);
+        PreparedInput input = null;
+        if(inputFormat.startsWith("XML")){
+          XmlPreparator xmlPrep = new XmlPreparator();
+          if(inputFormat.endsWith("ALTO")){
+            input = xmlPrep.prepareAltoXml(content.toString(), inputFile, prepSettings);
+          }else{
+            input = xmlPrep.prepareTeiXml(content.toString(), inputFile, prepSettings);
+          }
+          
+        }else{
+          input = p.prepare(inputFile, content.toString(), prepSettings);
+        }
         DisambiguationSettings disSettings = null;
         if (disambiguationTechniqueSetting.equals("PRIOR")) {
           disSettings = new PriorOnlyDisambiguationSettings();
         } else if (disambiguationTechniqueSetting.equals("LOCAL")) {
-          disSettings = new LocalDisambiguationSettings();
+          disSettings = new LocalDisambiguationWithNullSettings();
         } else if (disambiguationTechniqueSetting.equals("LOCAL-IDF")) {
-          disSettings = new LocalDisambiguationIDFSettings();
+          disSettings = new LocalDisambiguationIDFWithNullSettings();
         } else if (disambiguationTechniqueSetting.equals("GRAPH")) {
-          disSettings = new CocktailPartyDisambiguationSettings();
+          disSettings = new CocktailPartyDisambiguationWithNullSettings();
         } else if (disambiguationTechniqueSetting.equals("GRAPH-IDF")) {
-          disSettings = new CocktailPartyKOREIDFDisambiguationSettings();
+          disSettings = new CocktailPartyKOREIDFDisambiguationWithNullSettings();
         } else if (disambiguationTechniqueSetting.equals("GRAPH-KORE")) {
-          disSettings = new CocktailPartyKOREDisambiguationSettings();
-        } else if (disambiguationTechniqueSetting.equals("GRAPH-KORELSH")) {
-          disSettings = new CocktailPartyKORELSHDisambiguationSettings();
+          disSettings = new CocktailPartyKOREDisambiguationWithNullSettings();       
         } else {
           System.err
               .println("disambiguation-technique can be either: "
                   + "'PRIOR', 'LOCAL', 'LOCAL-IDF', 'GRAPH', 'GRAPH-IDF' or 'GRAPH-KORE");
           System.exit(2);
         }
-
+       
+        if (threshold > 0.0) {
+          disSettings.setNullMappingThreshold(threshold);
+        }
+        
         Disambiguator d = new Disambiguator(input, disSettings);
         DisambiguationResults results = d.disambiguate();
-
+        if (logResults) {
+          System.out.println("Disambiguation for '" + inputFile + "' done.");
+        }
+        
         // retrieve JSON representation of Disambiguated results
         ResultProcessor rp = new ResultProcessor(content.toString(), results,
             inputFile, input, resultCount);
         //String jsonStr = rp.process(false);
         String jsonStr = rp.process(JSONTYPE.EXTENDED).toJSONString();
-        String resultFile = null;
-        String resultContent = null;
-        if (outputFormat.equals("JSON")) {
-          resultFile = inputFile + ".json";
-          resultContent = jsonStr;
-        } else if (outputFormat.equals("HTML")) {
-          resultFile = inputFile + ".html";
-          // generate HTML from Disambiguated Results
-          HtmlGenerator gen = new HtmlGenerator(content.toString(), jsonStr,
-              inputFile, input);
-          resultContent = gen.constructFromJson(jsonStr);
-        } else {
+        if (!(outputFormat.equals("JSON") || outputFormat.equals("HTML") || outputFormat.equals("ALL"))) {
           System.out.println("Unrecognized output format.");
           printHelp(commandLineOptions);
         }
-        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
-            new FileOutputStream(resultFile), "UTF-8"));
-        writer.write(resultContent);
-        writer.flush();
-        writer.close();
         
-        if (logResults) {
-          System.out.println("Disambiguation for '" + inputFile + "' done, "
-              + "result written to '" + resultFile + "' in " + outputFormat);
-          
+        if (outputFormat.equals("JSON") || outputFormat.equals("ALL")) {
+          File resultFile = new File(inputFile + ".json");
+          FileUtils.writeFileContent(resultFile, jsonStr);
+          if (logResults) {
+            System.out.println("Result written to '" + resultFile + "' in " + outputFormat);
+          }
+        }
+        if (outputFormat.equals("HTML") || outputFormat.equals("ALL")) {
+          File resultFile = new File(inputFile + ".html");
+          // generate HTML from Disambiguated Results
+          HtmlGenerator gen = new HtmlGenerator(jsonStr, inputFile);
+          FileUtils.writeFileContent(resultFile, gen.constructFromJson(jsonStr));
+          if (logResults) {
+            System.out.println("Result written to '" + resultFile + "' in " + outputFormat);
+          }
+        }
+        
+        if (logResults) {         
           System.out.println("Mentions and Entities found:");
           System.out.println("\tMention\tEntity_id\tEntity\tEntity Name\tURL");
   
-          Set<String> entities = new HashSet<String>();
+          Set<KBIdentifiedEntity> entities = new HashSet<KBIdentifiedEntity>();
           for (ResultMention rm : results.getResultMentions()) {
-            entities.add(results.getBestEntity(rm).getEntity());
+            entities.add(results.getBestEntity(rm).getKbEntity());
           }
-          Map<String, EntityMetaData> entitiesMetaData = DataAccess
+          Map<KBIdentifiedEntity, EntityMetaData> entitiesMetaData = DataAccess
               .getEntitiesMetaData(entities);
-  
+          
           for (ResultMention rm : results.getResultMentions()) {
-            String entity = results.getBestEntity(rm).getEntity();
+            KBIdentifiedEntity entity = results.getBestEntity(rm).getKbEntity();
             EntityMetaData entityMetaData = entitiesMetaData.get(entity);
   
             if (Entities.isOokbEntity(entity)) {
@@ -314,6 +404,11 @@ public class CommandLineDisambiguator {
                 + "\t" + entityMetaData.getUrl());
             }
           }  
+        }
+        
+        if (isTimed) {
+          String timerContent = RunningTimer.getOverview();
+          System.out.println(timerContent);
         }
       } catch (Exception e) {
         System.err.println("Error while processing '" + inputFile + "': " + 

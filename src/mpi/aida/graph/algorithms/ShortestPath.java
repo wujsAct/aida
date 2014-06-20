@@ -9,6 +9,7 @@ import java.util.PriorityQueue;
 
 import mpi.aida.graph.Graph;
 import mpi.aida.graph.GraphNode;
+import mpi.aida.util.RunningTimer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +24,7 @@ public class ShortestPath {
 	// removed - THIS IS USED BY FCPSC
 	public double[] run(int mention, Graph graph) {
 	  
-
+	  Integer id = RunningTimer.recordStartTime("ShortestPathRun");
 		int nodesCount = graph.getNodesCount();
 		double[] distances = new double[nodesCount];
 
@@ -95,6 +96,7 @@ public class ShortestPath {
 		} // end main loop
 		
 		// Return the distances
+		RunningTimer.recordEndTime("ShortestPathRun", id);
 		return distances;
 	}
 	

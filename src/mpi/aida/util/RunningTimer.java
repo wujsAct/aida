@@ -1,6 +1,8 @@
 package mpi.aida.util;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -28,53 +30,104 @@ public class RunningTimer {
       new HashMap<String, Map<Integer, Long>>();
   private static Map<String, Map<Integer, Long>> moduleEnd = 
       new ConcurrentHashMap<String, Map<Integer, Long>>();
-  
-  /** 
-   * Keys are moduleId:stageId.
-   */
-  private static Map<String, Map<Integer, Long>> moduleStageStart = 
-      new ConcurrentHashMap<String, Map<Integer, Long>>();
-  private static Map<String, Map<Integer, Long>> moduleStageEnd = 
-      new ConcurrentHashMap<String, Map<Integer, Long>>();
-     
+  private static Map<String, List<String>> moduleCaller = 
+      new ConcurrentHashMap<String, List<String>>();
+    
+  private static Map<String, Integer> threadSpecificLevelCounter = new HashMap<String, Integer>();  
+  private static Map<String, List<String>> threadSpecificModules = new HashMap<String, List<String>>();
+  private static Map<String, List<Integer>> threadSpecificModuleLevels = new HashMap<String, List<Integer>>();
   
   public static String getOverview() {
     StringBuilder sb = new StringBuilder();
     sb.append("Module Overview\n---\n");
-    sb.append("Module\t#Docs\tAvg. Time\tMax. Time\n");
-    sb.append(getDataOverview(moduleStart, moduleEnd)).append("\n");
+    sb.append("Module\t\t\t#Docs\t\t\tAvg. Time\t\t\tMax. Time\n");
+    sb.append(getDataOverview(moduleStart, moduleEnd, moduleCaller)).append("\n");
     
-    sb.append("Module Stage Overview\n---\n");
-    sb.append("Module Stage\t#Docs\tAvg. Time\tMax. Time\n");
-    sb.append(getDataOverview(moduleStageStart, moduleStageEnd)).append("\n");
-
     return sb.toString();
   }
   
   private static String getDataOverview(
       Map<String, Map<Integer, Long>> start, 
-      Map<String, Map<Integer, Long>> end) {
+      Map<String, Map<Integer, Long>> end,
+      Map<String, List<String>> callers) {
     StringBuilder sb = new StringBuilder();
-    for (String id : end.keySet()) {
-      sb.append(id).append("\t");
-      sb.append(end.get(id).size()).append("\t");
-      
-      double totalTime = 0.0;
-      double maxTime = 0.0;
-      for (Integer uniqueId : end.get(id).keySet()) {
-        Long finish = end.get(id).get(uniqueId);
-        assert start.containsKey(id) : "No start for end.";
-        Long begin = start.get(id).get(uniqueId);
-        Long dur = finish - begin;
-        totalTime += dur;
-        if (dur > maxTime) { maxTime = dur; }
+        
+    for(String tName : threadSpecificModules.keySet()){
+      sb.append(tName).append("\n").append("--------------------").append("\n");
+      List<String> modules = threadSpecificModules.get(tName);
+      for (int i=0;i<modules.size();i++) {
+        String id = modules.get(i);
+        int level = threadSpecificModuleLevels.get(tName).get(i);
+        for(int sp=1;sp<level;sp++){
+           sb.append("\t");
+        }
+
+        sb.append(id).append("\t\t\t");
+        sb.append(end.get(id).size()).append("\t\t\t");
+        
+        double totalTime = 0.0;
+        double maxTime = 0.0;
+        for (Integer uniqueId : end.get(id).keySet()) {
+          Long finish = end.get(id).get(uniqueId);
+          assert start.containsKey(id) : "No start for end.";
+          Long begin = start.get(id).get(uniqueId);
+          Long dur = finish - begin;
+          totalTime += dur;
+          if (dur > maxTime) { maxTime = dur; }
+        }
+        double avgTime = totalTime / end.get(id).size();
+        
+        sb.append(NiceTime.convert(avgTime)).append("\t\t\t");
+        sb.append(NiceTime.convert(maxTime)).append("\n");
+//        for(String caller : callers.get(id)){
+//          sb.append("   * ").append(caller).append("\n");
+//        }      
       }
-      double avgTime = totalTime / end.get(id).size();
-      
-      sb.append(NiceTime.convert(avgTime)).append("\t");
-      sb.append(NiceTime.convert(maxTime)).append("\n");
     }
+    
     return sb.toString();
+  }
+  
+  public static synchronized Integer recordStartTime(String moduleId){
+    Integer uniqueId = start(moduleId);
+    String tName = Thread.currentThread().getName();
+    int level = 0;
+    if(!threadSpecificLevelCounter.containsKey(tName)){
+      level = 1;      
+    }else{
+      level = threadSpecificLevelCounter.get(tName) + 1;
+    }
+    threadSpecificLevelCounter.put(tName, level);
+    
+    List<String> modules = null;
+    List<Integer> moduleLevels = null;
+    if(!threadSpecificModules.containsKey(tName)){
+      modules = new ArrayList<String>();
+      threadSpecificModules.put(tName, modules);      
+    }else{
+      modules = threadSpecificModules.get(tName);      
+    }
+    
+    if(!threadSpecificModuleLevels.containsKey(tName)){      
+      moduleLevels = new ArrayList<Integer>();
+      threadSpecificModuleLevels.put(tName, moduleLevels);
+    }else{
+      moduleLevels = threadSpecificModuleLevels.get(tName);
+    }    
+    
+    if(modules.indexOf(moduleId)<0){
+      modules.add(moduleId);
+      moduleLevels.add(level);
+    }   
+    return uniqueId;
+  }
+  
+  public static synchronized Long recordEndTime(String moduleId, Integer uniqueId){
+    Long tStamp = end(moduleId, uniqueId);
+    String tName = Thread.currentThread().getName();
+    int level = threadSpecificLevelCounter.get(tName)-1;
+    threadSpecificLevelCounter.put(tName, level);
+    return tStamp;
   }
   
   /**
@@ -92,44 +145,20 @@ public class RunningTimer {
       starts = new HashMap<Integer, Long>();
       moduleStart.put(moduleId, starts);
     }
-    starts.put(uniqueId, timestamp);   
+    starts.put(uniqueId, timestamp);
+    // maintain stack trace for each module that is timed
+    List<String> lstCallers = moduleCaller.get(moduleId);
+    String callers = DebugUtils.getCallingMethod();
+    if(lstCallers != null){      
+      if(!lstCallers.contains(callers)) {
+        lstCallers.add(callers);
+      }      
+    }else{
+      lstCallers = new ArrayList<String>();      
+      lstCallers.add(DebugUtils.getCallingMethod());           
+    }
+    moduleCaller.put(moduleId, lstCallers);
     return uniqueId;
-  }
-  
-  /**
-   * Starts the timer for the given module id at the given stage. The uniqueId
-   * has to correspond to what is returned by start(moduleId).
-   * 
-   * @param moduleId
-   * @param stageId
-   * @param uniqueId
-   */
-  public static void stageStart(String moduleId, String stageId, Integer uniqueId) {
-    Long timestamp = System.currentTimeMillis();
-    Map<Integer, Long> stage = moduleStageStart.get(getStageKey(moduleId, stageId));
-    if (stage == null) {
-      stage = new ConcurrentHashMap<Integer, Long>();
-      moduleStageStart.put(getStageKey(moduleId, stageId), stage);
-    }
-    stage.put(uniqueId, timestamp);
-  }
-  
-  /**
-   * Takes the time for the given module id at the given stage. The uniqueId
-   * has to correspond to what is returned by start(moduleId).
-   * 
-   * @param moduleId
-   * @param stageId
-   * @param uniqueId
-   */
-  public static void stageEnd(String moduleId, String stageId, Integer uniqueId) {
-    Long timestamp = System.currentTimeMillis();
-    Map<Integer, Long> stage = moduleStageEnd.get(getStageKey(moduleId, stageId));
-    if (stage == null) {
-      stage = new ConcurrentHashMap<Integer, Long>();
-      moduleStageEnd.put(getStageKey(moduleId, stageId), stage);
-    }
-    stage.put(uniqueId, timestamp);
   }
   
   /**
@@ -149,9 +178,5 @@ public class RunningTimer {
     end.put(uniqueId, timestamp);
     Long startTime = moduleStart.get(moduleId).get(uniqueId);
     return timestamp - startTime;
-  }
-  
-  private static String getStageKey(String moduleId, String stageId) {
-    return moduleId + ":" + stageId;
   }
 }

@@ -4,6 +4,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -26,7 +27,6 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 
 public class PreparedInput implements Iterable<PreparedInputChunk> {
   
@@ -256,6 +256,9 @@ public class PreparedInput implements Iterable<PreparedInputChunk> {
    * Assumes a PreparedInput with only a single chunk. Multi-Chunk documents
    * should never be stored.
    * 
+   * Mentions will be aligned to the tokens present in the document according
+   * to their character offset and length.
+   * 
    * @param writer
    * @throws IOException
    */
@@ -276,6 +279,8 @@ public class PreparedInput implements Iterable<PreparedInputChunk> {
           "cunks.");
     }
     PreparedInputChunk chunk = chunks_.get(0);
+    // Align mentions to underlying tokens.
+    setTokensPositions(chunk.getMentions(), chunk.getTokens());
     for (Mention mention : chunk.getMentions().getMentions()) {
       // Write up to mention.
       writeTokens(chunk.getTokens(), currentToken, mention.getStartToken(), writer);
@@ -326,13 +331,18 @@ public class PreparedInput implements Iterable<PreparedInputChunk> {
     }
   }
   
-  private void setTokensPositions(Mentions mentions, Tokens tokens) {
+  public static void setTokensPositions(Mentions mentions, Tokens tokens) {
     int startToken = -1;
     int endToken = -1;
     int t = 0;
     int i = 0;
     Mention mention = null;
     Token token = null;
+    
+    // Mentions are expected to be sorted according to their offset in the
+    // text.
+    Collections.sort(mentions.getMentions());
+    
     while (t < tokens.size() && i < mentions.getMentions().size()) {
       mention = mentions.getMentions().get(i);
       token = tokens.getToken(t);

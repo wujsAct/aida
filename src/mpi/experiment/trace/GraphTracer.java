@@ -1,5 +1,9 @@
 package mpi.experiment.trace;
 
+import gnu.trove.map.hash.TIntObjectHashMap;
+import gnu.trove.set.TIntSet;
+import gnu.trove.set.hash.TIntHashSet;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -14,13 +18,13 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Map.Entry;
+import java.util.Set;
 
-import mpi.tools.javatools.parsers.Char;
 import mpi.aida.access.DataAccess;
 import mpi.aida.data.EntityMetaData;
 import mpi.aida.util.CollectionUtils;
+import mpi.tools.javatools.parsers.Char;
 
 import org.apache.commons.lang.StringUtils;
 
@@ -45,6 +49,14 @@ public class GraphTracer {
 	private Map<String, List<String>> docStatsOrder = new HashMap<String, List<String>>();
 
 	private Map<String, Set<String>> docLocalOnlyMentions = new HashMap<String, Set<String>>();
+	
+	private Map<String, Set<String>> docConfidenceThreshMentions = new HashMap<String, Set<String>>();
+	
+	private Map<String, Set<String>> docEasyMentions = new HashMap<String, Set<String>>();
+	
+	private Map<String, Set<String>> docNullMentions = new HashMap<String, Set<String>>();
+	
+	private Map<String, Set<String>> docPrunedMentions = new HashMap<String, Set<String>>();
 
 	 private Map<String, Set<String>> docDanglingMentions = new HashMap<String, Set<String>>();
 	
@@ -53,8 +65,8 @@ public class GraphTracer {
   public static GraphTracer gTracer = new NullGraphTracer();
   
 	public void addCandidateEntityToOriginalGraph(String docId, String mention,
-			String candidateEntity, double entityWeightedDegree,
-			double MESimilairty, Map<String, Double> connectedEntities) {
+			int candidateEntity, double entityWeightedDegree,
+			double MESimilairty, Map<Integer, Double> connectedEntities) {
 		Map<String, List<TracingEntity>> mentionCandidatesOriginalMap = docMentionCandidatesOriginalMap
 				.get(docId);
 		if (mentionCandidatesOriginalMap == null) {
@@ -68,7 +80,7 @@ public class GraphTracer {
 	}
 
 	public void addCandidateEntityToCleanedGraph(String docId, String mention,
-			String candidateEntity, double entityWeightedDegree,
+			int candidateEntity, double entityWeightedDegree,
 			double MESimilairty) {
 		Map<String, List<TracingEntity>> mentionCandidatesCleanedMap = docMentionCandidatesCleanedMap
 				.get(docId);
@@ -82,7 +94,7 @@ public class GraphTracer {
 	}
 
 	public void addCandidateEntityToFinalGraph(String docId, String mention,
-			String candidateEntity, double entityWeightedDegree,
+			int candidateEntity, double entityWeightedDegree,
 			double MESimilairty) {
 		Map<String, List<TracingEntity>> mentionCandidatesFinalMap = docMentionCandidatesFinalMap
 				.get(docId);
@@ -94,66 +106,106 @@ public class GraphTracer {
 				candidateEntity, entityWeightedDegree, MESimilairty, null);
 	}
 
-	public void addEntityRemovalStep(String docId, String entity,
-			double entityWeightedDegree, List<String> connectedMentions) {
-		List<TracingEntity> removedEntities = docRemovedEntities.get(docId);
-		if (removedEntities == null) {
-			removedEntities = new ArrayList<TracingEntity>();
-			docRemovedEntities.put(docId, removedEntities);
-		}
-		TracingEntity te = new TracingEntity(entity, entityWeightedDegree,
-				connectedMentions);
-		removedEntities.add(te);
-	}
-	
-	 public void addMentionToLocalIncludingPrior(String docId, String mention,
-	      int mentionOffset) {
-      Set<String> localIncludingPriorMentions = docLocalIncludingPriorMentions.get(docId);
-	    if (localIncludingPriorMentions == null) {
-	      localIncludingPriorMentions = new HashSet<String>();
-	      docLocalIncludingPriorMentions.put(docId, localIncludingPriorMentions);
-	    }
-	    localIncludingPriorMentions.add(mentionOffset + ": " + mention);
+	public void addEntityRemovalStep(String docId, int entity,
+	    double entityWeightedDegree, List<String> connectedMentions) {
+	  List<TracingEntity> removedEntities = docRemovedEntities.get(docId);
+	  if (removedEntities == null) {
+	    removedEntities = new ArrayList<TracingEntity>();
+	    docRemovedEntities.put(docId, removedEntities);
 	  }
+	  TracingEntity te = new TracingEntity(entity, entityWeightedDegree,
+	      connectedMentions);
+	  removedEntities.add(te);
+	}
+
+	public void addMentionToLocalIncludingPrior(String docId, String mention,
+	    int mentionOffset) {
+	  Set<String> localIncludingPriorMentions = docLocalIncludingPriorMentions.get(docId);
+	  if (localIncludingPriorMentions == null) {
+	    localIncludingPriorMentions = new HashSet<String>();
+	    docLocalIncludingPriorMentions.put(docId, localIncludingPriorMentions);
+	  }
+	  localIncludingPriorMentions.add(mentionOffset + ": " + mention);
+	}
 
 	public void addMentionToLocalOnly(String docId, String mention,
-			int mentionOffset) {
+	    int mentionOffset) {
 	  Set<String> localOnlyMentions = docLocalOnlyMentions.get(docId);
-		if (localOnlyMentions == null) {
-			localOnlyMentions = new HashSet<String>();
-			docLocalOnlyMentions.put(docId, localOnlyMentions);
-		}
-		localOnlyMentions.add(mentionOffset + ": " + mention);
+	  if (localOnlyMentions == null) {
+	    localOnlyMentions = new HashSet<String>();
+	    docLocalOnlyMentions.put(docId, localOnlyMentions);
+	  }
+	  localOnlyMentions.add(mentionOffset + ": " + mention);
+	}
+
+	public void addMentionToConfidenceThresh(String docId, String mention,
+	    int mentionOffset) {
+	  Set<String> mentions = docConfidenceThreshMentions.get(docId);
+	  if (mentions == null) {
+	    mentions = new HashSet<String>();
+	    docConfidenceThreshMentions.put(docId, mentions);
+	  }
+	  mentions.add(mentionOffset + ": " + mention);
+	}
+
+	public void addMentionToEasy(String docId, String mention,
+	    int mentionOffset) {
+	  Set<String> mentions = docEasyMentions.get(docId);
+	  if (mentions == null) {
+	    mentions = new HashSet<String>();
+	    docEasyMentions.put(docId, mentions);
+	  }
+	  mentions.add(mentionOffset + ": " + mention);
+	}
+
+	public void addMentionToPruned(String docId, String mention,
+	    int mentionOffset) {
+	  Set<String> mentions = docPrunedMentions.get(docId);
+	  if (mentions == null) {
+	    mentions = new HashSet<String>();
+	    docPrunedMentions.put(docId, mentions);
+	  }
+	  mentions.add(mentionOffset + ": " + mention);
 	}
 	
-	 public void addMentionToDangling(String docId, String mention,
-	      int mentionOffset) {
-	    Set<String> danglingMentions = docDanglingMentions.get(docId);
-	    if (danglingMentions == null) {
-	      danglingMentions = new HashSet<String>();
-	      docDanglingMentions.put(docId, danglingMentions);
-	    }
-	    danglingMentions.add(mentionOffset + ": " + mention);
+	public void addMentionToNull(String docId, String mention,
+	    int mentionOffset) {
+	  Set<String> mentions = docNullMentions.get(docId);
+	  if (mentions == null) {
+	    mentions = new HashSet<String>();
+	    docPrunedMentions.put(docId, mentions);
 	  }
-	
+	  mentions.add(mentionOffset + ": " + mention);
+	}
+
+	public void addMentionToDangling(String docId, String mention,
+	    int mentionOffset) {
+	  Set<String> danglingMentions = docDanglingMentions.get(docId);
+	  if (danglingMentions == null) {
+	    danglingMentions = new HashSet<String>();
+	    docDanglingMentions.put(docId, danglingMentions);
+	  }
+	  danglingMentions.add(mentionOffset + ": " + mention);
+	}
+
 	public void addStat(String docId, String description, String value) {
-		Map<String, String> stats = docStats.get(docId);
+	  Map<String, String> stats = docStats.get(docId);
 
-		if (stats == null) {
-			stats = new HashMap<String, String>();
-			docStats.put(docId, stats);
-		}
+	  if (stats == null) {
+	    stats = new HashMap<String, String>();
+	    docStats.put(docId, stats);
+	  }
 
-		stats.put(description, value);
+	  stats.put(description, value);
 
-		List<String> order = docStatsOrder.get(docId);
+	  List<String> order = docStatsOrder.get(docId);
 
-		if (order == null) {
-			order = new LinkedList<String>();
-			docStatsOrder.put(docId, order);
-		}
+	  if (order == null) {
+	    order = new LinkedList<String>();
+	    docStatsOrder.put(docId, order);
+	  }
 
-		order.add(description);
+	  order.add(description);
 	}
 
 	public String generateScript() {
@@ -186,32 +238,65 @@ public class GraphTracer {
 
 			sb.append("<ul>\n");
 			for (String desc : order) {
-				sb.append("<li><span style='font-weight:bold'>" + desc
-						+ ":</span> " + stats.get(desc) + "</li>\n");
+			  sb.append("<li><span style='font-weight:bold'>" + desc
+			      + ":</span> " + stats.get(desc) + "</li>\n");
 			}
-      sb.append("</ul>");
+			sb.append("</ul>");
 
-      if (docLocalIncludingPriorMentions.get(docId) != null) {
-        sb.append("<p><strong>Mentions solved including prior in local sim: </strong>");
-        sb.append(StringUtils.join(docLocalIncludingPriorMentions.get(docId), " ---- "));
-        sb.append("</p>");
-        sb.append("<p>Solved by prior in local in total: " + docLocalIncludingPriorMentions.get(docId).size() + "</p>");
-      }
-			
-			if (docLocalOnlyMentions.get(docId) != null) {
-				sb.append("<p><strong>Mentions solved by local sim. only: </strong>");
-				sb.append(StringUtils.join(docLocalOnlyMentions.get(docId),
-						" ---- "));
-				sb.append("</p>");
-				sb.append("<p>Solved by local only in total: " + docLocalOnlyMentions.get(docId).size() + "</p>");
+			if (docLocalIncludingPriorMentions.get(docId) != null) {
+			  sb.append("<p><strong>Mentions solved including prior in local sim: </strong>");
+			  sb.append(StringUtils.join(docLocalIncludingPriorMentions.get(docId), " ---- "));
+			  sb.append("</p>");
+			  sb.append("<p>Solved by prior in local in total: " + docLocalIncludingPriorMentions.get(docId).size() + "</p>");
 			}
-     if (docDanglingMentions.get(docId) != null) {
-        sb.append("<p><strong>Unconnected mentions removed: </strong>");
-        sb.append(StringUtils.join(docDanglingMentions.get(docId),
-            " ---- "));
-        sb.append("</p>");
-        sb.append("<p>Dangling mentions in total: " + docDanglingMentions.get(docId).size() + "</p>");
-      }
+
+			if (docLocalOnlyMentions.get(docId) != null) {
+			  sb.append("<p><strong>Mentions solved by local sim. only: </strong>");
+			  sb.append(StringUtils.join(docLocalOnlyMentions.get(docId),
+			      " ---- "));
+			  sb.append("</p>");
+			  sb.append("<p>Solved by local only in total: " + docLocalOnlyMentions.get(docId).size() + "</p>");
+			}
+
+			if (docConfidenceThreshMentions.get(docId) != null) {
+			  sb.append("<p><strong>Mentions solved by local with high confidence: </strong>");
+			  sb.append(StringUtils.join(docConfidenceThreshMentions.get(docId),
+			      " ---- "));
+			  sb.append("</p>");
+			  sb.append("<p>Solved by high confidence in total: " + docConfidenceThreshMentions.get(docId).size() + "</p>");
+			}
+
+			if (docEasyMentions.get(docId) != null) {
+			  sb.append("<p><strong>Easy mentions solved by local: </strong>");
+			  sb.append(StringUtils.join(docEasyMentions.get(docId),
+			      " ---- "));
+			  sb.append("</p>");
+			  sb.append("<p>Easy mentions in total: " + docEasyMentions.get(docId).size() + "</p>");
+			}
+
+			if (docPrunedMentions.get(docId) != null) {
+			  sb.append("<p><strong>Mentions with too many candidates pruned: </strong>");
+			  sb.append(StringUtils.join(docPrunedMentions.get(docId),
+			      " ---- "));
+			  sb.append("</p>");
+			  sb.append("<p>Pruned mentions in total: " + docPrunedMentions.get(docId).size() + "</p>");
+			}
+			
+			if (docNullMentions.get(docId) != null) {
+			  sb.append("<p><strong>Mentions mapped to null before graph algorithm: </strong>");
+			  sb.append(StringUtils.join(docNullMentions.get(docId),
+			      " ---- "));
+			  sb.append("</p>");
+			  sb.append("<p>Null mentions in total: " + docNullMentions.get(docId).size() + "</p>");
+			}
+
+			if (docDanglingMentions.get(docId) != null) {
+			  sb.append("<p><strong>Unconnected mentions removed: </strong>");
+			  sb.append(StringUtils.join(docDanglingMentions.get(docId),
+			      " ---- "));
+			  sb.append("</p>");
+			  sb.append("<p>Dangling mentions in total: " + docDanglingMentions.get(docId).size() + "</p>");
+			}
 		}
 		sb.append("</div>");
 		sb.append("<div id='graph'>");
@@ -241,7 +326,7 @@ public class GraphTracer {
 				sb.append(counter++);
 				sb.append("</td>");
 				sb.append("<td>");
-				sb.append("<strong>Entity Dropped: </strong>" + tr.entity
+				sb.append("<strong>Entity Dropped: </strong>" + tr.entityId
 						+ " , <strong>Weighted Degree: </strong>"
 						+ tr.weightedDegree + " <br />");
 				sb.append("<strong>Connected Mentions: </strong>"
@@ -355,6 +440,8 @@ public class GraphTracer {
 				return new Integer(id1).compareTo(id2);
 			}
 		});
+		
+		TIntObjectHashMap<EntityMetaData> entitiesMetaData = loadEntitiesMetaData(docId);
 
 		StringBuilder sb = new StringBuilder();
 		for (String mention : mentions) {
@@ -370,7 +457,7 @@ public class GraphTracer {
 			sb.append("<h2>" + mention + "</h2>");
 			sb.append("</td>");
 			sb.append("<td>");
-			sb.append(getColoredMentionEntitiesOutput(docId, mention));
+			sb.append(getColoredMentionEntitiesOutput(docId, mention, entitiesMetaData));
 			sb.append("</td>");
 			sb.append("</tr>");
 		}
@@ -394,6 +481,8 @@ public class GraphTracer {
 				return new Integer(id1).compareTo(id2);
 			}
 		});
+		
+		TIntObjectHashMap<EntityMetaData> entitiesMetaData = loadEntitiesMetaData(docId);
 
 		StringBuilder sb = new StringBuilder();
 
@@ -407,14 +496,14 @@ public class GraphTracer {
 			}
 			sb.append("<h3><a href=\"#\">" + mentionStr + suffix + "</a></h3>");
 			sb.append("<div>");
-			sb.append(getColoredMentionEntitiesOutput(docId, mention));
+			sb.append(getColoredMentionEntitiesOutput(docId, mention, entitiesMetaData));
 			sb.append("</div>");
 		}
 		return sb.toString();
 
 	}
 
-	private String getColoredMentionEntitiesOutput(String docId, String mention) {
+	private String getColoredMentionEntitiesOutput(String docId, String mention, TIntObjectHashMap<EntityMetaData> entitiesMetaData) {
 		Map<String, List<TracingEntity>> mentionCandidatesOriginalMap = docMentionCandidatesOriginalMap
 				.get(docId);
 		Map<String, List<TracingEntity>> mentionCandidatesCleanedMap = docMentionCandidatesCleanedMap
@@ -430,7 +519,6 @@ public class GraphTracer {
 		List<TracingEntity> remainingCandiditesInFinalGraph = mentionCandidatesFinalMap
 				.get(mention);
 		Collections.sort(allCandidites);
-		Map<String, EntityMetaData> entitiesMetaData = loadEntitiesMetaData(allCandidites);
 		sb.append("<table>");
 		sb.append("<tr>");
 		sb.append("<th></th><th>Candidate Entity</th><th>ME Similarity</th><th>Weighted Degree</th><th>Weighted Degree when removed/final</th><th>Connected Entities</th>");
@@ -465,30 +553,20 @@ public class GraphTracer {
 			
 			StringBuilder entitiesInfo = new StringBuilder();
 			
-			Map<String, Double> connectedEntities = CollectionUtils.sortMapByValue(te.connectedEntities, true);
-			for (Entry<String, Double> e : connectedEntities.entrySet()) {
-			  entitiesInfo.append(e.getKey() + " ("+ e.getValue() +") --- ");
+			Map<Integer, Double> connectedEntities = CollectionUtils.sortMapByValue(te.connectedEntities, true);
+			for (Entry<Integer, Double> e : connectedEntities.entrySet()) {
+			  entitiesInfo.append(buildEntityUriAnchor(e.getKey(), entitiesMetaData)+ " ("+ e.getValue() +") --- ");
 			}
 			
 			String entities = entitiesInfo.toString();
-			String entryId = (mention + "-" + te.entity).replace("\\", "");
-
-			String uriString = "NO_METADATA";
-      String displayString = te.entity;
-      if (entitiesMetaData != null && entitiesMetaData.size() > 0) {
-        EntityMetaData md = entitiesMetaData.get(te.entity);
-        if (md != null) {
-          uriString = entitiesMetaData.get(te.entity).getUrl();//Char.encodeURIPathComponent(entityMetaData.getUrl());
-          displayString = Char.toHTML(entitiesMetaData.get(te.entity).getHumanReadableRepresentation());
-        }
-      }
+			String entryId = (mention + "-" + te.entityId).replace("\\", "");
             
-			String entityAnchor = "<a target='_blank' href='" + uriString + "'>" + displayString + "</a>";
+			String entityAnchor = buildEntityUriAnchor(te.entityId, entitiesMetaData);
 			sb.append("<tr style ='background-color:"
 					+ color
 					+ "'> "
 					+ "<td>"
-					+ "<a target='_blank' href='entity.jsp?entity=" + Char.encodeURIPathComponent(te.entity)+ "'>Info</a>"
+					+ "<a target='_blank' href='entity.jsp?entity=" + te.entityId + "'>Info</a>"
 					+ "</td>"
 					+ "<td>"
 					+ entityAnchor
@@ -514,22 +592,47 @@ public class GraphTracer {
 		sb.append("</table>");
 		return sb.toString();
 	}
-
-	private Map<String, EntityMetaData> loadEntitiesMetaData(List<TracingEntity> allCandidites) {
 	  
-    Set<String> entities = new HashSet<String>();
-    for(TracingEntity candidate: allCandidites) {
-        entities.add(candidate.entity);
+  private String buildEntityUriAnchor(int entityId, TIntObjectHashMap<EntityMetaData> entitiesMetaData) {
+    String uriString = "NO_METADATA";
+    String displayString = new Integer(entityId).toString();
+    if (entitiesMetaData != null && entitiesMetaData.size() > 0) {
+      EntityMetaData md = entitiesMetaData.get(entityId);
+      if (md != null) {
+        uriString = entitiesMetaData.get(entityId).getUrl();
+        displayString = Char.toHTML(entitiesMetaData.get(entityId).getHumanReadableRepresentation());
+      }
     }
+    String entityAnchor = "<a class='entityAnchor' target='_blank' href='" + uriString + "'>" + displayString + "</a>";
+    return entityAnchor;
+  }
 
-    return DataAccess.getEntitiesMetaData(entities);
+	private TIntObjectHashMap<EntityMetaData> loadEntitiesMetaData(String docId) {
+	  List<String> mentions = new LinkedList<String>(
+        docMentionCandidatesOriginalMap.get(docId).keySet());
+	   Map<String, List<TracingEntity>> mentionCandidatesOriginalMap = docMentionCandidatesOriginalMap
+	        .get(docId);
+	  
+	   TIntSet entities = new TIntHashSet();
+	   
+	  for (String mention : mentions) {
+	    List<TracingEntity> allCandidites = mentionCandidatesOriginalMap
+	        .get(mention);
+	    for(TracingEntity te: allCandidites) {
+	      entities.add(te.entityId);
+	      for(int e: te.connectedEntities.keySet()) {
+	        entities.add(e);  
+	      }
+	    }
+	  }
+    return DataAccess.getEntitiesMetaData(entities.toArray());
   }
 
   private void addCandidateToMentionsMap(
 			Map<String, List<TracingEntity>> mentionEntitiesMap,
-			String mention, String candidateEntity,
+			String mention, int candidateEntity,
 			double entityWeightedDegree, double MESimilairty,
-			Map<String, Double> connectedEntities) {
+			Map<Integer, Double> connectedEntities) {
 		TracingEntity te = new TracingEntity(candidateEntity,
 				entityWeightedDegree, MESimilairty, connectedEntities);
 		List<TracingEntity> mentionCandidates = mentionEntitiesMap.get(mention);
@@ -550,9 +653,11 @@ public class GraphTracer {
 		String color = "#FF" + hex + "00";
 		return color;
 	}
+	
 
-  public double getRemovedEntityDegree(String docId, String entityName) {
-    TracingEntity te = new TracingEntity(entityName, -1000, null);
+
+  public double getRemovedEntityDegree(String docId, int entity) {
+    TracingEntity te = new TracingEntity(entity, -1000, null);
     int droppingIteration = docRemovedEntities.get(docId).indexOf(te);
    // assert droppingIteration != -1 : "Still buggy.";
     if (droppingIteration != -1) {
@@ -565,28 +670,28 @@ public class GraphTracer {
 
 class TracingEntity implements Comparable<TracingEntity> {
 
-	String entity;
+	int entityId;
 
 	double weightedDegree;
 
 	List<String> connectedMentions;
 
-	Map<String, Double> connectedEntities;
+	Map<Integer, Double> connectedEntities;
 
 	double MESimilairty;// used only within graph
 
-	public TracingEntity(String entity, double weightedDegree,
+	public TracingEntity(int entity, double weightedDegree,
 			List<String> connectedMentions) {
 		super();
-		this.entity = entity;
+		this.entityId = entity;
 		this.weightedDegree = weightedDegree;
 		this.connectedMentions = connectedMentions;
 	}
 
-	public TracingEntity(String entity, double weightedDegree,
-			double MESimilarity, Map<String, Double> connectedEntities) {
+	public TracingEntity(int entity, double weightedDegree,
+			double MESimilarity, Map<Integer, Double> connectedEntities) {
 		super();
-		this.entity = entity;
+		this.entityId = entity;
 		this.weightedDegree = weightedDegree;
 		this.MESimilairty = MESimilarity;
 		this.connectedEntities = connectedEntities;
@@ -604,15 +709,15 @@ class TracingEntity implements Comparable<TracingEntity> {
 
 	@Override
 	public boolean equals(Object obj) {
-		return entity.equals(((TracingEntity) obj).entity);
+		return entityId == (((TracingEntity) obj).entityId);
 	}
 
 	@Override
 	public int hashCode() {
-		return entity.hashCode();
+		return entityId;
 	}
 	
 	public String toString() {
-	  return entity;
+	  return Integer.valueOf(entityId).toString();
 	}
 }

@@ -21,4 +21,10 @@ public class SingleChunkDocumentChunker extends DocumentChunker {
      PreparedInput preparedInput = new PreparedInput(docId, chunks);
      return preparedInput;
   }
+
+  
+  @Override
+  public String toString() {
+    return "SingleChunk";
+  }
 }

@@ -6,9 +6,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Future;
 
 import mpi.aida.config.settings.DisambiguationSettings;
 import mpi.aida.data.ChunkDisambiguationResults;
@@ -17,6 +18,7 @@ import mpi.aida.data.PreparedInput;
 import mpi.aida.data.PreparedInputChunk;
 import mpi.aida.data.ResultEntity;
 import mpi.aida.data.ResultMention;
+import mpi.aida.resultreconciliation.ResultsReconciler;
 import mpi.aida.util.DocumentCounter;
 import mpi.aida.util.RunningTimer;
 import mpi.experiment.trace.NullTracer;
@@ -26,14 +28,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
-public class Disambiguator implements Runnable {
+public class Disambiguator implements Callable<DisambiguationResults> {
   
   private Logger logger_ = LoggerFactory.getLogger(Disambiguator.class);
   
   private PreparedInput preparedInput_;
   private DisambiguationSettings settings_;
   private DocumentCounter documentCounter_;
-  private Map<String, DisambiguationResults> resultsMap_;
   private Tracer tracer_;
  
   private NumberFormat nf;
@@ -60,9 +61,8 @@ public class Disambiguator implements Runnable {
    * @param dc 
    */
   public Disambiguator(PreparedInput input, DisambiguationSettings settings, 
-      Map<String, DisambiguationResults> resultsMap, Tracer tracer, DocumentCounter dc) {
+      Tracer tracer, DocumentCounter dc) {
     this(input, settings, tracer);
-    resultsMap_ = resultsMap;
     documentCounter_ = dc;
   }
     
@@ -80,16 +80,16 @@ public class Disambiguator implements Runnable {
   }
 
   
-  public DisambiguationResults disambiguate() throws InterruptedException {
+  public DisambiguationResults disambiguate() throws Exception {
     logger_.info("Disambiguating '" + preparedInput_.getDocId() + "' with " + 
         preparedInput_.getChunksCount() + " chunks and " +
         preparedInput_.getMentionSize() + " mentions."); 
-    Integer runningId = RunningTimer.start("Disambiguator");
+    Integer runningId = RunningTimer.recordStartTime("Disambiguator");
     Map<PreparedInputChunk, ChunkDisambiguationResults> chunkResults =
         disambiguateChunks(preparedInput_);
     DisambiguationResults results = 
         aggregateChunks(preparedInput_, chunkResults);
-    Long runTimeInMs = RunningTimer.end("Disambiguator", runningId);
+    Long runTimeInMs = RunningTimer.recordEndTime("Disambiguator", runningId);
     double runTime = runTimeInMs / (double) 1000;
     logger_.info("Document '" + preparedInput_.getDocId() + "' done in " + 
                 nf.format(runTime) + "s");
@@ -97,16 +97,21 @@ public class Disambiguator implements Runnable {
   }
 
   private Map<PreparedInputChunk, ChunkDisambiguationResults> disambiguateChunks(
-      PreparedInput preparedInput) throws InterruptedException {
+      PreparedInput preparedInput) throws Exception {
     Map<PreparedInputChunk, ChunkDisambiguationResults> chunkResults =
         new HashMap<PreparedInputChunk, ChunkDisambiguationResults>();
     ExecutorService es = Executors.newFixedThreadPool(settings_.getNumChunkThreads());
+    Map<PreparedInputChunk, Future<ChunkDisambiguationResults>> futureResults = 
+        new HashMap<PreparedInputChunk, Future<ChunkDisambiguationResults>>();
     for (PreparedInputChunk c : preparedInput_) {
-      ChunkDisambiguator cd = new ChunkDisambiguator(c, settings_, chunkResults, tracer_);
-      es.execute(cd);
+      ChunkDisambiguator cd = new ChunkDisambiguator(c, settings_, tracer_);
+      Future<ChunkDisambiguationResults> result = es.submit(cd);
+      futureResults.put(c, result);
+    }
+    for (PreparedInputChunk c : preparedInput_) {
+      chunkResults.put(c, futureResults.get(c).get());
     }
     es.shutdown();
-    es.awaitTermination(1, TimeUnit.DAYS);
     return chunkResults;
   }
   
@@ -122,10 +127,12 @@ public class Disambiguator implements Runnable {
    */
   private DisambiguationResults aggregateChunks(PreparedInput preparedInput,
       Map<PreparedInputChunk, ChunkDisambiguationResults> chunkResults) {
+    Integer runId = RunningTimer.recordStartTime("aggregateChunks");
     Map<ResultMention, List<ResultEntity>> mentionMappings = 
         new HashMap<ResultMention, List<ResultEntity>>();
     
-    StringBuilder gtracerHtml = new StringBuilder(); 
+    StringBuilder gtracerHtml = new StringBuilder();
+    ResultsReconciler recon = new ResultsReconciler(chunkResults.size());
     for (Entry<PreparedInputChunk,ChunkDisambiguationResults> e : chunkResults.entrySet()) {
       PreparedInputChunk p = e.getKey();
       ChunkDisambiguationResults cdr = e.getValue();
@@ -136,28 +143,27 @@ public class Disambiguator implements Runnable {
       for (ResultMention rm : cdr.getResultMentions()) {
         List<ResultEntity> res = cdr.getResultEntities(rm);
         rm.setDocId(preparedInput.getDocId());
-        mentionMappings.put(rm, res);
+        recon.addMentionEntityListPair(rm, res);
       }
     }
     
+    mentionMappings = recon.reconcile();
     DisambiguationResults results = 
         new DisambiguationResults(mentionMappings, gtracerHtml.toString());
+    results.setTracer(tracer_);
+    RunningTimer.recordEndTime("aggregateChunks", runId);
     return results;
   }
   
   @Override
-  public void run() {
-    try {
-      DisambiguationResults result = disambiguate();
-      result.setTracer(tracer_);
-      if (documentCounter_ != null) {
-        // This provides a means of knowing where we are
-        // and how long it took until now.
-        documentCounter_.oneDone();
-      }
-      resultsMap_.put(preparedInput_.getDocId(), result);
-    } catch (Exception e) {
-      e.printStackTrace();
+  public DisambiguationResults call() throws Exception {
+    DisambiguationResults result = disambiguate();
+    result.setTracer(tracer_);
+    if (documentCounter_ != null) {
+      // This provides a means of knowing where we are
+      // and how long it took until now.
+      documentCounter_.oneDone();
     }
+    return result;
   }
 }

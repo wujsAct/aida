@@ -20,7 +20,7 @@ public class ConfidenceSettings {
    * The final confidence for is 
    * (confidenceBalance * LOCAL) + (( 1 - confidenceBalance) * COHERENCE). 
    */
-  private float confidenceBalance = 0.5f;
+  private float confidenceBalance = 1.0f;
   
   /**
    * Percentage of mentions to flip in the COHERENCE confidence estiamtion.
@@ -41,7 +41,7 @@ public class ConfidenceSettings {
    * mention-entity similarity (prior + keyphrasesim), WEIGHTED_DEGREE
    * is the weighted degree of an entity.
    */
-  private SCORE_TYPE scoreType = SCORE_TYPE.LOCAL;
+  private SCORE_TYPE scoreType = SCORE_TYPE.WEIGHTED_DEGREE;
   
   /**
    * Set to true to combine re-run confidence with local scores.

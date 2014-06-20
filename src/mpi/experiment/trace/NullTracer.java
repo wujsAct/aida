@@ -2,7 +2,6 @@ package mpi.experiment.trace;
 
 import mpi.aida.data.Mention;
 import mpi.experiment.trace.data.EntityTracer;
-import mpi.experiment.trace.data.MentionTracer;
 import mpi.experiment.trace.measures.MeasureTracer;
 
 public class NullTracer extends Tracer {
@@ -13,19 +12,20 @@ public class NullTracer extends Tracer {
     super(null, null);
   }
 
-  public void addMentionForDocId(String docId, Mention m, MentionTracer mt) {
+  @Override
+  public void addEntityForMention(Mention mention, int entity, EntityTracer entityTracer) {
   }
 
-  public void addEntityForMention(Mention mention, String entity, EntityTracer entityTracer) {
+  @Override
+  public void addMeasureForMentionEntity(Mention mention, int entity, MeasureTracer measure) {
   }
 
-  public void addMeasureForMentionEntity(Mention mention, String entity, MeasureTracer measure) {
+  @Override
+  public void setMentionEntityTotalSimilarityScore(Mention mention, int entity, double score) {
   }
 
-  public void setMentionEntityTotalSimilarityScore(Mention mention, String entity, double score) {
-  }
-
-  public void writeOutput(String resultFileName, boolean withYago) {
+  @Override
+  public void writeOutput(String resultFileName, boolean withYago, boolean relatedness) {
   }
   
   public EntityEntityTracing eeTracing() {

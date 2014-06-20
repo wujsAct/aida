@@ -9,8 +9,10 @@ import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import gnu.trove.set.hash.TIntHashSet;
 
+import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -24,18 +26,20 @@ import java.util.TreeMap;
 
 import mpi.aida.AidaManager;
 import mpi.aida.access.DataAccessSQLCache.EntityKeyphraseData;
+import mpi.aida.access.DataAccessSQLCache.EntityKeywordsData;
+import mpi.aida.config.AidaConfig;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
 import mpi.aida.data.EntityMetaData;
+import mpi.aida.data.KBIdentifiedEntity;
 import mpi.aida.data.Keyphrases;
 import mpi.aida.data.Type;
 import mpi.aida.graph.similarity.PriorProbability;
+import mpi.aida.util.RunningTimer;
 import mpi.aida.util.Util;
 import mpi.aida.util.YagoUtil;
 import mpi.aida.util.YagoUtil.Gender;
 import mpi.tools.basics.Normalize;
-import mpi.tools.database.DBConnection;
-import mpi.tools.database.interfaces.DBStatementInterface;
 import mpi.tools.javatools.datatypes.Pair;
 
 import org.apache.commons.lang.ArrayUtils;
@@ -54,6 +58,8 @@ public class DataAccessSQL implements DataAccessInterface {
   public static final String WORD_EXPANSION = "word_expansion";
   public static final String KEYPHRASE_COUNTS = "keyphrase_counts";
   public static final String KEYPHRASES_SOURCES_WEIGHT = "keyphrases_sources_weights";
+  public static final String KEYPHRASES_SOURCE = "keyphrase_sources";
+  public static final String KEYPHRASES_TOKENS = "keyphrase_tokens";
   public static final String KEYWORD_COUNTS = "keyword_counts";
   public static final String ENTITY_COUNTS = "entity_counts";
   public static final String ENTITY_KEYWORDS = "entity_keywords";
@@ -61,18 +67,14 @@ public class DataAccessSQL implements DataAccessInterface {
   public static final String ENTITY_INLINKS = "entity_inlinks";
   public static final String ENTITY_TYPES = "entity_types";
   public static final String TYPE_ENTITIES = "type_entities";
+  public static final String TYPE_TAXONOMY = "type_taxonomy";
   public static final String ENTITY_RANK = "entity_rank";
   public static final String DICTIONARY = "dictionary";
   public static final String YAGO_FACTS = "facts";
   public static final String METADATA = "meta";
   public static final String ENTITY_METADATA = "entity_metadata";
   public static final String KEYPHRASE_SOURCE_WEIGHTS = "keyphrases_sources_weights";
-  
-  public static final String YAGO_HAS_CITATIONS_TITLE_RELATION = "hasCitationTitle";
-  public static final String YAGO_HAS_WIKIPEDIA_CATEGORY_RELATION = "hasWikipediaCategory";
-  public static final String YAGO_HAS_WIKIPEDIA_ANCHOR_TEXT_RELATION = "hasWikipediaAnchorText";
-  public static final String YAGO_HAS_INTERNAL_WIKIPEDIA_LINK_TO_RELATION = "hasInternalWikipediaLinkTo";
-  public static final String YAGO_TYPE_RELATION = "type";
+  public static final String IMPORTANCE_COMPONENTS_INFO = "importance_components_info";
   
   @Override
   public DataAccess.type getAccessType() {
@@ -81,6 +83,7 @@ public class DataAccessSQL implements DataAccessInterface {
 
   @Override
   public Map<String, Entities> getEntitiesForMentions(Collection<String> mentions, double maxEntiyRank) {
+    Integer id = RunningTimer.recordStartTime("DataAccess:getEntitiesForMention");
     Map<String, Entities> candidates = new HashMap<String, Entities>(mentions.size(), 1.0f);
     if (mentions.size() == 0) {
       return candidates;
@@ -91,13 +94,13 @@ public class DataAccessSQL implements DataAccessInterface {
       // Add an emtpy candidate set as default.
       candidates.put(m, new Entities());
     }
-    DBConnection mentionEntityCon = null;
-    DBStatementInterface statement = null;
+    Connection mentionEntityCon = null;
+    Statement statement = null;
     Map<String, TIntHashSet> queryMentionCandidates = new HashMap<String, TIntHashSet>();
     try {
       mentionEntityCon = 
-          AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "mentions for entity");
-      statement = mentionEntityCon.getStatement();
+          AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = mentionEntityCon.createStatement();
       String sql = null;
       String query = YagoUtil.getPostgresEscapedConcatenatedQuery(queryMentions);
       if (maxEntiyRank < 1.0) {
@@ -122,6 +125,10 @@ public class DataAccessSQL implements DataAccessInterface {
         }
         entities.add(entity);
       }
+      r.close();
+      statement.close();
+      AidaManager.releaseConnection(mentionEntityCon);
+
       // Get the candidates for the original Strings.
       for (Entry<String, Entities> entry: candidates.entrySet()) {
         String queryMention = Normalize.string(
@@ -129,46 +136,78 @@ public class DataAccessSQL implements DataAccessInterface {
         TIntHashSet entityIds = queryMentionCandidates.get(queryMention);
         if (entityIds != null) {
           int[] ids = entityIds.toArray();
-          TIntObjectHashMap<String> yagoEntityIds = getYagoEntityIdsForIds(ids);
+          TIntObjectHashMap<KBIdentifiedEntity> yagoEntityIds = getKnowlegebaseEntitiesForInternalIds(ids);
           Entities entities = entry.getValue();
           for (int i = 0; i < ids.length; ++i) {
             entities.add(new Entity(yagoEntityIds.get(ids[i]), ids[i]));
           }
         }
       }
-      r.close();
-      statement.commit();
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
       e.printStackTrace();
-    } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, mentionEntityCon);
     }
+    RunningTimer.recordEndTime("DataAccess:getEntitiesForMention", id);
     return candidates;
+  }
+  
+  @Override
+  public Entities getEntitiesForMentionByFuzzyMatching(String mention, double minSimilarity) {
+    Integer id = RunningTimer.recordStartTime("FuzzyEntitiesForMention");
+    String conflatedMention = PriorProbability.conflateMention(mention);
+    TIntHashSet entitiesIds = new TIntHashSet();
+    Connection mentionEntityCon = null;
+    Statement statement = null;
+    try {
+      mentionEntityCon = 
+          AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = mentionEntityCon.createStatement();
+      String sql = null;
+      String query = YagoUtil.getPostgresEscapedString(conflatedMention);
+        sql = "SELECT mention, entity  FROM " + DICTIONARY + 
+              " WHERE mention % '" + query + "'" +
+              " AND similarity(mention, '" +  query + "') >= " + minSimilarity;
+      ResultSet r = statement.executeQuery(sql);
+      while (r.next()) {
+        int entity = r.getInt(2);
+        entitiesIds.add(entity);
+      }
+      r.close();
+      statement.close();
+      AidaManager.releaseConnection(mentionEntityCon);      
+    } catch (Exception e) {
+      logger.error(e.getLocalizedMessage());
+      e.printStackTrace();
+    }
+    int[] ids = entitiesIds.toArray();
+    TIntObjectHashMap<KBIdentifiedEntity> yagoEntityIds = getKnowlegebaseEntitiesForInternalIds(ids);
+
+    Entities entities = new Entities();
+    for (int i = 0; i < ids.length; ++i) {
+      entities.add(new Entity(yagoEntityIds.get(ids[i]), ids[i]));
+    }
+    RunningTimer.recordEndTime("FuzzyEntitiesForMention", id);
+    return entities;
   }
 
   @Override
   public Keyphrases getEntityKeyphrases(
-      Entities entities, Map<String, Double> keyphraseSourceWeights) {
-    return getEntityKeyphrases(entities, keyphraseSourceWeights, 0.0, 0);
-  }
-  
-  @Override
-  public Keyphrases getEntityKeyphrases(
       Entities entities, Map<String, Double> keyphraseSourceWeights,
       double minKeyphraseWeight, int maxEntityKeyphraseCount) {
+    Integer runId = RunningTimer.recordStartTime("DataAccess:getEntityKeyPhrases");
     boolean useSources = keyphraseSourceWeights != null && !keyphraseSourceWeights.isEmpty();
-    KeyphrasesCache kpc = 
+    
+    TObjectIntHashMap<String> keyphraseSrcName2Id = DataAccessCache.singleton().getAllKeyphraseSources();
+    
+    KeytermsCache<EntityKeyphraseData> kpc = 
         DataAccessSQLCache.singleton().
-        getEntityKeyphrasesCache(entities, keyphraseSourceWeights, minKeyphraseWeight,
+        getEntityKeyphrasesCache(entities, keyphraseSrcName2Id, keyphraseSourceWeights, minKeyphraseWeight,
             maxEntityKeyphraseCount, useSources);
     
     // Create and fill return object with empty maps.
     Keyphrases keyphrases = new Keyphrases();
     
     TIntObjectHashMap<int[]> entityKeyphrases = 
-        new TIntObjectHashMap<int[]>();
-    TIntObjectHashMap<int[]> keyphraseTokens = 
         new TIntObjectHashMap<int[]>();
     TIntObjectHashMap<TIntDoubleHashMap> entity2keyphrase2mi = 
         new TIntObjectHashMap<TIntDoubleHashMap>();
@@ -177,23 +216,22 @@ public class DataAccessSQL implements DataAccessInterface {
     
     // Fill the keyphrases object with all data.
     keyphrases.setEntityKeyphrases(entityKeyphrases);
-    keyphrases.setKeyphraseTokens(keyphraseTokens);
     keyphrases.setEntityKeyphraseWeights(entity2keyphrase2mi);
     keyphrases.setEntityKeywordWeights(entity2keyword2mi);
     
+    // All keyphrase tokens are preloaded, just use the full data
+    keyphrases.setKeyphraseTokens(DataAccessCache.singleton().getAllKeyphraseTokens());
     if (useSources) {
       TIntObjectHashMap<TIntIntHashMap> entity2keyphrase2source =
           new TIntObjectHashMap<TIntIntHashMap>();
       keyphrases.setEntityKeyphraseSources(entity2keyphrase2source);
-      TObjectIntHashMap<String> keyphraseSource2id = 
-          new TObjectIntHashMap<String>();
-      keyphrases.setKeyphraseSource2id(keyphraseSource2id);
+      keyphrases.setKeyphraseSource2id(keyphraseSrcName2Id);
       TIntDoubleHashMap keyphraseSourceId2weight =
           new TIntDoubleHashMap();
       keyphrases.setKeyphraseSourceWeights(keyphraseSourceId2weight);
     }
     
-    if (entities == null || entities.getUniqueNames().size() == 0) {            
+    if (entities == null || entities.size() == 0) {            
       return keyphrases;
     }
 
@@ -226,43 +264,21 @@ public class DataAccessSQL implements DataAccessInterface {
       keyphrase2mi.put(keyphrase, keyphraseWeight);
       
       // Add keywords and weights.
-      Integer[] tokens = ekd.keyphrase_tokens;
-      Double[] tokenWeights = ekd.keyphrase_token_weights;
       TIntDoubleHashMap keyword2mi = entity2keyword2mi.get(entity);
       if (keyword2mi == null) {
         keyword2mi = new TIntDoubleHashMap();
         entity2keyword2mi.put(entity, keyword2mi);
       }
-      int[] tokenIds = new int[tokens.length];
-      for (int i = 0; i < tokens.length; ++i) {
-        tokenIds[i] = tokens[i];
-        // Fill missing weights with 0.
-        Double weight = 0.0;
-        if (i < tokenWeights.length) {
-          weight = tokenWeights[i];
-        }
-        keyword2mi.put(tokenIds[i], weight);
-      }
-      if (!keyphraseTokens.containsKey(keyphrase)) {
-        keyphraseTokens.put(keyphrase, tokenIds);
-      }
       
       if (useSources) {
-        String source = ekd.source;
-        TObjectIntHashMap<String> s2id = keyphrases.getKeyphraseSource2id();
-        int sourceId = s2id.size();
-        if (s2id.contains(source)) {
-          sourceId = s2id.get(source);
-        } else {
-          s2id.put(source, sourceId);
-        }
+        int source = ekd.source;
         TIntIntHashMap keyphraseSources = 
             keyphrases.getEntityKeyphraseSources().get(entity);
         if (keyphraseSources == null) {
           keyphraseSources = new TIntIntHashMap();
           keyphrases.getEntityKeyphraseSources().put(entity, keyphraseSources);
         }
-        keyphraseSources.put(keyphrase, sourceId);
+        keyphraseSources.put(keyphrase, source);
       }
     }
 
@@ -271,6 +287,26 @@ public class DataAccessSQL implements DataAccessInterface {
       entityKeyphrases.put(e.getId(), eKps.get(e.getId()).toArray());
     }
     
+    // Retrieve entity keywords and weights.
+    KeytermsCache<EntityKeywordsData> kwc = DataAccessSQLCache.singleton().getEntityKeywordsCache(entities, keyphraseSourceWeights, 
+        keyphrases.getEntityKeyphrases(), keyphrases.getKeyphraseTokens(), minKeyphraseWeight, maxEntityKeyphraseCount);
+ 
+    for (Pair<Integer, EntityKeywordsData> p : kwc) {
+      int entity = p.first;
+      EntityKeywordsData ewd = p.second;
+      int keyword = ewd.keyword;
+      double keywordWeight = ewd.weight;
+     
+      // Add keywords and weights.
+      TIntDoubleHashMap keyword2mi = entity2keyword2mi.get(entity);
+      if (keyword2mi == null) {
+        keyword2mi = new TIntDoubleHashMap();
+        entity2keyword2mi.put(entity, keyword2mi);
+      }      
+      keyword2mi.put(keyword, keywordWeight);
+    }    
+    
+    RunningTimer.recordEndTime("DataAccess:getEntityKeyPhrases", runId);
     return keyphrases;
   }
   
@@ -279,19 +315,21 @@ public class DataAccessSQL implements DataAccessInterface {
       Entities entities,
       TIntObjectHashMap<int[]> entityKeyphrases,
       TIntObjectHashMap<int[]> keyphraseTokens) {
-    if (entities == null | entities.getUniqueNames().size() == 0) {
+    if (entities == null | entities.size() == 0) {
       return;
     }
 
-    DBConnection con = null;
-    DBStatementInterface statement = null;
+    Connection con = null;
+    Statement statement = null;
 
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "Getting keyphrases");
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
       String entityQueryString = StringUtils.join(entities.getUniqueIds(), ",");
-      statement = con.getStatement();
+      statement = con.createStatement();
 
-      String sql = "SELECT entity,keyphrase,keyphrase_tokens" +
+      TIntObjectHashMap<int[]> allKeyphraseTokens = getAllKeyphraseTokens();
+      
+      String sql = "SELECT entity,keyphrase " +
       		         " FROM " + ENTITY_KEYPHRASES +
       		         " WHERE entity IN (" + entityQueryString + ")";
       ResultSet rs = statement.executeQuery(sql);
@@ -309,18 +347,14 @@ public class DataAccessSQL implements DataAccessInterface {
           eKps.put(entity, kps);
         }
         kps.add(keyphrase);
-        Integer[] tokens = 
-            (Integer[]) rs.getArray("keyphrase_tokens").getArray();
+        
         if (!keyphraseTokens.containsKey(keyphrase)) {
-          int[] tokenIds = new int[tokens.length];
-          for (int i = 0; i < tokens.length; ++i) {
-            tokenIds[i] = tokens[i];
-          }
+          int[] tokenIds = allKeyphraseTokens.get(keyphrase);
           keyphraseTokens.put(keyphrase, tokenIds);
         }
       }
       rs.close();
-      statement.commit();
+      statement.close();
       
       // Transform eKps to entityKeyphrases.
       for (Entity e : entities) {
@@ -329,42 +363,8 @@ public class DataAccessSQL implements DataAccessInterface {
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
-  }
-
-  @Override
-  public TIntIntHashMap getKeywordDocumentFrequencies(TIntHashSet keywords) {
-    TIntIntHashMap keywordDF = new TIntIntHashMap();
-    
-    if (keywords == null || keywords.size() == 0) {
-      return keywordDF;
-    }
-
-    DBConnection con = null;
-    DBStatementInterface statement = null;
-    try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "Getting keyword frequencies");
-      statement = con.getStatement();
-      String keywordQuery = YagoUtil.getIdQuery(keywords);
-      String sql = "SELECT keyword,count" +
-      		          " FROM " + KEYWORD_COUNTS + 
-      		          " WHERE keyword IN (" + keywordQuery + ")";
-      ResultSet r = statement.executeQuery(sql);
-      while (r.next()) {
-        int kw = r.getInt("keyword");
-        int c = r.getInt("count");
-        keywordDF.put(kw, c);
-      }
-      r.close();
-      statement.commit();
-    } catch (Exception e) {
-      logger.error(e.getLocalizedMessage());
-    } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
-    }
-    
-    return keywordDF;
   }
 
   @Override
@@ -375,11 +375,11 @@ public class DataAccessSQL implements DataAccessInterface {
       return entitySuperDocSizes;
     }
 
-    DBConnection con = null;
-    DBStatementInterface statement = null;
+    Connection con = null;
+    Statement statement = null;
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "Getting entity superdoc sizes");
-      statement = con.getStatement();
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = con.createStatement();
       String entitiesQuery = StringUtils.join(entities.getUniqueIds(), ",");
       String sql = "SELECT entity, count" +
       		          " FROM " + ENTITY_COUNTS +
@@ -391,11 +391,11 @@ public class DataAccessSQL implements DataAccessInterface {
         entitySuperDocSizes.put(entity, entityDocCount);
       }
       r.close();
-      statement.commit();
+      statement.close();
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     
     return entitySuperDocSizes;
@@ -413,11 +413,11 @@ public class DataAccessSQL implements DataAccessInterface {
       return entityKeywordIC;
     }
 
-    DBConnection con = null;
-    DBStatementInterface statement = null;
+    Connection con = null;
+    Statement statement = null;
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "Getting entity-keyword intersection counts");
-      statement = con.getStatement();
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = con.createStatement();
       String entitiesQuery = StringUtils.join(entities.getUniqueIds(), ",");
       String sql = "SELECT entity, keyword, count" +
       		         " FROM " + ENTITY_KEYWORDS +
@@ -430,37 +430,34 @@ public class DataAccessSQL implements DataAccessInterface {
         entityKeywordIC.get(entity).put(keyword, keywordCount);
       }
       r.close();
-      statement.commit();
+      statement.close();
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     
     return entityKeywordIC;
   }
 
-  public int[] getInlinkNeighbors(Entity entity) {
-    Entities entities = new Entities();
-    entities.add(entity);
-    TIntObjectHashMap<int[]> neighbors = getInlinkNeighbors(entities);
-    return neighbors.get(entity.getId());
-  }
-
   @Override
   public TIntObjectHashMap<int[]> getInlinkNeighbors(Entities entities) {
     TIntObjectHashMap<int[]> neighbors = new TIntObjectHashMap<int[]>();
+    if (entities.isEmpty()) {
+      return neighbors;
+    }
+    
     for (int entityId : entities.getUniqueIds()) {
       neighbors.put(entityId, new int[0]);
     }
 
-    DBConnection con = null;
-    DBStatementInterface statement = null;
+    Connection con = null;
+    Statement statement = null;
     
     String entitiesQuery = StringUtils.join(entities.getUniqueIds(), ",");
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "YN");
-      statement = con.getStatement();
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = con.createStatement();
       String sql = "SELECT entity, inlinks FROM " + 
                    DataAccessSQL.ENTITY_INLINKS + 
                    " WHERE entity IN (" + entitiesQuery + ")";
@@ -471,25 +468,26 @@ public class DataAccessSQL implements DataAccessInterface {
         neighbors.put(entity, ArrayUtils.toPrimitive(neigbors));
       }
       rs.close();
-      statement.commit();
+      statement.close();
       return neighbors;
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return neighbors;
   }
 
   @Override
-  public Map<String, Gender> getGenderForEntities(Entities entities) {
-    Map<String, Gender> entityGenders = new HashMap<String, Gender>();
+  public TIntObjectHashMap<Gender> getGenderForEntities(Entities entities) {
+    TIntObjectHashMap<Gender> entityGenders = new TIntObjectHashMap<Gender>();
+    Map<String, Gender> genders = new HashMap<String, Gender>();
 
-    DBConnection con = null;
-    DBStatementInterface statement = null;
+    Connection con = null;
+    Statement statement = null;
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_YAGO2_FULL, "YNG");
-      statement = con.getStatement();
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_YAGO2_FULL);
+      statement = con.createStatement();
       String sql = "SELECT arg1,arg2 FROM " + YAGO_FACTS + 
                    " WHERE arg1 IN (" + YagoUtil.getPostgresEscapedConcatenatedQuery(entities.getUniqueNames()) + ") " + "AND relation='hasGender'";
       ResultSet rs = statement.executeQuery(sql);
@@ -503,48 +501,21 @@ public class DataAccessSQL implements DataAccessInterface {
           g = Gender.MALE;
         }
 
-        entityGenders.put(entity, g);
+        genders.put(entity, g);
       }
       rs.close();
-      statement.commit();
-      return entityGenders;
+      statement.close();
+      
+      for (Entity e : entities) {
+        entityGenders.put(e.getId(), genders.get(e.getIdentifierInKb()));
+      }
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_YAGO2_FULL, con);
+      AidaManager.releaseConnection(con);
     }
     return entityGenders;
   }
-
-  public Set<Type> getTypes(String entity) {
-    Set<String> entities = new HashSet<String>();
-    entities.add(entity);
-    Map<String, Set<Type>> results = getTypes(entities);
-    return results.get(entity);
-  }
-
-  public Map<String, Set<Type>> getTypes(Set<String> entities) {
-    Map<String, Set<Type>> entityTypesNames = new HashMap<String, Set<Type>>();
-    
-    TObjectIntHashMap<String> entitiesIds = getIdsForYagoEntityIds(entities);
-    TIntObjectHashMap<int[]> entitiesTypesIds = getTypesIdsForEntitiesIds(entitiesIds.values());
-    
-    for(String entity: entities) {
-      int entityId = entitiesIds.get(entity);
-      int[] typesIds = entitiesTypesIds.get(entityId);
-      TIntObjectHashMap<Type> typeNamesMap = getTypeNamesForIds(typesIds);
-      Type[] typesNames = new Type[typeNamesMap.values().length]; 
-      typesNames = typeNamesMap.values(typesNames);
-      Set<Type> types = new HashSet<Type>();
-      for (Type t : typesNames) {
-        types.add(t);
-      }
-      entityTypesNames.put(entity, types);
-      
-    }
-    return entityTypesNames;
-  }
-
  
   @Override
   public TIntIntHashMap getKeyphraseDocumentFrequencies(
@@ -555,12 +526,12 @@ public class DataAccessSQL implements DataAccessInterface {
       return keyphraseCounts;
     }
 
-    DBConnection con = null;
-    DBStatementInterface statement = null;
+    Connection con = null;
+    Statement statement = null;
 
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "Getting keyphrase counts");
-      statement = con.getStatement();
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = con.createStatement();
 
       String keyphraseQueryString = YagoUtil.getIdQuery(keyphrases);
 
@@ -576,11 +547,11 @@ public class DataAccessSQL implements DataAccessInterface {
       }
 
       rs.close();
-      statement.commit();
+      statement.close();
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
 
     return keyphraseCounts;
@@ -596,10 +567,10 @@ public class DataAccessSQL implements DataAccessInterface {
   @Override
   public List<String> getParentTypes(String queryType) {
     List<String> types = new LinkedList<String>();
-    DBConnection con = null;
+    Connection con = null;
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_YAGO2, "YN");
-      DBStatementInterface statement = con.getStatement();
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_YAGO2);
+      Statement statement = con.createStatement();
       String sql = "SELECT arg2 FROM facts " + "WHERE arg1=E'" + YagoUtil.getPostgresEscapedString(queryType) + "' " + "AND relation='subclassOf'";
       ResultSet rs = statement.executeQuery(sql);
       while (rs.next()) {
@@ -607,82 +578,13 @@ public class DataAccessSQL implements DataAccessInterface {
         types.add(type);
       }
       rs.close();
-      statement.commit();
+      statement.close();
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_YAGO2, con);
+      AidaManager.releaseConnection(con);
     }
     return types;
-  }
-
-  @Override
-  public boolean checkEntityNameExists(String entity) {
-    return isYagoEntity(YagoUtil.getEntityForYagoId(entity));
-  }
-
-  @Override
-  public String getKeyphraseSource(String entityName, String keyphrase) {
-    DBConnection con = null;
-    DBStatementInterface statement = null;
-
-    String source = null;
-
-    try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "Getting Wikipedia superdoc keyphrases");
-      statement = con.getStatement();
-
-      String sql = "SELECT source FROM " + ENTITY_KEYPHRASES + " WHERE entity='" + YagoUtil.getPostgresEscapedString(entityName) + "'" + " AND keyphrase='" + YagoUtil.getPostgresEscapedString(keyphrase) + "'";
-      ResultSet rs = statement.executeQuery(sql);
-
-      while (rs.next()) {
-        source = rs.getString("source");
-      }
-
-      rs.close();
-      statement.commit();
-    } catch (Exception e) {
-      logger.error(e.getLocalizedMessage());
-    } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
-    }
-
-    return source;
-  }
-
-  @Override
-  public Map<String, List<String>> getKeyphraseEntities(Set<String> keyphrases) {
-    DBConnection con = null;
-    DBStatementInterface statement = null;
-
-    Map<String, List<String>> keyphraseEntities = new HashMap<String, List<String>>();
-
-    try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "Getting keyphrase-entities");
-      String keyphraseQueryString = YagoUtil.getPostgresEscapedConcatenatedQuery(keyphrases);
-      statement = con.getStatement();
-
-      String sql = "SELECT entity,keyphrase FROM entity_keyphrases WHERE keyphrase IN (" + keyphraseQueryString + ")";
-
-      ResultSet rs = statement.executeQuery(sql);
-      for (String kp : keyphrases) {
-        keyphraseEntities.put(kp, new LinkedList<String>());
-      }
-      while (rs.next()) {
-        String entity = rs.getString("entity");
-        String keyphrase = rs.getString("keyphrase");
-        List<String> entities = keyphraseEntities.get(keyphrase);
-        entities.add(entity);
-      }
-      rs.close();
-      statement.commit();
-    } catch (Exception e) {
-      logger.error(e.getLocalizedMessage());
-    } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
-    }
-
-    return keyphraseEntities;
   }
 
   @Override
@@ -696,14 +598,13 @@ public class DataAccessSQL implements DataAccessInterface {
     TIntObjectHashMap<int[]> entitySignatures = 
         new TIntObjectHashMap<int[]>();
     
-    DBConnection con = null;
-    DBStatementInterface statement = null;
+    Connection con = null;
+    Statement statement = null;
 
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "Getting entity-keyphrases");
-//      String entityQueryString = YagoUtil.getPostgresEscapedConcatenatedQuery(entities.getUniqueNames());
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
       String entityQueryString = StringUtils.join(entities.getUniqueIds(), ",");
-      statement = con.getStatement();
+      statement = con.createStatement();
       
       String sql = "SELECT entity, signature FROM " + table + " WHERE entity IN (" + entityQueryString + ")";
       ResultSet rs = statement.executeQuery(sql);
@@ -713,79 +614,24 @@ public class DataAccessSQL implements DataAccessInterface {
         entitySignatures.put(entity, sig);        
       }
       rs.close();
-      statement.commit();
+      statement.close();
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
 
     return entitySignatures;
-  }
-
-  @Override
-  public String getFamilyName(String entity) {
-    String familyName = null;
-    DBConnection mentionEntityCon = null;
-    DBStatementInterface statement = null;
-    try {
-      entity = YagoUtil.getPostgresEscapedString(entity);
-      mentionEntityCon = AidaManager.getConnectionForDatabase(AidaManager.DB_YAGO2_FULL, "mentions for entity");
-      statement = mentionEntityCon.getStatement();
-      String sql = "select arg2 from facts where arg1 = '" + entity + "' and relation = 'hasFamilyName'";
-      ResultSet r = statement.executeQuery(sql);
-      if (r.next()) {
-        familyName = r.getString("arg2");
-      }
-      if (familyName != null) {
-        familyName = Normalize.unString(familyName);
-      }
-      r.close();
-      statement.commit();
-    } catch (Exception e) {
-      logger.error(e.getLocalizedMessage());
-    } finally {
-      AidaManager.releaseConnection(AidaManager.DB_YAGO2_FULL, mentionEntityCon);
-    }
-    return familyName;
-  }
-
-  @Override
-  public String getGivenName(String entity) {
-    String givenName = null;
-    DBConnection mentionEntityCon = null;
-    DBStatementInterface statement = null;
-    try {
-      entity = YagoUtil.getPostgresEscapedString(entity);
-      mentionEntityCon = AidaManager.getConnectionForDatabase(AidaManager.DB_YAGO2_FULL, "mentions for entity");
-      statement = mentionEntityCon.getStatement();
-      String sql = "select arg2 from facts where arg1 = '" + entity + "' and relation = 'hasGivenName'";
-      ResultSet r = statement.executeQuery(sql);
-      if (r.next()) {
-        givenName = r.getString("arg2");
-      }
-      if (givenName != null) {
-        givenName = Normalize.unString(givenName);
-      }
-      r.close();
-      statement.commit();
-    } catch (Exception e) {
-      logger.error(e.getLocalizedMessage());
-    } finally {
-      AidaManager.releaseConnection(AidaManager.DB_YAGO2_FULL, mentionEntityCon);
-    }
-    return givenName;
-  }
+  }  
 
   public TIntDoubleHashMap getEntityPriors(String mention) {
     mention = PriorProbability.conflateMention(mention);
     TIntDoubleHashMap entityPriors = new TIntDoubleHashMap();
-    DBConnection con = null;
-    DBStatementInterface statement = null;
+    Connection con = null;
+    Statement statement = null;
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, 
-                                           "getting priors");
-      statement = con.getStatement();
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = con.createStatement();
       String sql = "SELECT entity,prior FROM " + DICTIONARY +
                    " WHERE mention=E'" + 
                     YagoUtil.getPostgresEscapedString(
@@ -797,38 +643,38 @@ public class DataAccessSQL implements DataAccessInterface {
         entityPriors.put(entity, prior);
       }
       rs.close();
-      statement.commit();
+      statement.close();
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return entityPriors;
   }
 
   @Override
-  public TIntObjectHashMap<String> getYagoEntityIdsForIds(int[] ids) {
-    TIntObjectHashMap<String> entityIds = new TIntObjectHashMap<String>();
+  public TIntObjectHashMap<KBIdentifiedEntity> getKnowlegebaseEntitiesForInternalIds(int[] ids) {
+    TIntObjectHashMap<KBIdentifiedEntity> entityIds = new TIntObjectHashMap<KBIdentifiedEntity>();
     if (ids.length == 0) {
       return entityIds;
     }
-    DBConnection con = null;
-    DBStatementInterface stmt = null;
+    Connection con = null;
+    Statement stmt = null;
     try {
-      con = AidaManager.getConnectionForDatabase(
-          AidaManager.DB_AIDA, "Getting Ids");
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
       con.setAutoCommit(false);
-      stmt = con.getStatement();
+      stmt = con.createStatement();
       stmt.setFetchSize(100000);
       String idQuery = YagoUtil.getIdQuery(ids);
-      String sql = "SELECT entity, id FROM " + DataAccessSQL.ENTITY_IDS + 
+      String sql = "SELECT entity, id, knowledgebase FROM " + DataAccessSQL.ENTITY_IDS + 
                    " WHERE id IN (" + idQuery + ")";
       ResultSet rs = stmt.executeQuery(sql);
       int read = 0;
       while (rs.next()) {
         String entity = rs.getString("entity");
+        String kb = rs.getString("knowledgebase");
         int id = rs.getInt("id");
-        entityIds.put(id, entity);
+        entityIds.put(id, new KBIdentifiedEntity(entity, kb));
 
         if (++read % 1000000 == 0) {
           logger.info("Read " + read + " entity ids.");
@@ -838,44 +684,62 @@ public class DataAccessSQL implements DataAccessInterface {
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return entityIds;
   }
 
   @Override
-  public TObjectIntHashMap<String> getIdsForYagoEntityIds(
-      Collection<String> yagoIds) {
-    DBConnection con = null;
-    DBStatementInterface stmt = null;
-    TObjectIntHashMap<String> entityIds = new TObjectIntHashMap<String>();
+  public TObjectIntHashMap<KBIdentifiedEntity> getInternalIdsForKBEntities(
+      Collection<KBIdentifiedEntity> kbEntities) {
+    //for performance, query by entities names only, and filter later by kb
+    TObjectIntHashMap<KBIdentifiedEntity> allEntities = new TObjectIntHashMap<KBIdentifiedEntity>();
+    TObjectIntHashMap<KBIdentifiedEntity> filteredEntities = new TObjectIntHashMap<KBIdentifiedEntity>();
+    if(kbEntities.size() == 0) {
+      return filteredEntities;
+    }
+    
+    // TODO this looks like a bug, why is the knowledge base id dropped? 
+    // it should be part of the query.
+    Set<String> entities = new HashSet<String>();
+    for(KBIdentifiedEntity e: kbEntities) {
+      entities.add(e.getIdentifier());
+    }
+    
+       
+    Connection con = null;
+    Statement stmt = null;
     try {
-      con = AidaManager.getConnectionForDatabase(
-          AidaManager.DB_AIDA, "Getting Ids");
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
       con.setAutoCommit(false);
-      stmt = con.getStatement();
+      stmt = con.createStatement();
       stmt.setFetchSize(100000);
-      String idQuery = YagoUtil.getPostgresEscapedConcatenatedQuery(yagoIds);
-      String sql = "SELECT entity, id FROM " + DataAccessSQL.ENTITY_IDS + 
+      String idQuery = YagoUtil.getPostgresEscapedConcatenatedQuery(entities);
+      String sql = "SELECT entity, id, knowledgebase FROM " + DataAccessSQL.ENTITY_IDS + 
                    " WHERE entity IN (" + idQuery + ")";
       ResultSet rs = stmt.executeQuery(sql);
       int read = 0;
       while (rs.next()) {
         String entity = rs.getString("entity");
+        String kb = rs.getString("knowledgebase");
         int id = rs.getInt("id");
-        entityIds.put(entity, id);
+        allEntities.put(new KBIdentifiedEntity(entity, kb), id);
 
         if (++read % 1000000 == 0) {
           logger.info("Read " + read + " entity ids.");
         }
       }
       con.setAutoCommit(true);
+      
+      for(KBIdentifiedEntity e: kbEntities) { 
+        filteredEntities.put(e, allEntities.get(e));
+      }
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
-    return entityIds;
+    return filteredEntities;
   }
 
   @Override
@@ -884,13 +748,12 @@ public class DataAccessSQL implements DataAccessInterface {
     if (ids.length == 0) {
       return wordIds;
     }
-    DBConnection con = null;
-    DBStatementInterface stmt = null;
+    Connection con = null;
+    Statement stmt = null;
     try {
-      con = AidaManager.getConnectionForDatabase(
-          AidaManager.DB_AIDA, "Getting Ids");
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
       con.setAutoCommit(false);
-      stmt = con.getStatement();
+      stmt = con.createStatement();
       stmt.setFetchSize(100000);
       String idQuery = YagoUtil.getIdQuery(ids);
       String sql = "SELECT word, id FROM " + DataAccessSQL.WORD_IDS + 
@@ -910,7 +773,7 @@ public class DataAccessSQL implements DataAccessInterface {
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return wordIds;
   }
@@ -921,13 +784,12 @@ public class DataAccessSQL implements DataAccessInterface {
     if (keywords.isEmpty()) {
       return wordIds;
     }
-    DBConnection con = null;
-    DBStatementInterface stmt = null;
+    Connection con = null;
+    Statement stmt = null;
     try {
-      con = AidaManager.getConnectionForDatabase(
-          AidaManager.DB_AIDA, "Getting Ids");
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
       con.setAutoCommit(false);
-      stmt = con.getStatement();
+      stmt = con.createStatement();
       stmt.setFetchSize(100000);
       String idQuery = YagoUtil.getPostgresEscapedConcatenatedQuery(keywords);
       String sql = "SELECT word, id FROM " + DataAccessSQL.WORD_IDS + 
@@ -947,30 +809,90 @@ public class DataAccessSQL implements DataAccessInterface {
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return wordIds;
   }
 
   @Override
-  public TObjectIntHashMap<String> getAllEntityIds() {
-    DBConnection con = null;
-    DBStatementInterface stmt = null;
-    TObjectIntHashMap<String> entityIds = new TObjectIntHashMap<String>();
-    try {
-      con = AidaManager.getConnectionForDatabase(
-          AidaManager.DB_AIDA, "Getting Entity Ids");
+  public TObjectIntHashMap<String> getAllKeyphraseSources() {
+    Integer kpSrcTime = RunningTimer.recordStartTime("DataAccessSQL:getAllKPSrc");
+    Connection con = null;
+    Statement stmt = null;
+    TObjectIntHashMap<String> keyphraseSources = new TObjectIntHashMap<String>();
+    try{
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
       con.setAutoCommit(false);
-      stmt = con.getStatement();
+      stmt = con.createStatement();
+      String sql = "SELECT source, source_id FROM " + DataAccessSQL.KEYPHRASES_SOURCE;
+      ResultSet rs = stmt.executeQuery(sql);
+      while(rs.next()) {
+        int sourceId = rs.getInt("source_id");
+        String sourceName = rs.getString("source");
+        keyphraseSources.put(sourceName, sourceId);
+      }
+    }catch(Exception e){
+      logger.error(e.getLocalizedMessage());
+    }finally {
+      AidaManager.releaseConnection(con);
+    }
+    RunningTimer.recordEndTime("DataAccessSQL:getAllKPSrc", kpSrcTime);
+    return keyphraseSources;
+  }
+  
+  @Override
+  public TIntObjectHashMap<int[]> getAllKeyphraseTokens() {
+    Connection con = null;
+    Statement stmt = null;
+    TIntObjectHashMap<int[]> keyphraseTokens = new TIntObjectHashMap<int[]>();    
+    try {
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      stmt = con.createStatement();
+      stmt.setFetchSize(1000000);
+      String sql = 
+          "SELECT keyphrase, array_agg(token ORDER BY position) FROM " + 
+              DataAccessSQL.KEYPHRASES_TOKENS +
+              " GROUP BY keyphrase";
+      ResultSet rs = stmt.executeQuery(sql);
+      
+      int read = 0;
+      while(rs.next()) {
+        int keyphrase = rs.getInt(1);
+        Integer[] tokens = (Integer[]) rs.getArray(2).getArray();
+        int[] tokensPrimitive = ArrayUtils.toPrimitive(tokens);
+        keyphraseTokens.put(keyphrase, tokensPrimitive);
+        if (++read % 1000000 == 0) {
+          logger.debug("Read " + read + " keyphrase tokens.");
+         }
+      }                      
+    } catch (Exception e) {
+      logger.error(e.getLocalizedMessage());
+    } finally {
+      AidaManager.releaseConnection(con);
+    }
+        
+    return keyphraseTokens;
+  }
+  
+  @Override
+  public TObjectIntHashMap<KBIdentifiedEntity> getAllEntityIds() {
+    Connection con = null;
+    Statement stmt = null;
+    TObjectIntHashMap<KBIdentifiedEntity> entityIds = new TObjectIntHashMap<KBIdentifiedEntity>();
+    try {
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      con.setAutoCommit(false);
+      stmt = con.createStatement();
       stmt.setFetchSize(100000);
-      String sql = "SELECT entity, id FROM " + DataAccessSQL.ENTITY_IDS +
+      String sql = "SELECT entity, id, knowledgebase FROM " + DataAccessSQL.ENTITY_IDS +
                    " WHERE entity NOT LIKE '\"%'";
       ResultSet rs = stmt.executeQuery(sql);
       int read = 0;
       while (rs.next()) {
         String entity = rs.getString("entity");
+        String kb = rs.getString("knowledgebase");
         int id = rs.getInt("id");
-        entityIds.put(entity, id);
+        entityIds.put(new KBIdentifiedEntity(entity, kb), id);
 
         if (++read % 1000000 == 0) {
           logger.info("Read " + read + " entity ids.");
@@ -980,21 +902,143 @@ public class DataAccessSQL implements DataAccessInterface {
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return entityIds;
+  }
+  
+  @Override
+  public TObjectIntHashMap<Type> getAllTypeIds() {
+    Connection con = null;
+    Statement stmt = null;
+    TObjectIntHashMap<Type> typeIds = new TObjectIntHashMap<Type>();
+    try {
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      con.setAutoCommit(false);
+      stmt = con.createStatement();
+      stmt.setFetchSize(100000);
+      String sql = "SELECT type, id, knowledgebase FROM " + DataAccessSQL.TYPE_IDS;
+      ResultSet rs = stmt.executeQuery(sql);
+      int read = 0;
+      while (rs.next()) {
+        String type = rs.getString("type");
+        String kb = rs.getString("knowledgebase");
+        int id = rs.getInt("id");
+        typeIds.put(new Type(kb, type), id);
+
+        if (++read % 1000000 == 0) {
+          logger.info("Read " + read + " type ids.");
+        }
+      }
+      con.setAutoCommit(true);
+    } catch (Exception e) {
+      logger.error(e.getLocalizedMessage());
+    } finally {
+      AidaManager.releaseConnection(con);
+    }
+    return typeIds;
+  }
+
+  @Override
+  public TIntDoubleHashMap getAllEntityRanks() {
+    Connection con = null;
+    Statement stmt = null;
+    TIntDoubleHashMap entityRanks = new TIntDoubleHashMap();
+    try {
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      con.setAutoCommit(false);
+      stmt = con.createStatement();
+      stmt.setFetchSize(100000);
+      String sql = "SELECT entity, rank FROM " + DataAccessSQL.ENTITY_RANK;
+      ResultSet rs = stmt.executeQuery(sql);
+      int read = 0;
+      while (rs.next()) {
+        int entity = rs.getInt("entity");
+        double rank = rs.getDouble("rank");
+        entityRanks.put(entity, rank);
+
+        if (++read % 1000000 == 0) {
+          logger.info("Read " + read + " entity ranks.");
+        }
+      }
+      con.setAutoCommit(true);
+    } catch (Exception e) {
+      logger.error(e.getLocalizedMessage());
+    } finally {
+      AidaManager.releaseConnection(con);
+    }
+    return entityRanks;
+  }
+
+  @Override
+  public TIntObjectHashMap<int[]> getAllEntityTypes() {
+    Connection con = null;
+    Statement stmt = null;
+    TIntObjectHashMap<int[]> entityTypes = new TIntObjectHashMap<>();
+    try {
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      con.setAutoCommit(false);
+      stmt = con.createStatement();
+      stmt.setFetchSize(100000);
+      String sql = "SELECT entity, types FROM " + DataAccessSQL.ENTITY_TYPES;
+      ResultSet rs = stmt.executeQuery(sql);
+      int read = 0;
+      while (rs.next()) {
+        int entity = rs.getInt(1);
+        Integer[] types = (Integer[]) rs.getArray(2).getArray();
+        entityTypes.put(entity, ArrayUtils.toPrimitive(types));
+        if (++read % 1000000 == 0) {
+          logger.info("Read " + read + " entity types.");
+        }
+      }
+      con.setAutoCommit(true);
+    } catch (Exception e) {
+      logger.error(e.getLocalizedMessage());
+    } finally {
+      AidaManager.releaseConnection(con);
+    }
+    return entityTypes;
+  }
+  
+  @Override
+  public TIntObjectHashMap<int[]> getTaxonomy() {
+    Connection con = null;
+    Statement stmt = null;
+    TIntObjectHashMap<int[]> taxonomy = new TIntObjectHashMap<>();
+    try {
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      con.setAutoCommit(false);
+      stmt = con.createStatement();
+      stmt.setFetchSize(100000);
+      String sql = "SELECT type, parents FROM " + DataAccessSQL.TYPE_TAXONOMY;
+      ResultSet rs = stmt.executeQuery(sql);
+      int read = 0;
+      while (rs.next()) {
+        int type = rs.getInt(1);
+        Integer[] parents = (Integer[]) rs.getArray(2).getArray();
+        taxonomy.put(type, ArrayUtils.toPrimitive(parents));
+        if (++read % 1000000 == 0) {
+          logger.info("Read " + read + " type parents.");
+        }
+      }
+      con.setAutoCommit(true);
+    } catch (Exception e) {
+      logger.error(e.getLocalizedMessage());
+    } finally {
+      AidaManager.releaseConnection(con);
+    }
+    return taxonomy;
   }
 
   @Override
   public TObjectIntHashMap<String> getAllWordIds() {
-    DBConnection con = null;
-    DBStatementInterface stmt = null;
+    Connection con = null;
+    Statement stmt = null;
     TObjectIntHashMap<String> wordIds = new TObjectIntHashMap<String>(10000000);
     try {
-      con = AidaManager.getConnectionForDatabase(
-          AidaManager.DB_AIDA, "Getting Word Ids");
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
       con.setAutoCommit(false);
-      stmt = con.getStatement();
+      stmt = con.createStatement();
       stmt.setFetchSize(100000);
       String sql = "SELECT word, id FROM " + DataAccessSQL.WORD_IDS;
       ResultSet rs = stmt.executeQuery(sql);
@@ -1012,16 +1056,16 @@ public class DataAccessSQL implements DataAccessInterface {
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return wordIds;
   }
 
   @Override
   public Entities getAllEntities() {
-    TObjectIntHashMap<String> entityIds = getAllEntityIds();
+    TObjectIntHashMap<KBIdentifiedEntity> entityIds = getAllEntityIds();
     Entities entities = new Entities();
-    for (TObjectIntIterator<String> itr = entityIds.iterator(); 
+    for (TObjectIntIterator<KBIdentifiedEntity> itr = entityIds.iterator(); 
         itr.hasNext(); ) {
       itr.advance();
       entities.add(new Entity(itr.key(), itr.value()));
@@ -1031,16 +1075,15 @@ public class DataAccessSQL implements DataAccessInterface {
 
   @Override
   public int[] getAllWordExpansions() {
-    DBConnection con = null;
-    DBStatementInterface stmt = null;
+    Connection con = null;
+    Statement stmt = null;
     TIntIntHashMap wordExpansions = new TIntIntHashMap();
     int maxId = -1;
     try {
       logger.info("Reading word expansions.");
-      con = AidaManager.getConnectionForDatabase(
-          AidaManager.DB_AIDA, "Getting word expansions");
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
       con.setAutoCommit(false);
-      stmt = con.getStatement();
+      stmt = con.createStatement();
       stmt.setFetchSize(1000000);
       String sql = "SELECT word, expansion FROM " + WORD_EXPANSION;
       ResultSet rs = stmt.executeQuery(sql);
@@ -1061,7 +1104,7 @@ public class DataAccessSQL implements DataAccessInterface {
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     
     // Transform hash to int array.
@@ -1076,13 +1119,12 @@ public class DataAccessSQL implements DataAccessInterface {
   
   @Override
   public int getWordExpansion(int wordId) {
-    DBConnection con = null;
-    DBStatementInterface stmt = null;
+    Connection con = null;
+    Statement stmt = null;
     int wordExpansion = 0;
     try {
-      con = AidaManager.getConnectionForDatabase(
-          AidaManager.DB_AIDA, "Getting word expansions");
-      stmt = con.getStatement();
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      stmt = con.createStatement();
       String sql = "SELECT expansion FROM " + WORD_EXPANSION + 
                    " WHERE word=" + wordId;
       ResultSet rs = stmt.executeQuery(sql);
@@ -1092,22 +1134,21 @@ public class DataAccessSQL implements DataAccessInterface {
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return wordExpansion;
   }
 
   @Override
   public boolean isYagoEntity(Entity entity) {
-    DBConnection con = null;
-    DBStatementInterface stmt = null;
+    Connection con = null;
+    Statement stmt = null;
     boolean isYagoEntity = false;
     try {
-      con = AidaManager.getConnectionForDatabase(
-          AidaManager.DB_YAGO2, "Checking YAGO entity");
-      stmt = con.getStatement();
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_YAGO2);
+      stmt = con.createStatement();
       String sql = "SELECT arg1 FROM facts WHERE arg1=E'" + 
-                    YagoUtil.getPostgresEscapedString(entity.getName()) + 
+                    YagoUtil.getPostgresEscapedString(entity.getIdentifierInKb()) + 
                     "' AND relation='hasWikipediaUrl'";
       ResultSet rs = stmt.executeQuery(sql);
       
@@ -1116,11 +1157,11 @@ public class DataAccessSQL implements DataAccessInterface {
         isYagoEntity = true;
       } 
       rs.close();
-      stmt.commit();
+      stmt.close();
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_YAGO2, con);
+      AidaManager.releaseConnection(con);
     }
     return isYagoEntity;
   }
@@ -1128,12 +1169,12 @@ public class DataAccessSQL implements DataAccessInterface {
   @Override
   public TIntObjectHashMap<int[]> getAllInlinks() {
     TIntObjectHashMap<int[]> inlinks = new TIntObjectHashMap<int[]>();
-    DBConnection con = null;
-    DBStatementInterface statement = null;    
+    Connection con = null;
+    Statement statement = null;    
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "YN");
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
       con.setAutoCommit(false);
-      statement = con.getStatement();
+      statement = con.createStatement();
       statement.setFetchSize(100000);
       int read = 0;
       String sql = "SELECT entity, inlinks FROM " + DataAccessSQL.ENTITY_INLINKS; 
@@ -1148,26 +1189,25 @@ public class DataAccessSQL implements DataAccessInterface {
         }
       }
       rs.close();
-      statement.commit();
+      statement.close();
       con.setAutoCommit(true);
       return inlinks;
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return inlinks;
   }
 
   @Override
   public int getCollectionSize() {
-    DBConnection con = null;
-    DBStatementInterface stmt = null;
+    Connection con = null;
+    Statement stmt = null;
     int collectionSize = 0;
     try {
-      con = AidaManager.getConnectionForDatabase(
-          AidaManager.DB_AIDA, "CollectionSize");
-      stmt = con.getStatement();
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      stmt = con.createStatement();
       String sql = "SELECT value FROM " + METADATA +
       		         " WHERE key='collection_size'";
       ResultSet rs = stmt.executeQuery(sql);
@@ -1178,7 +1218,7 @@ public class DataAccessSQL implements DataAccessInterface {
         collectionSize = Integer.parseInt(sizeString);        
       } 
       rs.close();
-      stmt.commit();
+      stmt.close();
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
       logger.error("You might have an outdated entity repository, please " +
@@ -1191,24 +1231,23 @@ public class DataAccessSQL implements DataAccessInterface {
               "above for other error messages, maybe the connection to the " +
               "Postgres database is not working properly.");
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return collectionSize;
   }
 
   @Override
-  public TIntObjectHashMap<Type> getTypeNamesForIds(int[] ids) {
+  public TIntObjectHashMap<Type> getTypesForIds(int[] ids) {
     TIntObjectHashMap<Type> typeNames = new TIntObjectHashMap<Type>();
     if (ids.length == 0) {
       return typeNames;
     }
-    DBConnection con = null;
-    DBStatementInterface stmt = null;
+    Connection con = null;
+    Statement stmt = null;
     try {
-      con = AidaManager.getConnectionForDatabase(
-          AidaManager.DB_AIDA, "Getting Types Names");
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
       con.setAutoCommit(false);
-      stmt = con.getStatement();
+      stmt = con.createStatement();
       stmt.setFetchSize(100000);
       String idQuery = YagoUtil.getIdQuery(ids);
       String sql = "SELECT type, knowledgeBase, id FROM " + DataAccessSQL. TYPE_IDS + 
@@ -1229,21 +1268,20 @@ public class DataAccessSQL implements DataAccessInterface {
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return typeNames;
   }
 
   @Override
   public TObjectIntHashMap<String> getIdsForTypeNames(Collection<String> typeNames) {
-    DBConnection con = null;
-    DBStatementInterface stmt = null;
+    Connection con = null;
+    Statement stmt = null;
     TObjectIntHashMap<String> typesIds = new TObjectIntHashMap<String>();
     try {
-      con = AidaManager.getConnectionForDatabase(
-          AidaManager.DB_AIDA, "Getting types Ids");
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
       con.setAutoCommit(false);
-      stmt = con.getStatement();
+      stmt = con.createStatement();
       stmt.setFetchSize(100000);
       String idQuery = YagoUtil.getPostgresEscapedConcatenatedQuery(typeNames);
       String sql = "SELECT type, id FROM " + DataAccessSQL.TYPE_IDS + 
@@ -1263,26 +1301,31 @@ public class DataAccessSQL implements DataAccessInterface {
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return typesIds;
   }
 
   @Override
   public TIntObjectHashMap<int[]> getTypesIdsForEntitiesIds(int[] entitiesIds) {
+    Integer id = RunningTimer.recordStartTime("DataAccess:getTypesIdsForEntitiesIds");
     TIntObjectHashMap<int[]> typesIds = new TIntObjectHashMap<int[]>();
+    if(entitiesIds.length == 0) {
+      return typesIds;
+    }
+    
     for (int entityId : entitiesIds) {
       typesIds.put(entityId, new int[0]);
     }
 
-    DBConnection con = null;
-    DBStatementInterface statement = null;
+    Connection con = null;
+    Statement statement = null;
     
     
     String entitiesQuery = StringUtils.join(Util.asIntegerList(entitiesIds), ",");
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "YN");
-      statement = con.getStatement();
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = con.createStatement();
       String sql = "SELECT entity, types FROM " + 
                    DataAccessSQL.ENTITY_TYPES + 
                    " WHERE entity IN (" + entitiesQuery + ")";
@@ -1293,12 +1336,13 @@ public class DataAccessSQL implements DataAccessInterface {
         typesIds.put(entity, ArrayUtils.toPrimitive(types));
       }
       rs.close();
-      statement.commit();
+      statement.close();
       return typesIds;
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
+      RunningTimer.recordEndTime("DataAccess:getTypesIdsForEntitiesIds", id);
     }
     return typesIds;
   }
@@ -1310,14 +1354,14 @@ public class DataAccessSQL implements DataAccessInterface {
       entitiesIds.put(typeId, new int[0]);
     }
 
-    DBConnection con = null;
-    DBStatementInterface statement = null;
+    Connection con = null;
+    Statement statement = null;
     
     
     String typesQuery = StringUtils.join(Util.asIntegerList(typesIds), ",");
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "YN");
-      statement = con.getStatement();
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = con.createStatement();
       String sql = "SELECT type, entities FROM " + 
                    DataAccessSQL.ENTITY_TYPES + 
                    " WHERE type IN (" + typesQuery + ")";
@@ -1328,36 +1372,40 @@ public class DataAccessSQL implements DataAccessInterface {
         entitiesIds.put(type, ArrayUtils.toPrimitive(entities));
       }
       rs.close();
-      statement.commit();
+      statement.close();
       return entitiesIds;
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return entitiesIds;
-  }
-
-  @Override
-  public TIntObjectHashMap<int[]> getTypesIdsForEntities(Entities entities) {
-    Integer[] entitiesIds = (Integer[]) entities.getUniqueIds().toArray();
-    
-    return getTypesIdsForEntitiesIds(ArrayUtils.toPrimitive(entitiesIds));
   }
 
   @Override
   public Map<String, List<String>> getAllEntitiesMetaData(String startingWith){
     Map<String, List<String>> entitiesMetaData = new TreeMap<String, List<String>>();
 
-    DBConnection con = null;
-    DBStatementInterface statement = null;
+    Connection con = null;
+    Statement statement = null;
     
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "YN");
-      statement = con.getStatement();
-      String sql = "SELECT humanreadablererpresentation, url FROM " + 
-                   DataAccessSQL.ENTITY_METADATA + " WHERE humanreadablererpresentation ILIKE '"+startingWith+"%' order by humanreadablererpresentation";
-      ResultSet rs = statement.executeQuery(sql);
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = con.createStatement();      
+      // TODO respect filteringTypes here!
+      StringBuilder sb = new StringBuilder(); 
+      sb.append("SELECT em.humanreadablererpresentation, em.url, ti.type "
+              + "FROM entity_metadata em, entity_types et, type_ids ti "
+              + "WHERE em.entity = et.entity AND ti.id=ANY(et.types) "
+              + "AND em.humanreadablererpresentation ILIKE '"+startingWith+"%'"
+              + "AND ti.type IN ( ");
+      for (Type t : AidaConfig.getFilteringTypes()) {
+        sb.append("'").append(t.getName()).append("',");
+      }
+      // Delete last ,
+      sb.deleteCharAt(sb.length() - 1);
+      sb.append(") ORDER BY em.humanreadablererpresentation");
+      ResultSet rs = statement.executeQuery(sb.toString());
       while (rs.next()) {
         String humanReadableRepresentation = rs.getString("humanreadablererpresentation");
         String url = rs.getString("url");
@@ -1370,42 +1418,16 @@ public class DataAccessSQL implements DataAccessInterface {
         }
       }
       rs.close();
-      statement.commit();
+      statement.close();
       return entitiesMetaData;
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return entitiesMetaData;
   }
   
-  @Override
-  public Map<String, EntityMetaData> getEntitiesMetaData(Set<String> entities) {
-    if (entities == null || entities.size() == 0) {
-      return new HashMap<String, EntityMetaData>();
-    }
-    TObjectIntHashMap<String> entitiesIds = getIdsForYagoEntityIds(entities);
-    TIntObjectHashMap<EntityMetaData> entitiesIdsMetaData = getEntitiesMetaData(entitiesIds.values());
-    
-    Map<String, EntityMetaData> entitiesMetaData = new HashMap<String, EntityMetaData>();
-
-    for(String entity: entities) {
-      int entityId = entitiesIds.get(entity);
-      entitiesMetaData.put(entity, entitiesIdsMetaData.get(entityId));
-    }
-    
-    return entitiesMetaData;
-  }
-
-  @Override
-  public EntityMetaData getEntityMetaData(String entity) {
-    Set<String> entities = new HashSet<String>();
-    entities.add(entity);
-    Map<String, EntityMetaData> results = getEntitiesMetaData(entities);
-    return results.get(entity);
-  }
-
   @Override
   public TIntObjectHashMap<EntityMetaData> getEntitiesMetaData(int[] entitiesIds) {
     TIntObjectHashMap<EntityMetaData> entitiesMetaData = new TIntObjectHashMap<EntityMetaData>();
@@ -1413,63 +1435,40 @@ public class DataAccessSQL implements DataAccessInterface {
       return entitiesMetaData;
     }
 
-    DBConnection con = null;
-    DBStatementInterface statement = null;
+    Connection con = null;
+    Statement statement = null;
     
     String entitiesQuery = StringUtils.join(Util.asIntegerList(entitiesIds), ",");
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "YN");
-      statement = con.getStatement();
-      String sql = "SELECT entity, humanreadablererpresentation, url FROM " + 
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = con.createStatement();
+      String sql = "SELECT entity, humanreadablererpresentation, url, "
+          + "knowledgebase, depictionurl, depictionthumbnailurl FROM " + 
                    DataAccessSQL.ENTITY_METADATA + 
                    " WHERE entity IN (" + entitiesQuery + ")";
+      logger.debug("Getting metadata for " + entitiesIds.length + " entities");    
       ResultSet rs = statement.executeQuery(sql);
       while (rs.next()) {
         int entity = rs.getInt("entity");
         String humanReadableRepresentation = rs.getString("humanreadablererpresentation");
         String url = rs.getString("url");
-        entitiesMetaData.put(entity, new EntityMetaData(entity, humanReadableRepresentation, url));
+        String knowledgebase = rs.getString("knowledgebase");
+        String depictionurl = rs.getString("depictionurl");
+        String depictionthumbnailurl = rs.getString("depictionthumbnailurl");
+        entitiesMetaData.put(entity, new EntityMetaData(entity, 
+            humanReadableRepresentation, url, knowledgebase, depictionurl, 
+            depictionthumbnailurl));        
       }
+      logger.debug("Getting metadata for " + entitiesIds.length + " entities DONE");
       rs.close();
-      statement.commit();
+      statement.close();
       return entitiesMetaData;
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return entitiesMetaData;
-  }
-
-  @Override
-  public EntityMetaData getEntityMetaData(int entityId) {
-    int[] entitiesIds = new int[1];
-    entitiesIds[0] = entityId;
-    TIntObjectHashMap<EntityMetaData> results = getEntitiesMetaData(entitiesIds);
-    return results.get(entityId);
-  }
-
-  @Override
-  public Map<String, Double> getEntitiesImportances(Set<String> entities) {
-    TObjectIntHashMap<String> entitiesIds = getIdsForYagoEntityIds(entities);
-    TIntDoubleHashMap entitiesIdsImportances = getEntitiesImportances(entitiesIds.values());
-    
-    Map<String, Double> entitiesImportances = new HashMap<String, Double>();
-
-    for(String entity: entities) {
-      int entityId = entitiesIds.get(entity);
-      entitiesImportances.put(entity, entitiesIdsImportances.get(entityId));
-    }
-    
-    return entitiesImportances;
-  }
-
-  @Override
-  public double getEntityImportance(String entity) {
-    Set<String> entities = new HashSet<String>();
-    entities.add(entity);
-    Map<String, Double> results = getEntitiesImportances(entities);
-    return results.get(entity);
   }
 
   @Override
@@ -1479,13 +1478,13 @@ public class DataAccessSQL implements DataAccessInterface {
       return entitiesImportances;
     }
     
-    DBConnection con = null;
-    DBStatementInterface statement = null;
+    Connection con = null;
+    Statement statement = null;
     
     String entitiesQuery = StringUtils.join(Util.asIntegerList(entitiesIds), ",");
     try {
-      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "YN");
-      statement = con.getStatement();
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = con.createStatement();
       String sql = "SELECT entity, rank FROM " + 
                    DataAccessSQL.ENTITY_RANK + 
                    " WHERE entity IN (" + entitiesQuery + ")";
@@ -1496,38 +1495,25 @@ public class DataAccessSQL implements DataAccessInterface {
         entitiesImportances.put(entity, rank);
       }
       rs.close();
-      statement.commit();
+      statement.close();
       return entitiesImportances;
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     return entitiesImportances;
-  }
-
-  @Override
-  public double getEntityImportance(int entityId) {
-    int[] entitiesIds = new int[1];
-    entitiesIds[0] = entityId;
-    TIntDoubleHashMap results = getEntitiesImportances(entitiesIds);
-    return results.get(entityId);
-  }
-  
-  @Override
-  public double getKeyphraseSourceWeights(String source){
-    return getKeyphraseSourceWeights().get(source);
   }
  
   @Override
   public Map<String, Double> getKeyphraseSourceWeights(){
-    DBConnection sourceWeightCon = null;
-    DBStatementInterface statement = null;
+    Connection sourceWeightCon = null;
+    Statement statement = null;
     Map<String, Double> querySourceWeights = new HashMap<String, Double>();
     try {
       sourceWeightCon = 
-          AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA, "keyphrases sources weights");
-      statement = sourceWeightCon.getStatement();
+          AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = sourceWeightCon.createStatement();
       String sql = "SELECT " + KEYPHRASE_SOURCE_WEIGHTS + ".source, " + 
                     KEYPHRASE_SOURCE_WEIGHTS + ".weight FROM " + KEYPHRASE_SOURCE_WEIGHTS;
       
@@ -1538,12 +1524,12 @@ public class DataAccessSQL implements DataAccessInterface {
         querySourceWeights.put(source, weight);
       }      
       r.close();
-      statement.commit();
+      statement.close();
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
       e.printStackTrace();
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, sourceWeightCon);
+      AidaManager.releaseConnection(sourceWeightCon);
     }
     return querySourceWeights;
   }
@@ -1551,12 +1537,11 @@ public class DataAccessSQL implements DataAccessInterface {
   @Override
   public String getConfigurationName() {
     String confName = "";
-    DBConnection confNameConn = null;
-    DBStatementInterface statement = null;
+    Connection confNameConn = null;
+    Statement statement = null;
     try {
-      confNameConn = AidaManager.getConnectionForDatabase(
-          AidaManager.DB_AIDA, "Reading Conf Name");
-      statement = confNameConn.getStatement();
+      confNameConn = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = confNameConn.createStatement();
       String sql = "SELECT " + METADATA + ".value FROM " + METADATA +
           " WHERE " + METADATA + ".key = 'confName'";
 
@@ -1565,28 +1550,27 @@ public class DataAccessSQL implements DataAccessInterface {
         confName = r.getString(1);
       }
       r.close();
-      statement.commit();
+      statement.close();
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
       e.printStackTrace();
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, confNameConn);
+      AidaManager.releaseConnection(confNameConn);
     }
     return confName;
   }
 
   @Override
   public int[] getAllKeywordDocumentFrequencies() {
-    DBConnection con = null;
-    DBStatementInterface stmt = null;
+    Connection con = null;
+    Statement stmt = null;
     TIntIntHashMap keywordCounts = new TIntIntHashMap();
     int maxId = -1;
     try {
       logger.info("Reading keyword counts.");
-      con = AidaManager.getConnectionForDatabase(
-          AidaManager.DB_AIDA, "Reading keyword counts.");
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
       con.setAutoCommit(false);
-      stmt = con.getStatement();
+      stmt = con.createStatement();
       stmt.setFetchSize(1000000);
       String sql = "SELECT keyword, count FROM " + KEYWORD_COUNTS;
       ResultSet rs = stmt.executeQuery(sql);
@@ -1607,7 +1591,7 @@ public class DataAccessSQL implements DataAccessInterface {
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
-      AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+      AidaManager.releaseConnection(con);
     }
     
     // Transform hash to int array. This will contain a lot of zeroes as 
@@ -1622,5 +1606,34 @@ public class DataAccessSQL implements DataAccessInterface {
       counts[keywordId] = itr.value();
     }
     return counts;
+  }
+
+  @Override
+  public Pair<Integer, Integer> getImportanceComponentMinMax(String importanceComponentId) {
+    Pair<Integer, Integer> minMax = null;
+
+    Connection con = null;
+    Statement statement = null;
+
+    try {
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = con.createStatement();
+      String sql = "SELECT min, max FROM " + DataAccessSQL.IMPORTANCE_COMPONENTS_INFO 
+          + " WHERE component='" + importanceComponentId + "'";
+      ResultSet rs = statement.executeQuery(sql);
+      while (rs.next()) {
+        int min = rs.getInt("min");
+        int max = rs.getInt("max");
+        minMax = new Pair<Integer, Integer>(min, max);
+      }
+      rs.close();
+      statement.close();
+      return minMax;
+    } catch (Exception e) {
+      logger.error(e.getLocalizedMessage());
+    } finally {
+      AidaManager.releaseConnection(con);
+    }
+    return minMax;
   }
 }

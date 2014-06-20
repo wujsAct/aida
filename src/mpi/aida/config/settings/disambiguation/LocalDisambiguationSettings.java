@@ -25,8 +25,6 @@ public class LocalDisambiguationSettings extends DisambiguationSettings {
     switchedKPsettings.setIdentifier("SwitchedKP");
     switchedKPsettings.setPriorThreshold(0.9);
     setSimilaritySettings(switchedKPsettings);
-    
-    setIncludeNullAsEntityCandidate(false);
   }
   
   public static List<String[]> getSimConfigs() {

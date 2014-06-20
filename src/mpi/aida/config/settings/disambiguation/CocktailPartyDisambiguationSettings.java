@@ -28,7 +28,8 @@ public class CocktailPartyDisambiguationSettings extends DisambiguationSettings 
     setTracingTarget(TracingTarget.WEB_INTERFACE);
      
     setDisambiguationTechnique(TECHNIQUE.GRAPH);
-    setDisambiguationAlgorithm(ALGORITHM.COCKTAIL_PARTY_SIZE_CONSTRAINED);
+    setDisambiguationAlgorithm(ALGORITHM.COCKTAIL_PARTY_SIZE_CONSTRAINED);   
+    
     getGraphSettings().setUseExhaustiveSearch(true);
     getGraphSettings().setUseNormalizedObjective(true);
     getGraphSettings().setEntitiesPerMentionConstraint(5);
@@ -47,7 +48,7 @@ public class CocktailPartyDisambiguationSettings extends DisambiguationSettings 
     setSimilaritySettings(switchedKPsettings);
         
     SimilaritySettings unnormalizedKPsettings = new SimilaritySettings(getCoherenceRobustnessSimConfigs(), null, 0.0);
-    switchedKPsettings.setIdentifier("CoherenceRobustnessTest");
+    unnormalizedKPsettings.setIdentifier("CoherenceRobustnessTest");
     getGraphSettings().setCoherenceSimilaritySetting(unnormalizedKPsettings);
   }
   

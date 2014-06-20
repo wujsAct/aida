@@ -1,10 +1,10 @@
 package mpi.aida.util;
 
+import java.io.BufferedWriter;
 import java.io.Reader;
 
 import mpi.tools.basics.Normalize;
 import mpi.tools.javatools.filehandlers.FileLines;
-import mpi.tools.javatools.parsers.Char;
 import mpi.tools.javatools.util.FileUtils;
 
 /**
@@ -17,13 +17,15 @@ import mpi.tools.javatools.util.FileUtils;
 public class WikipediaDumpArticleIdExtractor {
 
   public static void main(String[] args) throws Exception {
-    if (args.length != 1) {
+    if (args.length != 2) {
       printUsage();
       System.exit(1);
     }
     
     final Reader reader = FileUtils.getBufferedUTF8Reader(args[0]);
     String page = FileLines.readBetween(reader, "<page>", "</page>");
+    
+    BufferedWriter writer = FileUtils.getBufferedUTF8Writer(args[1]);
     
     int pagesDone = 0;
     
@@ -32,17 +34,20 @@ public class WikipediaDumpArticleIdExtractor {
         System.err.println(pagesDone + " pages done.");
       }
       
-      page = Char.decodeAmpersand(page.replace("&amp;", "&"));
       String title = FileLines.readBetween(page, "<title>", "</title>");
       String id = FileLines.readBetween(page, "<id>", "</id>");
-      System.out.println(Normalize.entity(title) + "\t" + id);
+      writer.write(Normalize.entity(title) + "\t" + id);
+      writer.newLine();
       
       page = FileLines.readBetween(reader, "<page>", "</page>");
     }
+    
+    writer.flush();
+    writer.close();
   }
 
   public static void printUsage() {
     System.out.println("Usage:");
-    System.out.println("\tWikipediaDumpArticleIdExtractor <wikipedia-pages-articles.xml>");
+    System.out.println("\tWikipediaDumpArticleIdExtractor <wikipedia-pages-articles.xml> <outfile>");
   }
 }

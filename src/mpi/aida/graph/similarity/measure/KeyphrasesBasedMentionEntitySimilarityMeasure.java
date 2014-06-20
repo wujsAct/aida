@@ -14,6 +14,7 @@ import mpi.aida.graph.similarity.context.KeyphrasesContext;
 import mpi.aida.util.InputTextInvertedIndex;
 import mpi.aida.util.MinCover;
 import mpi.aida.util.MinCoverCalculator;
+import mpi.aida.util.RunningTimer;
 import mpi.aida.util.StopWord;
 import mpi.experiment.trace.NullTracer;
 import mpi.experiment.trace.Tracer;
@@ -43,16 +44,19 @@ public abstract class KeyphrasesBasedMentionEntitySimilarityMeasure extends Ment
   
   public KeyphrasesBasedMentionEntitySimilarityMeasure(Tracer tracer) {
     super(tracer);
+    Integer id = RunningTimer.recordStartTime("KeyphraseBasedMESim:init");
     normalize = false;
 
     minCoverCalculator = new MinCoverCalculator();
     extraContextIndex = new InputTextInvertedIndex();
     
     isTracing = !(tracer instanceof NullTracer);
+    RunningTimer.recordEndTime("KeyphraseBasedMESim:init", id);
   }
 
   @Override
   public double calcSimilarity(Mention mention, Context context, Entity entity, EntitiesContext entitiesContext) {    
+    Integer id = RunningTimer.recordStartTime("KeyphraseBasedMESim:calcSimilarity");
     keyphrasesContext = (KeyphrasesContext) entitiesContext;
     if (originalInputTextindex == null) {
       originalInputTextindex = new InputTextInvertedIndex(context.getTokenIds(), removeStopwords);
@@ -65,7 +69,7 @@ public abstract class KeyphrasesBasedMentionEntitySimilarityMeasure extends Ment
     int matchedKPs = 0;
     KeyphrasesMeasureTracer mt = null;
     if (isTracing) {
-      mt = new KeyphrasesMeasureTracer("Keyphrases", 0.0);
+      mt = new KeyphrasesMeasureTracer(getIdentifier(), 0.0);
     }
 
     if (keyphrases != null) {
@@ -93,9 +97,9 @@ public abstract class KeyphrasesBasedMentionEntitySimilarityMeasure extends Ment
     
     if (isTracing) {
       mt.setScore(similarity);
-      tracer.addMeasureForMentionEntity(mention, entity.getName(), mt);
+      tracer.addMeasureForMentionEntity(mention, entity.getId(), mt);
     }
-    
+    RunningTimer.recordEndTime("KeyphraseBasedMESim:calcSimilarity", id);
     return similarity;
   }
   
@@ -171,6 +175,7 @@ public abstract class KeyphrasesBasedMentionEntitySimilarityMeasure extends Ment
     double minCover = minCoverData.length;
 
     double score = 0.0;
+    // TODO(jhoffart,mamir): phraseImportance should actually not be used, only if we have the MI!
 		if (allKeywordsTotalScore != 0) {
 			score = phraseImportance
 					* (intersectionSize / minCover)

@@ -16,6 +16,7 @@ import mpi.aida.data.Entity;
 import mpi.aida.data.Mention;
 import mpi.aida.data.Mentions;
 import mpi.aida.graph.similarity.EnsembleEntityEntitySimilarity;
+import mpi.aida.util.RunningTimer;
 
 
 public class ParallelEntityEntityRelatednessComputation {
@@ -35,11 +36,12 @@ public class ParallelEntityEntityRelatednessComputation {
   }
     
   public Map<Entity, Map<Entity, Double>> computeRelatedness(EnsembleEntityEntitySimilarity entitySimilarity, Entities entities, Mentions mentions) throws InterruptedException {
+    Integer runId = RunningTimer.recordStartTime("computeRelatedness"); 
     Map<Entity, Map<Entity, Double>> entityEntitySimilarities = Collections.synchronizedMap(new HashMap<Entity, Map<Entity, Double>>());
     
-    Map<Entity, List<Mention>> entityMentionsMap = null;    
+    Map<Entity, List<Mention>> entityMentionsMap = null;        
     if (mentions != null) {
-       entityMentionsMap = prepareEntityMentionsMap(mentions);
+      entityMentionsMap = prepareEntityMentionsMap(mentions);      
     }
 
     List<Set<Entity>> entityPartitions = new LinkedList<Set<Entity>>();
@@ -47,7 +49,7 @@ public class ParallelEntityEntityRelatednessComputation {
     
     int overall = 0;
     Set<Entity> part = null;
-    int partSize = entities.uniqueNameSize() / numThreads;
+    int partSize = entities.size() / numThreads;
 
     for (int currentPart = 0; currentPart < numThreads; currentPart++) {
       part = new HashSet<Entity>();
@@ -84,7 +86,7 @@ public class ParallelEntityEntityRelatednessComputation {
     for (ParallelEntityEntityRelatednessComputationThread sc : scs) {
       totalNumCalcs += sc.getNumCalcs();
     }
-    
+    RunningTimer.recordEndTime("computeRelatedness", runId);
     return entityEntitySimilarities;
   }
     

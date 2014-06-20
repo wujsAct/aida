@@ -69,9 +69,9 @@ public class KeyphrasesMeasureTracer extends MeasureTracer {
 		for(keyphraseTracingObject keyphrase : keyphrases) {
 			if(keyphraseCount == 5) {
 				countForUI++;
-				sb.append("<a onclick=\"setVisibility('div"
+				sb.append("<a class='showMore' onclick=\"setVisibility('div"
 						+ countForUI
-						+ "', 'block');\">More ...</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a onclick=\"setVisibility('div"
+						+ "', 'block');\">More ...</a>&nbsp;&nbsp;&nbsp;<a class='showLess' onclick=\"setVisibility('div"
 						+ countForUI + "', 'none');\">Less ...</a>");
 				sb.append("<div id='div" + countForUI + "' style='display:none'>");
 			}
@@ -92,9 +92,9 @@ public class KeyphrasesMeasureTracer extends MeasureTracer {
 		StringBuilder sb = new StringBuilder();
 		for (int token : keyphraseTokens) {
 			if (matchedKeywords.containsKey(token)) {
-				sb.append("<span style='BACKGROUND-COLOR: #FFAA70;'><strong>" + 
+				sb.append("<span class='matchedKeyword' style='BACKGROUND-COLOR: #FFAA70;'><strong>" + 
 				          id2word.get(token) + "</strong> <small>(" +
-				          matchedKeywords.get(token) +
+				          formatter.format(matchedKeywords.get(token)) +
 				          ")</small></span> ");
 			} else {
 				sb.append("<strong>" + id2word.get(token) + "</strong> ");
@@ -114,6 +114,7 @@ public class KeyphrasesMeasureTracer extends MeasureTracer {
 		keyphrases.add(new keyphraseTracingObject(keyphraseTokens, score, matchedKeywords));
 	}
 	
+
 	private class keyphraseTracingObject implements Comparable<keyphraseTracingObject>{
 		private int[] keyphraseTokens;
 		private double score;

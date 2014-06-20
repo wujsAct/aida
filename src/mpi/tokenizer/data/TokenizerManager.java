@@ -27,15 +27,9 @@ public class TokenizerManager {
 
   private Tokenizer tokenizer = null;
   
-  private Tokenizer tokenizerGerman = null;
-  
   private Tokenizer tokenizerNER = null;
-  
-  private Tokenizer tokenizerGermanNER = null;
 
   private Tokenizer tokenizerPOS = null;
-  
-  private Tokenizer tokenizerGermanPOS = null;
 
   private Tokenizer tokenizerParse = null;
 
@@ -48,100 +42,61 @@ public class TokenizerManager {
       loadTokenizerForType(type);
     }
     switch (type) {
-      case tokens:
-        return tokenize(text, lemmatize);
-      case germantokens:
-        return tokenizeGerman(text, lemmatize);
-      case pos:
-        return tokenizePOS(text, lemmatize);
-      case germanpos:
-        return tokenizeGermanPOS(text, lemmatize);
-      case ner:
-        return tokenizeNER(text, lemmatize);
-      case germanner:
-        return tokenizeGermanNER(text, lemmatize);
-      case parse:
-        return tokenizePARSE(text, lemmatize);
+      case TOKENS:
+      case GERMAN_TOKENS:
+        return tokenizer.parse(text, lemmatize);
+      case POS:
+      case GERMAN_POS:
+      case ENGLISH_CASELESS_POS:
+        return tokenizerPOS.parse(text, lemmatize);
+      case NER:
+      case GERMAN_NER:
+      case ENGLISH_CASELESS_NER:
+        return tokenizerNER.parse(text, lemmatize);
+      case PARSE:
+      case ENGLISH_CASELESS_PARSE:
+        return tokenizerParse.parse(text, lemmatize);
       default:
         return null;
     }
   }
 
   private void loadTokenizerForType(type type) {
+
     switch (type) {
-      case tokens:
+      case TOKENS:
+      case GERMAN_TOKENS:
         if (tokenizer == null) {
-          logger_.info("Loading Tokenizer (ssplit, tokenize)");
-          tokenizer = new Tokenizer(Tokenizer.type.tokens);
+          logger_.info("Loading tokenizer of type: " + type.name());
+          tokenizer = new Tokenizer(type);
         }
         break;
-      case germantokens:
-        if (tokenizerGerman == null) {
-          logger_.info("Loading Tokenizer (ssplit, germantokenize)");
-          tokenizerGerman = new Tokenizer(Tokenizer.type.germantokens);
-        }
-        break;
-      case pos:
+      case POS:
+      case GERMAN_POS:
+      case ENGLISH_CASELESS_POS:
         if (tokenizerPOS == null) {
-          logger_.info("Loading Tokenizer (ssplit, tokenize, pos)");
-          tokenizerPOS = new Tokenizer(Tokenizer.type.pos);
+          logger_.info("Loading tokenizer of type: " + type.name());
+          tokenizerPOS = new Tokenizer(type);
         }
         break;
-      case germanpos:
-        if (tokenizerGermanPOS == null) {
-          logger_.info("Loading Tokenizer (ssplit, tokenize, germanpos)");
-          tokenizerGermanPOS = new Tokenizer(Tokenizer.type.germanpos);
-        }
-        break;
-      case ner:
+      case NER:
+      case GERMAN_NER:
+      case ENGLISH_CASELESS_NER:
         if (tokenizerNER == null) {
-          logger_.info("Loading Tokenizer (ssplit, tokenize, pos, ner)");
-          tokenizerNER = new Tokenizer(Tokenizer.type.ner);
+          logger_.info("Loading tokenizer of type: " + type.name());
+          tokenizerNER = new Tokenizer(type);
         }
         break;
-      case germanner:
-        if (tokenizerGermanNER == null) {
-          logger_.info("Loading Tokenizer (ssplit, tokenize, germanpos, germanner)");
-          tokenizerGermanNER = new Tokenizer(Tokenizer.type.germanner);
-        }
-        break;
-      case parse:
+      case PARSE:
+      case ENGLISH_CASELESS_PARSE:
         if (tokenizerParse == null) {
-          logger_.info("Loading Tokenizer (ssplit, tokenize, pos, ner, parse)");
-          tokenizerParse = new Tokenizer(Tokenizer.type.parse);
+          logger_.info("Loading tokenizer of type: " + type.name());
+          tokenizerParse = new Tokenizer(type);
         }
         break;
       default:
-        // Nothing.
-    }    
-  }
-
-  private Tokens tokenize(String text, boolean lemmatize) {
-    return tokenizer.parse(text, lemmatize);
-  }
-  
-  private Tokens tokenizeGerman(String text, boolean lemmatize) {
-    return tokenizerGerman.parse(text, lemmatize);
-  }
-
-  private Tokens tokenizeNER(String text, boolean lemmatize) {
-    return tokenizerNER.parse(text, lemmatize);
-  }
-  
-  private Tokens tokenizeGermanNER(String text, boolean lemmatize) {
-    return tokenizerGermanNER.parse(text, lemmatize);
-  }
-
-  private Tokens tokenizePOS(String text, boolean lemmatize) {
-    return tokenizerPOS.parse(text, lemmatize);
-  }
-  
-  private Tokens tokenizeGermanPOS(String text, boolean lemmatize) {
-    return tokenizerGermanPOS.parse(text, lemmatize);
-  }
-
-  private Tokens tokenizePARSE(String text, boolean lemmatize) {
-    return tokenizerParse.parse(text, lemmatize);
+        break;
+    }
   }
 
 }

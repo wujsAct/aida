@@ -1,10 +1,14 @@
 package mpi.aida.config.settings;
 
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
 
 import mpi.aida.config.AidaConfig;
 import mpi.aida.data.Type;
 import mpi.aida.preparation.documentchunking.DocumentChunker;
+import mpi.aida.preparation.documentchunking.FixedLengthDocumentChunker;
+import mpi.aida.preparation.documentchunking.PageBasedDocumentChunker;
 import mpi.aida.preparation.documentchunking.SingleChunkDocumentChunker;
 import mpi.aida.preparation.mentionrecognition.FilterMentions.FilterType;
 
@@ -34,7 +38,7 @@ public class PreparationSettings implements Serializable {
   private DOCUMENT_CHUNK_STRATEGY docChunkStrategy = AidaConfig.getDocumentChunkStrategy();
   
   public static enum DOCUMENT_CHUNK_STRATEGY {
-    SINGLE
+    SINGLE, PAGEBASED, MULTIPLE_FIXEDLENGTH
   }
   
   public static enum LANGUAGE {
@@ -81,11 +85,27 @@ public class PreparationSettings implements Serializable {
     this.minMentionOccurrenceCount = minMentionOccurrenceCount;
   }
 
+  public Map<String, Object> getAsMap() {
+    Map<String, Object> s = new HashMap<String, Object>();
+    s.put("mentionsFilter", mentionsFilter.toString());
+    s.put("language", language.toString());
+    s.put("minMentionOccurrenceCounts", String.valueOf(minMentionOccurrenceCount));
+    s.put("useHybridMentionDetection", String.valueOf(useHybridMentionDetection));
+    s.put("docChunkStrategy", docChunkStrategy.toString());
+    return s;
+  }
+  
   public DocumentChunker getDocumentChunker() {
     DocumentChunker chunker = null;
     switch (docChunkStrategy) {
       case SINGLE:
         chunker = new SingleChunkDocumentChunker();
+        break;
+      case PAGEBASED:
+        chunker = new PageBasedDocumentChunker();
+        break;
+      case MULTIPLE_FIXEDLENGTH:
+        chunker = new FixedLengthDocumentChunker();
         break;
     }
     return chunker;

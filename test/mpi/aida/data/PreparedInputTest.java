@@ -1,13 +1,13 @@
 package mpi.aida.data;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 import java.io.File;
 import java.io.IOException;
 
-import mpi.tools.javatools.util.FileUtils;
 import mpi.aida.AidaManager;
 import mpi.aida.config.AidaConfig;
+import mpi.tools.javatools.util.FileUtils;
 
 import org.junit.Test;
 

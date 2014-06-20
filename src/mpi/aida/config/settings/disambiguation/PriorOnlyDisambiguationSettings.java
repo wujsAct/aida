@@ -19,8 +19,6 @@ public class PriorOnlyDisambiguationSettings extends DisambiguationSettings {
     SimilaritySettings priorSettings = new SimilaritySettings(null, null, 1.0);
     priorSettings.setIdentifier("Prior");
     setSimilaritySettings(priorSettings);
-    
-    setIncludeNullAsEntityCandidate(false);
   }
 }
 

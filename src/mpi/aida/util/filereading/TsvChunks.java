@@ -41,7 +41,7 @@ public class TsvChunks implements Iterable<Pair<String[], List<String[]>>> {
    * @param groupingRange Range of columns in TSV to group by, [start, end].
    * The end is included. Negative values will be interpreted as offsets
    * from the end of the line, -1 refers to the last element.
-   * @param invertRange Set to true to use the range for the data instead
+   * @param useRangeForData Set to true to use the range for the data instead
    * of the grouping columns. Default is false.
    * @param progressAfterLines  Gap between progress posting.
    * Set to 0 to disable.

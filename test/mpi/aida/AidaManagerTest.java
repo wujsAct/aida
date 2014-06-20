@@ -1,6 +1,6 @@
 package mpi.aida;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 import mpi.aida.config.AidaConfig;
 import mpi.aida.config.settings.PreparationSettings;
 import mpi.aida.config.settings.preparation.StanfordManualPreparationSettings;

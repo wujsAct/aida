@@ -3,12 +3,12 @@ package mpi.aida.graph.similarity.importance;
 import gnu.trove.map.hash.TIntDoubleHashMap;
 import gnu.trove.map.hash.TIntObjectHashMap;
 
+import java.sql.Connection;
 import java.sql.SQLException;
 
 import mpi.aida.access.DataAccess;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
-import mpi.tools.database.DBConnection;
 
 /**
  * Measures the importance of an entity by the number of
@@ -20,7 +20,7 @@ public class InlinkCountImportance extends EntityImportance {
 
   private TIntDoubleHashMap inlinkImportance;
 
-  DBConnection con;
+  Connection con;
 
   public InlinkCountImportance(Entities entities) throws SQLException {
     super(entities);

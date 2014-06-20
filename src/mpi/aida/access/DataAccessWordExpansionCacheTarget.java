@@ -3,7 +3,7 @@ package mpi.aida.access;
 import java.io.File;
 
 
-public class DataAccessWordExpansionCacheTarget extends DataAccessCacheTarget {
+public class DataAccessWordExpansionCacheTarget extends DataAccessIntIntCacheTarget {
 
   public static final String ID = "WORD_EXPANSION";
   

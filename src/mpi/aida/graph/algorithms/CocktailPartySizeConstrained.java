@@ -13,28 +13,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import mpi.aida.config.settings.ConfidenceSettings;
-import mpi.aida.config.settings.GraphSettings;
+import mpi.aida.config.settings.DisambiguationSettings;
+import mpi.aida.data.PreparedInputChunk;
 import mpi.aida.graph.Graph;
 import mpi.aida.graph.GraphNode;
+import mpi.experiment.trace.Tracer;
 
 public class CocktailPartySizeConstrained extends
 		CocktailParty {
 
 	private int initialGraphSize;
 
-	public CocktailPartySizeConstrained(
-	    Graph graph, GraphSettings graphSettings, boolean computeConfidence, 
-	    ConfidenceSettings confSettings)
-	        throws IOException, ClassNotFoundException,
-			InterruptedException {
-		super(graph, graphSettings, computeConfidence, confSettings);
-
-		this.initialGraphSize = graphSettings.getEntitiesPerMentionConstraint();
-	}
+	public CocktailPartySizeConstrained(PreparedInputChunk input, DisambiguationSettings settings, Tracer tracer) throws Exception {
+	  super(input, settings, tracer);
+	  this.initialGraphSize = settings.getGraphSettings().getEntitiesPerMentionConstraint();
+  }
 
 
-	@Override
+  @Override
 	protected int getDiameter() throws IOException {
 		return 1;
 	}

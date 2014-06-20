@@ -10,7 +10,7 @@ public class OokbEntity extends Entity {
   
   private static final long serialVersionUID = -8291569958563336476L;
   
-  public OokbEntity(String name, int id) {
-    super(name + "-" + OOKBE, id);
+  public OokbEntity(String name) {
+    super(name + "-" + OOKBE, "AIDA", 0);
   }
 }

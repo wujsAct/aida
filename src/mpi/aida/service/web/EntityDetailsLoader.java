@@ -1,16 +1,18 @@
 package mpi.aida.service.web;
 
+import gnu.trove.iterator.TIntObjectIterator;
+import gnu.trove.map.hash.TIntObjectHashMap;
+
+import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
 
 import mpi.aida.AidaManager;
 import mpi.aida.access.DataAccess;
 import mpi.aida.data.Type;
 import mpi.aida.graph.similarity.measure.WeightComputation;
-import mpi.tools.database.DBConnection;
-import mpi.tools.database.interfaces.DBStatementInterface;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -18,25 +20,23 @@ import org.json.simple.JSONObject;
 @SuppressWarnings("unchecked")
 public class EntityDetailsLoader {
 
-  public static JSONArray loadKeyphrases(String entityName) {
+  public static JSONArray loadKeyphrases(int entityId) {
 		Map<String, JSONObject> keyphrases = new LinkedHashMap<String, JSONObject>();
-		String entity = entityName;//YagoUtil.getPostgresEscapedString(entityName);
 		int totalCollectionSize = DataAccess.getCollectionSize();
 		String sql = "select u.word keyphrase, u.source source, wi.word keyword, kc.count "
 				+ "from ( "
 				+ "select w.word word, kp.source source, unnest(kp.keyphrase_tokens) token_id, kp.weight weight "
-				+ "from entity_keyphrases as kp, word_ids as w, entity_ids as e "
-				+ "where e.entity = '"
-				+ entity
-				+ "' and e.id = kp.entity and w.id = kp.keyphrase order by source "
+				+ "from entity_keyphrases as kp, word_ids as w "
+				+ "where kp.entity = "
+				+ entityId
+				+ " and w.id = kp.keyphrase order by source "
 				+ ") as u, word_ids as wi, keyword_counts as kc where u.token_id = wi.id and u.token_id = kc.keyword";
 
-		DBConnection con = null;
-		DBStatementInterface statement = null;
+		Connection con = null;
+		Statement statement = null;
 		try {
-			con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA,
-					"YN");
-			statement = con.getStatement();
+			con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+			statement = con.createStatement();
 			ResultSet rs = statement.executeQuery(sql);
 			while (rs.next()) {
 				String keyphrase = rs.getString("keyphrase");
@@ -64,11 +64,11 @@ public class EntityDetailsLoader {
 				keywordWeights.add(keywordJson);
 			}
 			rs.close();
-			statement.commit();
+			statement.close();
 		} catch (Exception e) {
 			e.printStackTrace();
 		} finally {
-			AidaManager.releaseConnection(AidaManager.DB_AIDA, con);
+			AidaManager.releaseConnection(con);
 		}
 
 		JSONArray keyphrasesJSONArray = new JSONArray();
@@ -78,11 +78,14 @@ public class EntityDetailsLoader {
 		return keyphrasesJSONArray;
 	}
 	
-	public static JSONArray loadEntityTypes(String entity) {
-	  Set<Type> entityTypes = DataAccess.getTypes(entity);
+	public static JSONArray loadEntityTypes(int entityId) {
+	  int[] typesIds = DataAccess.getTypeIdsForEntityId(entityId);
+	  TIntObjectHashMap<Type> entityTypes = DataAccess.getTypesForIds(typesIds);
 		
 		JSONArray entityTypesJson = new JSONArray();
-		for(Type type: entityTypes) {
+		for(TIntObjectIterator<Type> itr = entityTypes.iterator(); itr.hasNext();) {
+		  itr.advance();
+		  Type type = itr.value();
 			JSONObject entityType = new JSONObject();
 			entityType.put("name", type.getName());
 			entityType.put("knowledgebase", type.getKnowledgeBase());

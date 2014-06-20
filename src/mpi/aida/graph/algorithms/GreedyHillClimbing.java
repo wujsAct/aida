@@ -133,7 +133,7 @@ public class GreedyHillClimbing {
 	public Map<Integer, Integer> runExhaustive(String graphName)
 			throws Exception {
 		long possibleCombinations = 1;
-		logger.info("Computing the initial solution...");
+		logger.debug("Computing the initial solution...");
 		Map<Integer, Integer> bestChoice = new HashMap<Integer, Integer>();
 
 		double bestTotalWeight = 0.0;
@@ -203,9 +203,9 @@ public class GreedyHillClimbing {
 
 		}
 
-		logger.info("Checked " + possibleCombinations + " combinations");
+		logger.debug("Checked " + possibleCombinations + " combinations");
 
-		logger.info("The final solution has total weight " + bestTotalWeight);
+		logger.debug("The final solution has total weight " + bestTotalWeight);
 
 		GraphTracer.gTracer.addStat(graphName,
 				"Objective value after Exhaustive Search",
@@ -262,7 +262,7 @@ public class GreedyHillClimbing {
 
 		HashMap<HashMap<Integer, Integer>, Integer> checkedCombinations = new HashMap<HashMap<Integer, Integer>, Integer>();
 
-		logger.info("Computing the initial solution...");
+		logger.debug("Computing the initial solution...");
 
 		currentChoice = new HashMap<Integer, Integer>();
 		currentSolution = 0.0;
@@ -326,9 +326,9 @@ public class GreedyHillClimbing {
 		checkedCombinations.put(currentChoice, 1);
 		Random generator = new Random(1337);
 
-		logger.info("Initial solution has weight: " + currentSolution
-				+ "\nnumber of possible combinations: " + possibleCombinations
-				+ "\napplying random moves...");
+		logger.debug("Initial solution has weight: " + currentSolution
+				+ "\n\tnumber of possible combinations: " + possibleCombinations
+				+ "\n\tapplying random moves...");
 
 		GraphTracer.gTracer.addStat(graphName,
 				"Starting HillClimbing for total combinations",
@@ -377,10 +377,10 @@ public class GreedyHillClimbing {
 
 		}
 
-		logger.info("Checked " + checkedCombinations.size()
+		logger.debug("Checked " + checkedCombinations.size()
 				+ " feasibleSolutions");
 
-		logger.info("The final solution has total weight " + currentSolution);
+		logger.debug("The final solution has total weight " + currentSolution);
 
 		GraphTracer.gTracer.addStat(graphName,
 				"HillClimbing checked number of combinations",

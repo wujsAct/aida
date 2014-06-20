@@ -58,6 +58,18 @@ public class AidaConfig {
   public static final String FILTERING_TYPES = "filteringTypes";  
   
   public static final String DOCUMENT_CHUNK_STRATEGY = "documentChunkStrategy";
+ 
+  public static final String FIXED_LENGTH_DOCUMENT_CHUNK_SIZE = "fixedLengthDocumentChunkSize";
+  
+  public static final String DICTIONARY_FUZZY_MATCHING = "dictionaryFuzzyMatching";
+  
+  public static final String DICTIONARY_FUZZY_MATCHING_MIN_SIM = "dictionaryFuzzyMatchingMinSim";
+  
+  public static final String DICTIONARY_LSH_MATCHING = "dictionaryLshMatching";
+  
+  public static final String PERSON_NAME_MERGING = "personNameMerging";
+  
+  public static final String PRELOAD_ENITTY_CONTEXTS = "preloadEntityContexts";
 
   private Properties properties;
 
@@ -117,8 +129,18 @@ public class AidaConfig {
         value = "20000";
       } else if (key.equals(FILTERING_TYPES)) {
         value = "";
+      } else if (key.equals(DICTIONARY_FUZZY_MATCHING)) {
+        value = "false";
+      } else if (key.equals(DICTIONARY_FUZZY_MATCHING_MIN_SIM)) {
+        value = "0.7";
+      } else if (key.equals(DICTIONARY_LSH_MATCHING)) {
+        value = "false";
       } else if (key.equals(DOCUMENT_CHUNK_STRATEGY)) {
         value = PreparationSettings.DOCUMENT_CHUNK_STRATEGY.SINGLE.toString();
+      } else if (key.equals(FIXED_LENGTH_DOCUMENT_CHUNK_SIZE)) {
+        value = "10";
+      } else if (key.equals(PERSON_NAME_MERGING)) {
+        value = "false";
       } else {
         logger.error("" +
         		"Missing key in properties file with no default value: " + key);
@@ -140,8 +162,16 @@ public class AidaConfig {
     return PreparationSettings.DOCUMENT_CHUNK_STRATEGY.valueOf(get(DOCUMENT_CHUNK_STRATEGY));
   }
   
+  public static int getFixedChunkSize() {
+    return Integer.parseInt(get(FIXED_LENGTH_DOCUMENT_CHUNK_SIZE));
+  }
+  
   public static boolean getBoolean(String key) {
     return Boolean.parseBoolean(get(key));
+  }
+  
+  public static double getDouble(String key) {
+    return Double.parseDouble(get(key));
   }
   
   public static void set(String key, String value) {

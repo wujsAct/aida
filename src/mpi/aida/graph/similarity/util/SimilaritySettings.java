@@ -119,6 +119,10 @@ public class SimilaritySettings implements Serializable {
 
   private String fullPath;
   
+  private ImportanceAggregationStrategy importanceAggregationStrategy = ImportanceAggregationStrategy.LINEAR_COMBINATION; 
+  
+  public enum ImportanceAggregationStrategy{AVERGAE, LINEAR_COMBINATION};
+  
   /**
    * mentionEntitySimilarities in property file need to be in the following format:
    * 
@@ -151,10 +155,17 @@ public class SimilaritySettings implements Serializable {
         minimumEntityKeyphraseWeight = Double.parseDouble(prop.getProperty("minimumEntityKeyphraseWeight", "0.0"));
         maxEntityKeyphraseCount = Integer.parseInt(prop.getProperty("maxEntityKeyphraseCount", "0"));
         
+        importanceAggregationStrategy = ImportanceAggregationStrategy.valueOf(
+            prop.getProperty("importanceAggregationStrategy", 
+                ImportanceAggregationStrategy.LINEAR_COMBINATION.toString()));
+        
+        
         // LSH config
         lshBandSize = Integer.parseInt(prop.getProperty("lshBandSize", "2"));
         lshBandCount = Integer.parseInt(prop.getProperty("lshBandCount", "100"));
         lshDatabaseTable = prop.getProperty("lshDatabaseTable", DataAccessSQL.ENTITY_LSH_SIGNATURES);
+        
+        
                 
         String mentionEntitySimilarityString = prop.getProperty("mentionEntitySimilarities");
 
@@ -194,6 +205,7 @@ public class SimilaritySettings implements Serializable {
             mentionEntityKeyphraseSourceWeights.add(src.split(":"));
           }
         }
+        
 
         fullPath = propertiesFile.getAbsolutePath();       
 
@@ -295,8 +307,8 @@ public class SimilaritySettings implements Serializable {
       return EntityEntitySimilarity.getMilneWittenSimilarity(entities, tracer);
     } else if (eeIdentifier.equals("InlinkOverlapEntityEntitySimilarity")) {
       return EntityEntitySimilarity.getInlinkOverlapSimilarity(entities, tracer);
-//    } else if (eeIdentifier.equals("KeywordBasedEntityEntitySimilarity")) {
-//      return EntityEntitySimilarity.getKeywordBasedEntityEntitySimilarity(entities, tracer);
+    } else if (eeIdentifier.equals("KeywordBasedEntityEntitySimilarity")) {
+      return EntityEntitySimilarity.getKeywordCosineEntityEntitySimilarity(entities, settings, tracer);
 //    } else if (eeIdentifier.equals("KeyphraseReweightedKeywordBasedEntityEntitySimilarity")) {
 //      return EntityEntitySimilarity.getKeyphraseReweightedKeywordBasedEntityEntitySimilarity(entities, settings, tracer);
 //    } else if (eeIdentifier.equals("TopKeywordBasedEntityEntitySimilarity")) {
@@ -323,8 +335,6 @@ public class SimilaritySettings implements Serializable {
       return EntityEntitySimilarity.getKeyphraseBasedEntityEntitySimilarity(entities, settings, tracer);
     } else if (eeIdentifier.equals("KOREEntityEntitySimilarity")) {
       return EntityEntitySimilarity.getKOREEntityEntitySimilarity(entities, settings, tracer);
-//    } else if (eeIdentifier.equals("KORELSHEntityEntitySimilarity")) {
-//      return EntityEntitySimilarity.getKORELSHEntityEntitySimilarity(entities, settings, tracer);
     } else if (eeIdentifier.equals("TopKeyphraseBasedEntityEntitySimilarity")) {
       return EntityEntitySimilarity.getTopKeyphraseBasedEntityEntitySimilarity(entities, numberOfEntityKeyphrase, tracer);
     } else {
@@ -606,4 +616,14 @@ public class SimilaritySettings implements Serializable {
   public void setEntityImportancesSettings(List<String[]> entityImportancesSettings) {
     this.entityImportancesSettings = entityImportancesSettings;
   }
+
+  public ImportanceAggregationStrategy getImportanceAggregationStrategy() {
+    return importanceAggregationStrategy;
+  }
+
+  
+  public void setImportanceAggregationStrategy(ImportanceAggregationStrategy importanceAggregationStrategy) {
+    this.importanceAggregationStrategy = importanceAggregationStrategy;
+  }
+
 }

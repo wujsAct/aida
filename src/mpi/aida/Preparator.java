@@ -64,12 +64,12 @@ public class Preparator {
    */
   public PreparedInput prepare(
       String docId, String text, PreparationSettings settings) {
-    Integer timerId = RunningTimer.start("Preparator");
+    Integer timerId = RunningTimer.recordStartTime("Preparator");
     Integer hash = text.hashCode();
     Integer processedHash = processedDocuments_.get(docId);
     if (processedHash != null) {
       if (hash != processedHash) {
-        logger_.warn("A document with the id '" + docId + "' has already " +
+        logger_.error("A document with the id '" + docId + "' has already " +
         		"been processed, but the content has changed. Make sure to use " +
         		"distinct docId parameters for distinct documents, otherwise " +
         		"the disambiguation will not work properly!");
@@ -87,16 +87,16 @@ public class Preparator {
       Set<Type> filteringTypes = new HashSet<Type>(Arrays.asList(settings.getFilteringTypes()));
       preparedInput.setMentionEntitiesTypes(filteringTypes);
     }
-    RunningTimer.end("Preparator", timerId);
+    RunningTimer.recordEndTime("Preparator", timerId);
     return preparedInput;
   }  
 
   private PreparedInput prepareInputData(String text, String docId, PreparationSettings settings) {
     Pair<Tokens, Mentions> tokensMentions = null;
     if (settings.getMentionsFilter().equals(FilterType.Manual)) {
-      tokensMentions = filterMention.filter(text, settings.getMentionsFilter(), false, settings.getLanguage());
+      tokensMentions = filterMention.filter(docId, text, settings.getMentionsFilter(), false, settings.getLanguage());
     } else {
-      tokensMentions = filterMention.filter(text, settings.getMentionsFilter(), settings.isUseHybridMentionDetection(), settings.getLanguage());
+      tokensMentions = filterMention.filter(docId, text, settings.getMentionsFilter(), settings.isUseHybridMentionDetection(), settings.getLanguage());
     }
     
     // Drop mentions below min occurrence count.
