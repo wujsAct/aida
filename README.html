@@ -81,7 +81,7 @@
 
 <h2 id="hands-onapiexample">Hands-On API Example</h2>
 
-<p>If you want to use AIDA in a maven project, add mpi.aida:aida&#8211;2.0 as dependency. Otherwise, build the jar using <code>mvn package</code> and add <code>target/aida-VERSION.jar</code> to your project&#8217;s classpath. </p>
+<p>If you want to use AIDA in a maven project, add mpi.aida:aida&#8211;2.X as dependency. Otherwise, build the jar using <code>mvn package</code> and add <code>target/aida-VERSION.jar</code> to your project&#8217;s classpath. </p>
 
 <p>The main classes in AIDA are <code>mpi.aida.Preparator</code> for preparing an input document and <code>mpi.aida.Disambiguator</code> for running the disambiguation on the prepared input.</p>
 
@@ -170,44 +170,89 @@ mvn jetty:run
 <p>which should return a JSON string containing the following fields (among others)</p>
 
 <pre><code>{
-  &quot;cleanedText&quot;: &quot;Einstein was born in Ulm.&quot;,
-  &quot;annotatedText&quot;: &quot;[[http:\/\/de.wikipedia.org\/wiki\/Albert_Einstein|Einstein]] was born in [[http:\/\/de.wikipedia.org\/wiki\/Ulm|Ulm]].&quot;,
-  &quot;mentions&quot;: [
-    {
-      &quot;allEntities&quot;: [
-        {
-          &quot;id&quot;: 712913,
-          &quot;name&quot;: &quot;Albert_Einstein&quot;,
-          &quot;disambiguationScore&quot;: &quot;0.6&quot;
-        }
-      ],
-      &quot;bestEntity&quot;: {
-        &quot;id&quot;: 712913,
-        &quot;name&quot;: &quot;Albert_Einstein&quot;,
-        &quot;disambiguationScore&quot;: &quot;0.6&quot;
+   &quot;formatVersion&quot;:&quot;2.1&quot;,
+   &quot;entityMetadata&quot;:{
+      &quot;YAGO:Ulm&quot;:{
+         &quot;depictionthumbnailurl&quot;:&quot;http:\/\/upload.wikimedia.org\/wikipedia\/commons\/thumb\/4\/46\/Ulm_Donauschwabenufer1.jpg\/200px-Ulm_Donauschwabenufer1.jpg&quot;,
+         &quot;importance&quot;:0.0015091850539983515,
+         &quot;readableRepr&quot;:&quot;Ulm&quot;,
+         &quot;entityId&quot;:&quot;Ulm&quot;,
+         &quot;depictionurl&quot;:&quot;http:\/\/upload.wikimedia.org\/wikipedia\/commons\/4\/46\/Ulm_Donauschwabenufer1.jpg&quot;,
+         &quot;type&quot;:[
+            &quot;YAGO_yagoGeoEntity&quot;,
+            &quot;YAGO_wikicategory_Cities_in_Baden\\u002dW\\u00fcrttemberg&quot;,
+            &quot;YAGO_wikicategory_States_and_territories_established_in_1181&quot;,
+            &quot;YAGO_wordnet_city_108524735&quot;,
+            ...
+         ],
+         &quot;knowledgebase&quot;:&quot;YAGO&quot;,
+         &quot;url&quot;:&quot;http:\/\/en.wikipedia.org\/wiki\/Ulm&quot;
       },
-      &quot;name&quot;: &quot;Einstein&quot;,
-      &quot;length&quot;: 8,
-      &quot;offset&quot;: 0
-    },
-    {
-      &quot;allEntities&quot;: [
-        {
-          &quot;id&quot;: 4130090,
-          &quot;name&quot;: &quot;Ulm&quot;,
-          &quot;disambiguationScore&quot;: &quot;0.2934&quot;
-        }
-      ],
-      &quot;bestEntity&quot;: {
-        &quot;id&quot;: 4130090,
-        &quot;name&quot;: &quot;Ulm&quot;,
-        &quot;disambiguationScore&quot;: &quot;0.2934&quot;
+      &quot;YAGO:Albert_Einstein&quot;:{ &quot;depictionthumbnailurl&quot;:&quot;http:\/\/upload.wikimedia.org\/wikipedia\/commons\/thumb\/6\/66\/Einstein_1921_by_F_Schmutzer.jpg\/200px-Einstein_1921_by_F_Schmutzer.jpg&quot;,
+         &quot;importance&quot;:5.540363736439131E-4,
+         &quot;readableRepr&quot;:&quot;Albert Einstein&quot;,
+         &quot;entityId&quot;:&quot;Albert_Einstein&quot;,
+         &quot;depictionurl&quot;:&quot;http:\/\/upload.wikimedia.org\/wikipedia\/commons\/6\/66\/Einstein_1921_by_F_Schmutzer.jpg&quot;,
+         &quot;type&quot;:[
+            &quot;YAGO_wikicategory_German_Nobel_laureates&quot;,
+            &quot;YAGO_wikicategory_People_with_acquired_Swiss_citizenship&quot;,
+            &quot;YAGO_wordnet_physicist_110428004&quot;,
+            &quot;YAGO_wordnet_person_100007846&quot;,
+            ...
+         ],
+         &quot;knowledgebase&quot;:&quot;YAGO&quot;,
+         &quot;url&quot;:&quot;http:\/\/en.wikipedia.org\/wiki\/Albert%20Einstein&quot;
+      }
+   },
+   &quot;cleanedText&quot;:&quot;Einstein was born in Ulm.&quot;,
+   &quot;annotatedText&quot;:&quot;[[http:\/\/en.wikipedia.org\/wiki\/Albert%20Einstein|Einstein]] was born in [[http:\/\/en.wikipedia.org\/wiki\/Ulm|Ulm]].&quot;,
+   &quot;allEntities&quot;:[
+      &quot;YAGO:Ulm&quot;,
+      &quot;YAGO:Albert_Einstein&quot;
+   ],
+   &quot;mentions&quot;:[
+      {
+         &quot;allEntities&quot;:[
+            {
+               &quot;kbIdentifier&quot;:&quot;YAGO:Albert_Einstein&quot;,
+               &quot;disambiguationScore&quot;:&quot;1&quot;
+            }
+         ],
+         &quot;bestEntity&quot;:{
+            &quot;kbIdentifier&quot;:&quot;YAGO:Albert_Einstein&quot;,
+            &quot;disambiguationScore&quot;:&quot;1&quot;
+         },
+         &quot;name&quot;:&quot;Einstein&quot;,
+         &quot;length&quot;:8,
+         &quot;offset&quot;:0
       },
-      &quot;name&quot;: &quot;Ulm&quot;,
-      &quot;length&quot;: 3,
-      &quot;offset&quot;: 21
-    }
-  ]
+      {
+         &quot;allEntities&quot;:[
+            {
+               &quot;kbIdentifier&quot;:&quot;YAGO:Ulm&quot;,
+               &quot;disambiguationScore&quot;:&quot;0.28552&quot;
+            }
+         ],
+         &quot;bestEntity&quot;:{
+            &quot;kbIdentifier&quot;:&quot;YAGO:Ulm&quot;,
+            &quot;disambiguationScore&quot;:&quot;0.28552&quot;
+         },
+         &quot;name&quot;:&quot;Ulm&quot;,
+         &quot;length&quot;:3,
+         &quot;offset&quot;:21
+      }
+   ],
+   &quot;allTypes&quot;:[
+      &quot;YAGO_yagoGeoEntity&quot;,
+      &quot;YAGO_wikicategory_Cities_in_Baden\\u002dW\\u00fcrttemberg&quot;,
+      &quot;YAGO_wikicategory_States_and_territories_established_in_1181&quot;,
+      &quot;YAGO_wordnet_city_108524735&quot;,
+      &quot;YAGO_wikicategory_German_Nobel_laureates&quot;,
+      &quot;YAGO_wikicategory_People_with_acquired_Swiss_citizenship&quot;,
+      &quot;YAGO_wordnet_physicist_110428004&quot;,
+      &quot;YAGO_wordnet_person_100007846&quot;,
+      ...
+   ]
 }
 </code></pre>
 

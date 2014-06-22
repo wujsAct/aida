@@ -161,44 +161,89 @@ which should return a JSON string containing the following fields (among others)
 
 ```
 {
-  "cleanedText": "Einstein was born in Ulm.",
-  "annotatedText": "[[http:\/\/de.wikipedia.org\/wiki\/Albert_Einstein|Einstein]] was born in [[http:\/\/de.wikipedia.org\/wiki\/Ulm|Ulm]].",
-  "mentions": [
-    {
-      "allEntities": [
-        {
-          "id": 712913,
-          "name": "Albert_Einstein",
-          "disambiguationScore": "0.6"
-        }
-      ],
-      "bestEntity": {
-        "id": 712913,
-        "name": "Albert_Einstein",
-        "disambiguationScore": "0.6"
+   "formatVersion":"2.1",
+   "entityMetadata":{
+      "YAGO:Ulm":{
+         "depictionthumbnailurl":"http:\/\/upload.wikimedia.org\/wikipedia\/commons\/thumb\/4\/46\/Ulm_Donauschwabenufer1.jpg\/200px-Ulm_Donauschwabenufer1.jpg",
+         "importance":0.0015091850539983515,
+         "readableRepr":"Ulm",
+         "entityId":"Ulm",
+         "depictionurl":"http:\/\/upload.wikimedia.org\/wikipedia\/commons\/4\/46\/Ulm_Donauschwabenufer1.jpg",
+         "type":[
+            "YAGO_yagoGeoEntity",
+            "YAGO_wikicategory_Cities_in_Baden\\u002dW\\u00fcrttemberg",
+            "YAGO_wikicategory_States_and_territories_established_in_1181",
+            "YAGO_wordnet_city_108524735",
+            ...
+         ],
+         "knowledgebase":"YAGO",
+         "url":"http:\/\/en.wikipedia.org\/wiki\/Ulm"
       },
-      "name": "Einstein",
-      "length": 8,
-      "offset": 0
-    },
-    {
-      "allEntities": [
-        {
-          "id": 4130090,
-          "name": "Ulm",
-          "disambiguationScore": "0.2934"
-        }
-      ],
-      "bestEntity": {
-        "id": 4130090,
-        "name": "Ulm",
-        "disambiguationScore": "0.2934"
+      "YAGO:Albert_Einstein":{ "depictionthumbnailurl":"http:\/\/upload.wikimedia.org\/wikipedia\/commons\/thumb\/6\/66\/Einstein_1921_by_F_Schmutzer.jpg\/200px-Einstein_1921_by_F_Schmutzer.jpg",
+         "importance":5.540363736439131E-4,
+         "readableRepr":"Albert Einstein",
+         "entityId":"Albert_Einstein",
+         "depictionurl":"http:\/\/upload.wikimedia.org\/wikipedia\/commons\/6\/66\/Einstein_1921_by_F_Schmutzer.jpg",
+         "type":[
+            "YAGO_wikicategory_German_Nobel_laureates",
+            "YAGO_wikicategory_People_with_acquired_Swiss_citizenship",
+            "YAGO_wordnet_physicist_110428004",
+            "YAGO_wordnet_person_100007846",
+            ...
+         ],
+         "knowledgebase":"YAGO",
+         "url":"http:\/\/en.wikipedia.org\/wiki\/Albert%20Einstein"
+      }
+   },
+   "cleanedText":"Einstein was born in Ulm.",
+   "annotatedText":"[[http:\/\/en.wikipedia.org\/wiki\/Albert%20Einstein|Einstein]] was born in [[http:\/\/en.wikipedia.org\/wiki\/Ulm|Ulm]].",
+   "allEntities":[
+      "YAGO:Ulm",
+      "YAGO:Albert_Einstein"
+   ],
+   "mentions":[
+      {
+         "allEntities":[
+            {
+               "kbIdentifier":"YAGO:Albert_Einstein",
+               "disambiguationScore":"1"
+            }
+         ],
+         "bestEntity":{
+            "kbIdentifier":"YAGO:Albert_Einstein",
+            "disambiguationScore":"1"
+         },
+         "name":"Einstein",
+         "length":8,
+         "offset":0
       },
-      "name": "Ulm",
-      "length": 3,
-      "offset": 21
-    }
-  ]
+      {
+         "allEntities":[
+            {
+               "kbIdentifier":"YAGO:Ulm",
+               "disambiguationScore":"0.28552"
+            }
+         ],
+         "bestEntity":{
+            "kbIdentifier":"YAGO:Ulm",
+            "disambiguationScore":"0.28552"
+         },
+         "name":"Ulm",
+         "length":3,
+         "offset":21
+      }
+   ],
+   "allTypes":[
+      "YAGO_yagoGeoEntity",
+      "YAGO_wikicategory_Cities_in_Baden\\u002dW\\u00fcrttemberg",
+      "YAGO_wikicategory_States_and_territories_established_in_1181",
+      "YAGO_wordnet_city_108524735",
+      "YAGO_wikicategory_German_Nobel_laureates",
+      "YAGO_wikicategory_People_with_acquired_Swiss_citizenship",
+      "YAGO_wordnet_physicist_110428004",
+      "YAGO_wordnet_person_100007846",
+      ...
+   ]
 }
 ```
 
