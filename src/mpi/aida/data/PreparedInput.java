@@ -267,7 +267,7 @@ public class PreparedInput implements Iterable<PreparedInputChunk> {
     writer.write(docId_);
     writer.write(")");
     if (timestamp_ != 0) {
-      DateTimeFormatter fmt = DateTimeFormat.forPattern("yyyy-MM-dd");
+      DateTimeFormatter fmt = DateTimeFormat.forPattern("yyyy-MM-dd").withZoneUTC();
       String timeString = fmt.print(timestamp_);
       writer.write("\t" + timeString);
     }
