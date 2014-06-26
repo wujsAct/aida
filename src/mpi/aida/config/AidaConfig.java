@@ -141,6 +141,8 @@ public class AidaConfig {
         value = "10";
       } else if (key.equals(PERSON_NAME_MERGING)) {
         value = "false";
+      } else if (key.equals(PRELOAD_ENITTY_CONTEXTS)) {
+        value = "false";
       } else {
         logger.error("" +
         		"Missing key in properties file with no default value: " + key);
