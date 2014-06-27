@@ -850,21 +850,29 @@ public class DataAccessSQL implements DataAccessInterface {
       stmt = con.createStatement();
       stmt.setFetchSize(1000000);
       String sql = 
-          "SELECT keyphrase, array_agg(token ORDER BY position) FROM " + 
+          "SELECT keyphrase, token FROM " + 
               DataAccessSQL.KEYPHRASES_TOKENS +
-              " GROUP BY keyphrase";
+              " ORDER BY keyphrase, position";
       ResultSet rs = stmt.executeQuery(sql);
       
+      int prevKp = -1;
+      int currentKp = -1;
+      TIntArrayList currentTokens = new TIntArrayList();
       int read = 0;
       while(rs.next()) {
-        int keyphrase = rs.getInt(1);
-        Integer[] tokens = (Integer[]) rs.getArray(2).getArray();
-        int[] tokensPrimitive = ArrayUtils.toPrimitive(tokens);
-        keyphraseTokens.put(keyphrase, tokensPrimitive);
-        if (++read % 1000000 == 0) {
-          logger.debug("Read " + read + " keyphrase tokens.");
-         }
-      }                      
+        currentKp = rs.getInt(1);
+        if (prevKp != -1 && currentKp != prevKp) {
+          keyphraseTokens.put(prevKp, currentTokens.toArray());
+          currentTokens.clear();
+          if (++read % 1000000 == 0) {
+            logger.debug("Read " + read + " keyphrase tokens.");
+          }
+        }
+        currentTokens.add(rs.getInt(2));
+        prevKp = currentKp;
+      }
+      // Put in last keyphrase.
+      keyphraseTokens.put(currentKp, currentTokens.toArray());
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     } finally {
