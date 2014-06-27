@@ -354,7 +354,7 @@ public class RequestProcessor {
 		}
 		
 		// log request details
-		WebCallLogger.log(text, json.toJSONString(), prepSettings.getClass().getName(), technique, algorithm);
+		// WebCallLogger.log(text, json.toJSONString(), prepSettings.getClass().getName(), technique, algorithm);
 		return json.toJSONString();
 	}
 
