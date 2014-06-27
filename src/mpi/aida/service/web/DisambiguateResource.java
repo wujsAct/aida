@@ -69,7 +69,7 @@ public class DisambiguateResource {
 		jsonStr = rp.process(JSONTYPE.EXTENDED).toJSONString();
 
 		// log call details
-		WebCallLogger.log(input, jsonStr, prepSettings.getClass().getName(), disSettings.getDisambiguationTechnique().toString(), disSettings.getDisambiguationAlgorithm().toString());
+		// WebCallLogger.log(input, jsonStr, prepSettings.getClass().getName(), disSettings.getDisambiguationTechnique().toString(), disSettings.getDisambiguationAlgorithm().toString());
 		return jsonStr;
 
 	}
