@@ -3,6 +3,7 @@ package mpi.aida.access;
 import edu.stanford.nlp.util.StringUtils;
 import gnu.trove.iterator.TIntIntIterator;
 import gnu.trove.iterator.TObjectIntIterator;
+import gnu.trove.list.array.TIntArrayList;
 import gnu.trove.map.hash.TIntDoubleHashMap;
 import gnu.trove.map.hash.TIntIntHashMap;
 import gnu.trove.map.hash.TIntObjectHashMap;

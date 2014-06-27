@@ -15,7 +15,6 @@ import mpi.aida.data.DisambiguationResults;
 import mpi.aida.data.PreparedInput;
 import mpi.aida.data.ResultProcessor;
 import mpi.aida.preparation.mentionrecognition.FilterMentions.FilterType;
-import mpi.aida.service.web.logger.WebCallLogger;
 
 /*
  * A simple class to disambiguate the input text received by Requestprocessor.
