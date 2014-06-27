@@ -39,7 +39,7 @@ Note that AIDA does not annotate common words (like song, musician, idea, ... ).
 ## Requirements
 
  * Java 7
- * A [Postgres][Postgres] database to run. We tested it starting from version 8.4, but version 9.2 will give a better performance for many queries AIDA runs, due to the ability to fetch data from the indexes.
+ * A [Postgres][Postgres] 9.2 database to run. Might work with previous version but is untested.
  * The machine AIDA runs on should have a reasonable amount of main memory. If you are using graph coherence (see the Section *Configuring AIDA*), the amount of memory grows quadratically with the number of entities and thus the length of the document. Anything above 10,000 candidates will be too much for a regular desktop machine (at the time of writing) to handle and should run on a machine with more than 20GB of main memory. AIDA does the most intensive computations in parallel and thus benefits from multi-core machine.
 
 ## Setting up the Entity Repository
@@ -119,7 +119,7 @@ See the `mpi.aida.config.settings.disambiguation` package for all possible prede
     
 1. Run the CommandLineDisambiguator:
 
-    `java -Xmx4G -cp target/aida-2.0.4-jar-with-dependencies.jar mpi.aida.CommandLineDisambiguator -t GRAPH -i <INPUT-FILE>`
+    `java -Xmx4G -cp target/aida-2.X.X-jar-with-dependencies.jar mpi.aida.CommandLineDisambiguator -t GRAPH -s -i "Einstein was born in Ulm"`
 
 `<INPUT-FILE>` is path to the text file to be annotated with entities. The format for `<INPUT-FILE>` should be plain text with UTF-8 encoding.
 
