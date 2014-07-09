@@ -222,7 +222,8 @@ public class AidaManager {
           String serverName = prop.getProperty("dataSource.serverName");
           String database = prop.getProperty("dataSource.databaseName");
           String username = prop.getProperty("dataSource.user");
-          slogger_.info("Connecting to database " + username + "@" + serverName + ":" + "/" + database);
+          String port = prop.getProperty("dataSource.portNumber");
+          slogger_.info("Connecting to database " + username + "@" + serverName + ":" + port + "/" + database);
 
           HikariConfig config = new HikariConfig(prop);
           ds = new HikariDataSource(config);
@@ -255,6 +256,7 @@ public class AidaManager {
     prop.put("dataSource.password", password);
     prop.put("dataSource.databaseName", database);
     prop.put("dataSource.serverName", hostname);
+    prop.put("dataSource.portNumber", port);
     return prop;
   }
 

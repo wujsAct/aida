@@ -102,12 +102,34 @@ DisambiguationResults results = d.disambiguate();
 // Print the disambiguation results.
 for (ResultMention rm : results.getResultMentions()) {
   ResultEntity re = results.getBestEntity(rm);
-  System.out.println(rm.getMention() + &quot; -&gt; &quot; + re +
-  &quot; (&quot; + AidaManager.getWikipediaUrl(re) + &quot;)&quot;);
+  System.out.println(rm.getMention() + &quot; -&gt; &quot; + re);
 }
 </code></pre>
 
-<p>The <code>ResultEntity</code> contains the AIDA ID via the <code>getEntity()</code> method. This can be transformed into a Wikipedia URL by calling <code>AidaManager.getWikipediaUrl()</code> for the result entity.</p>
+<p>The <code>ResultEntity</code> contains the AIDA ID via the <code>getEntity()</code> method. If you want to get the entity metadata (e.g. the Wikipedia URL or the types),
+you can do the following:</p>
+
+<pre><code>Set&lt;KBIdentifiedEntity&gt; entities = new HashSet&lt;KBIdentifiedEntity&gt;();
+for (ResultMention rm : results.getResultMentions()) {
+  entities.add(results.getBestEntity(rm).getKbEntity());
+}
+
+Map&lt;KBIdentifiedEntity, EntityMetaData&gt; entitiesMetaData = 
+  DataAccess.getEntitiesMetaData(entities);
+ 
+for (ResultMention rm : results.getResultMentions()) {
+  KBIdentifiedEntity entity = results.getBestEntity(rm).getKbEntity();
+  EntityMetaData entityMetaData = entitiesMetaData.get(entity);
+
+  if (Entities.isOokbEntity(entity)) {
+    System.out.println(&quot;\t&quot; + rm + &quot;\t NO MATCHING ENTITY&quot;);
+  } else {
+    System.out.println(&quot;\t&quot; + rm + &quot;\t&quot; + entityMetaData.getId() + &quot;\t&quot;
+      + entity + &quot;\t&quot; + entityMetaData.getHumanReadableRepresentation()
+      + &quot;\t&quot; + entityMetaData.getUrl());
+  }
+}  
+</code></pre>
 
 <p>See the <code>mpi.aida.config.settings.disambiguation</code> package for all possible predefined configurations, passed to the <code>Disambiguator</code>:</p>
 
