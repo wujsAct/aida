@@ -35,7 +35,7 @@ import mpi.aida.graph.GraphGenerator;
 import mpi.aida.graph.GraphNode;
 import mpi.aida.graph.GraphNodeTypes;
 import mpi.aida.graph.extraction.DegreeComparator;
-import mpi.aida.util.RunningTimer;
+import mpi.aida.util.timing.RunningTimer;
 import mpi.experiment.trace.GraphTracer;
 import mpi.experiment.trace.NullGraphTracer;
 import mpi.experiment.trace.Tracer;

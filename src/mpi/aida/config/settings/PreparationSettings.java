@@ -42,7 +42,7 @@ public class PreparationSettings implements Serializable {
   }
   
   public static enum LANGUAGE {
-    en, de
+    en, de, ar
   }
 
   public FilterType getMentionsFilter() {

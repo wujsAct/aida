@@ -179,6 +179,41 @@ public class NumberParser {
       for (int i = pos; i < s.length(); i++)
         result.append(s.charAt(i));
     }
+
+    /* applies the pattern-replacement 
+     *  Note: If you fix something in this version, please try to apply the same fix at the non-tracking function */
+    public void apply(StringBuilder s, StringBuilder result, PositionTracker posTracker) {
+      result.setLength(0);
+      Matcher m = pattern.matcher(s);
+      if (!m.find()) return;
+      int pos = 0;
+      int adddiff = 0;
+      int difference = 0;
+      do {
+        for (int i = pos; i < m.start(); i++)
+          result.append(s.charAt(i));
+        pos = m.end();
+        adddiff = 0;
+        for (int i = 0; i < replacement.length(); i++) {
+          if (replacement.charAt(i) == '$') {
+            String rep = m.group(replacement.charAt(i + 1) - '0');
+            adddiff -= 2;
+            if (rep != null) {
+              adddiff += rep.length();
+              result.append(rep);
+            }
+            i++;
+          } else {
+            result.append(replacement.charAt(i));
+          }
+        }
+        difference = replacement.length() + adddiff - (m.end() - m.start());
+        posTracker.addPositionChange(m.end(), difference);
+      } while (m.find());
+      for (int i = pos; i < s.length(); i++)
+        result.append(s.charAt(i));
+      posTracker.closeRun();
+    }
   }
 
   /** A FindReplace that can do additional computations */
@@ -227,6 +262,41 @@ public class NumberParser {
       for (int i = pos; i < s.length(); i++)
         result.append(s.charAt(i));
     }
+
+    /* applies the pattern-replacement 
+     *  Note: If you fix something in this version, please try to apply the same fix at the non-tracking function */
+    public void apply(StringBuilder s, StringBuilder result, PositionTracker posTracker) {
+      Integer difference = 0;
+      result.setLength(0);
+      Matcher m = pattern.matcher(s);
+      if (!m.find()) return;
+      int pow = (replacement != null && Character.isDigit(replacement.charAt(replacement.length() - 1))) ? replacement
+          .charAt(replacement.length() - 1) - '0' : 1;
+      int pos = 0;
+      do {
+        for (int i = pos; i < m.start(); i++)
+          result.append(s.charAt(i));
+        pos = m.end();
+        double val = Double.parseDouble(m.group(1));
+        if (replacement == null) {
+          String rep = (val + summand) * factor * prefixes.get(m.group(2)) + " ";
+          //result.append((val+summand)*factor*prefixes.get(m.group(2))+"").append(' ');
+          result.append(rep);
+          difference = rep.length() - (m.end() - m.start());
+          posTracker.addPositionChange(m.end(), difference);
+        } else {
+          String rep = newNumber((val + summand) * factor * Math.pow(prefixes.get(m.group(2)), pow), replacement) + ' ';
+          //result.append(newNumber((val+summand)*factor*Math.pow(prefixes.get(m.group(2)),pow),replacement)).append(' ');
+          result.append(rep);
+          difference = rep.length() - (m.end() - m.start());
+          posTracker.addPositionChange(m.end(), difference);
+        }
+      } while (m.find());
+      for (int i = pos; i < s.length(); i++)
+        result.append(s.charAt(i));
+      posTracker.closeRun();
+    }
+
   }
 
   /** A FindReplace that can add an amount */
@@ -386,8 +456,70 @@ public class NumberParser {
           for (int i = pos; i < s.length(); i++)
             result.append(s.charAt(i));
         }
+
+        /* applies the pattern-replacement 
+         *  Note: If you fix something in this version, please try to apply the same fix at the non-tracking function */
+        public void apply(StringBuilder s, StringBuilder result, PositionTracker posTracker) {
+          Integer difference = 0;
+          result.setLength(0);
+          Matcher m = pattern.matcher(s);
+          if (!m.find()) return;
+          int pos = 0;
+          do {
+            for (int i = pos; i < m.start(); i++)
+              result.append(s.charAt(i));
+            pos = m.end();
+            try {
+              double num = Double.parseDouble(m.group(1));
+              if (m.group(3) != null) num += Double.parseDouble(m.group(3)) / 60.0;
+              if (m.group(5) != null) num += Double.parseDouble(m.group(5)) / 60.0 / 60.0;
+              char loc = m.group(7).charAt(0);
+              if (loc == 'W') {
+                num = -num;
+              }
+              if (loc == 'S') {
+                num = -num;
+              }
+              String add = newNumber(Double.toString(num), "degrees");
+              result.append(add);
+              difference = add.length() - (m.end() - m.start());
+              posTracker.addPositionChange(m.end(), difference);
+            } catch (Exception e) {
+              // Some number format exception
+              result.append(m.group());
+            }
+          } while (m.find());
+          for (int i = pos; i < s.length(); i++)
+            result.append(s.charAt(i));
+          posTracker.closeRun();
+        }
+
       },
-      new FindReplace(POSINT + ':' + POSINT + B + "pm" + WB, null) {       
+      new FindReplace(POSINT + ':' + POSINT + B + "pm" + WB, null) {
+
+        /* applies the pattern-replacement 
+        *  Note: If you fix something in this version, please try to apply the same fix at the non-tracking function */
+        public void apply(StringBuilder s, StringBuilder result, PositionTracker posTracker) {
+          result.setLength(0);
+          Integer difference = 0;
+          Matcher m = pattern.matcher(s);
+          if (!m.find()) return;
+          int pos = 0;
+          do {
+            for (int i = pos; i < m.start(); i++)
+              result.append(s.charAt(i));
+            pos = m.end();
+            String rep = newNumber((Integer.parseInt(m.group(1)) + 12) + "." + m.group(2), "oc");
+            //result.append(newNumber((Integer.parseInt(m.group(1))+12)+"."+m.group(2),"oc"));
+            result.append(rep);
+            difference = rep.length() - (m.end() - m.start());
+            posTracker.addPositionChange(m.end(), difference);
+          } while (m.find());
+          for (int i = pos; i < s.length(); i++)
+            result.append(s.charAt(i));
+          posTracker.closeRun();
+        }
+
         /* applies the pattern-replacement 
          *  Note: If you fix something in this version, please try to apply the same fix at the position change tracking function above */
         public void apply(StringBuilder s, StringBuilder result) {
@@ -406,6 +538,32 @@ public class NumberParser {
         }
       },
       new FindReplace("(\\d+):(\\d{2})(?::(\\d{2})(?:\\.(\\d+))?)?\\s*h", null) {
+
+        /* applies the pattern-replacement 
+        *  Note: If you fix something in this version, please try to apply the same fix at the non-tracking function */
+        public void apply(StringBuilder s, StringBuilder result, PositionTracker posTracker) {
+          result.setLength(0);
+          Matcher m = pattern.matcher(s);
+          if (!m.find()) return;
+          int pos = 0;
+          do {
+            for (int i = pos; i < m.start(); i++)
+              result.append(s.charAt(i));
+            pos = m.end();
+            double val = Double.parseDouble(m.group(1)) * 3600 + Double.parseDouble(m.group(2)) * 60;
+            if (m.group(3) != null) val += Double.parseDouble(m.group(3));
+            if (m.group(4) != null) val += Double.parseDouble("0." + m.group(4));
+            String rep = newNumber(val, "s");
+            result.append(rep).append(' ');
+            Integer difference = rep.length() + 1 - (m.end() - m.start());
+            posTracker.addPositionChange(m.end(), difference);
+
+          } while (m.find());
+          for (int i = pos; i < s.length(); i++)
+            result.append(s.charAt(i));
+          posTracker.closeRun();
+        }
+
         /* applies the pattern-replacement 
          *  Note: If you fix something in this version, please try to apply the same fix at the position change tracking function above */
         public void apply(StringBuilder s, StringBuilder result) {
@@ -427,6 +585,29 @@ public class NumberParser {
         }
       },
       new FindReplace("(\\d++)\\s*+h(?:ours?)?\\W*+(\\d++)\\s*+min(?:utes)?", null) {
+
+        /* applies the pattern-replacement 
+        *  Note: If you fix something in this version, please try to apply the same fix at the non-tracking function */
+        public void apply(StringBuilder s, StringBuilder result, PositionTracker posTracker) {
+          result.setLength(0);
+          Matcher m = pattern.matcher(s);
+          if (!m.find()) return;
+          int pos = 0;
+          do {
+            for (int i = pos; i < m.start(); i++)
+              result.append(s.charAt(i));
+            pos = m.end();
+            double val = Double.parseDouble(m.group(1)) * 3600 + Double.parseDouble(m.group(2)) * 60;
+            String rep = newNumber(val, "s");
+            result.append(rep).append(' ');
+            Integer difference = rep.length() + 1 - (m.end() - m.start());
+            posTracker.addPositionChange(m.end(), difference);
+          } while (m.find());
+          for (int i = pos; i < s.length(); i++)
+            result.append(s.charAt(i));
+          posTracker.closeRun();
+        }
+
         /* applies the pattern-replacement 
           *  Note: If you fix something in this version, 
           *  please try to apply the same fix at 
@@ -468,6 +649,28 @@ public class NumberParser {
         }
       },
       new FindReplace(POSINT + B + "(?:'|[Ff]t\\.?|[fF]eet)" + B + POSINT + B + "(?:\"|[iI]ns?\\.?|[iI]nch(?:es))" + WB, null) {
+
+        /* applies the pattern-replacement 
+        *  Note: If you fix something in this version, please try to apply the same fix at the non-tracking function */
+        public void apply(StringBuilder s, StringBuilder result, PositionTracker posTracker) {
+          result.setLength(0);
+          Matcher m = pattern.matcher(s);
+          if (!m.find()) return;
+          int pos = 0;
+          do {
+            for (int i = pos; i < m.start(); i++)
+              result.append(s.charAt(i));
+            pos = m.end();
+            String rep = newNumber(Integer.parseInt(m.group(1)) * 0.3048 + Integer.parseInt(m.group(2)) * 0.0254, "m");
+            result.append(rep);
+            Integer difference = rep.length() - (m.end() - m.start());
+            posTracker.addPositionChange(m.end(), difference);
+
+          } while (m.find());
+          for (int i = pos; i < s.length(); i++)
+            result.append(s.charAt(i));
+        }
+
         /* applies the pattern-replacement 
          *  Note: If you fix something in this version, 
          *  please try to apply the same fix at 
@@ -619,6 +822,26 @@ public class NumberParser {
       fr.apply(in, result);
       if (result.length() != 0) {
         // D.p(fr.pattern,"--->    ",result); // For debugging
+        StringBuilder temp = in;
+        in = result;
+        result = temp;
+      }
+    }
+    result = null;
+    return (in.toString());
+  }
+
+  /** Normalizes all numbers in a String and updates a position mapping with the introduced pos changes 
+    *  Note: If you fix something in this version, 
+    *  please try to apply the same fix at 
+    *  the non-tracking function above */
+  public static String normalize(CharSequence s, PositionTracker posTracker) {
+
+    StringBuilder in = new StringBuilder((int) (s.length() * 1.1)).append(s);
+    StringBuilder result = new StringBuilder((int) (s.length() * 1.1));
+    for (FindReplace fr : patterns) {
+      fr.apply(in, result, posTracker);
+      if (result.length() != 0) {
         StringBuilder temp = in;
         in = result;
         result = temp;

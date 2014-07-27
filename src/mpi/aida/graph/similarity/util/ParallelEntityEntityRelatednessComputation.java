@@ -16,7 +16,7 @@ import mpi.aida.data.Entity;
 import mpi.aida.data.Mention;
 import mpi.aida.data.Mentions;
 import mpi.aida.graph.similarity.EnsembleEntityEntitySimilarity;
-import mpi.aida.util.RunningTimer;
+import mpi.aida.util.timing.RunningTimer;
 
 
 public class ParallelEntityEntityRelatednessComputation {

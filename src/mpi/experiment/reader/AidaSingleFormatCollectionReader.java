@@ -135,7 +135,7 @@ public class AidaSingleFormatCollectionReader extends CollectionReader {
   public Context getDocumentContext(String docId) {
     PreparedInput p = documents_.get(docId);    
     assert p.getChunksCount() == 1;
-    return documents_.get(docId).iterator().next().getContext();
+    return p.iterator().next().getContext();
   }
 
   @Override
@@ -145,7 +145,9 @@ public class AidaSingleFormatCollectionReader extends CollectionReader {
 
   @Override
   public String getText(String docId) {
-    return getDocumentContext(docId).toString();
+    PreparedInput p = documents_.get(docId);    
+    assert p.getChunksCount() == 1;
+    return p.iterator().next().getTokens().toText();
   }
   
   public boolean usesIntegerDocIds() {

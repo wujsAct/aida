@@ -1,4 +1,4 @@
-package mpi.tools.basics;
+package mpi.tools.basics2;
 
 import mpi.tools.javatools.parsers.Char;
 

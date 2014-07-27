@@ -36,11 +36,11 @@ import mpi.aida.data.KBIdentifiedEntity;
 import mpi.aida.data.Keyphrases;
 import mpi.aida.data.Type;
 import mpi.aida.graph.similarity.PriorProbability;
-import mpi.aida.util.RunningTimer;
 import mpi.aida.util.Util;
 import mpi.aida.util.YagoUtil;
 import mpi.aida.util.YagoUtil.Gender;
-import mpi.tools.basics.Normalize;
+import mpi.aida.util.timing.RunningTimer;
+import mpi.tools.basics2.Normalize;
 import mpi.tools.javatools.datatypes.Pair;
 
 import org.apache.commons.lang.ArrayUtils;
@@ -1615,6 +1615,39 @@ public class DataAccessSQL implements DataAccessInterface {
       counts[keywordId] = itr.value();
     }
     return counts;
+  }
+  
+  private TIntIntHashMap getEntityImportanceComponentValue(Entities entities, String dbTableName) {
+    TIntIntHashMap values = new TIntIntHashMap();
+    if(entities.size() == 0) {
+      return values;
+    }
+
+    Connection con = null;
+    Statement statement = null;
+
+    String entitiesQuery = StringUtils.join(entities.getUniqueIds(), ",");
+    try {
+      con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+      statement = con.createStatement();
+      String sql = "SELECT entity, value FROM " +  dbTableName
+          + " WHERE entity IN ("
+          + entitiesQuery + ")";
+      ResultSet rs = statement.executeQuery(sql);
+      while (rs.next()) {
+        int value = rs.getInt("value");
+        int entity = rs.getInt("entity");
+        values.put(entity, value);
+      }
+      rs.close();
+      statement.close();
+      return values;
+    } catch (Exception e) {
+      logger.error(e.getLocalizedMessage());
+    } finally {
+      AidaManager.releaseConnection(con);
+    }
+    return values;
   }
 
   @Override

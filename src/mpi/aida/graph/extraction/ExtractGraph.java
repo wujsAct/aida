@@ -13,7 +13,7 @@ import mpi.aida.data.Mentions;
 import mpi.aida.graph.Graph;
 import mpi.aida.graph.similarity.EnsembleEntityEntitySimilarity;
 import mpi.aida.graph.similarity.util.ParallelEntityEntityRelatednessComputation;
-import mpi.aida.util.RunningTimer;
+import mpi.aida.util.timing.RunningTimer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,7 +70,7 @@ public class ExtractGraph {
 
   private void addGraphNodes() {
     // add mention nodes to the graph
-    Integer id = RunningTimer.recordStartTime("AddGraphNode");
+    Integer id = RunningTimer.recordStartTime("AddGraphNodes");
     for (int i = 0; i < this.mentions.getMentions().size(); i++) {
       graph.addMentionNode(mentions.getMentions().get(i));
     }
@@ -81,7 +81,7 @@ public class ExtractGraph {
   }
 
   private void addGraphEdges() {
-    Integer id = RunningTimer.recordStartTime("AddGraphEdge");
+    Integer id = RunningTimer.recordStartTime("AddGraphEdges");
     // add mention-entity edges
     for (int i = 0; i < mentions.getMentions().size(); i++) {
       Mention mention = mentions.getMentions().get(i);

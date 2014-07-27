@@ -8,7 +8,7 @@ import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
 import mpi.tokenizer.data.Token;
 import mpi.tokenizer.data.Tokens;
-import mpi.tools.basics.Normalize;
+import mpi.tools.basics2.Normalize;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -16,7 +16,7 @@ import mpi.aida.data.Mention;
 import mpi.aida.data.Mentions;
 import mpi.aida.graph.similarity.importance.EntityImportance;
 import mpi.aida.graph.similarity.util.SimilaritySettings;
-import mpi.aida.util.RunningTimer;
+import mpi.aida.util.timing.RunningTimer;
 import mpi.experiment.trace.Tracer;
 import mpi.experiment.trace.measures.EntityImportanceMeasureTracer;
 import mpi.experiment.trace.measures.PriorMeasureTracer;

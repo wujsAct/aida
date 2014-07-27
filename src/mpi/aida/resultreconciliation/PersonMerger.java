@@ -22,7 +22,7 @@ import mpi.aida.data.ResultEntity;
 import mpi.aida.data.ResultMention;
 import mpi.aida.data.Type;
 import mpi.aida.util.Counter;
-import mpi.tools.basics.Basics;
+import mpi.tools.basics2.Basics;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

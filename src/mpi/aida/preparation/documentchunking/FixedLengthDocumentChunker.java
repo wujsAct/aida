@@ -7,7 +7,7 @@ import mpi.aida.config.AidaConfig;
 import mpi.aida.data.Mentions;
 import mpi.aida.data.PreparedInput;
 import mpi.aida.data.PreparedInputChunk;
-import mpi.aida.util.RunningTimer;
+import mpi.aida.util.timing.RunningTimer;
 import mpi.tokenizer.data.Token;
 import mpi.tokenizer.data.Tokens;
 

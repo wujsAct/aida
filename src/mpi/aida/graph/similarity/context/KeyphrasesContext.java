@@ -18,8 +18,8 @@ import mpi.aida.data.Entity;
 import mpi.aida.data.Keyphrases;
 import mpi.aida.graph.similarity.context.EntitiesContextSettings.EntitiesContextType;
 import mpi.aida.graph.similarity.measure.WeightComputation;
-import mpi.aida.util.RunningTimer;
 import mpi.aida.util.StopWord;
+import mpi.aida.util.timing.RunningTimer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

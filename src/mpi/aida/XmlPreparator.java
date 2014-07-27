@@ -4,7 +4,11 @@ import gnu.trove.map.hash.TObjectIntHashMap;
 
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import mpi.aida.config.settings.PreparationSettings;
 import mpi.aida.data.Mention;
@@ -29,50 +33,52 @@ import org.slf4j.LoggerFactory;
 
 public class XmlPreparator {
 
-private static final String NEW_LINE = "\n";
-  
-  private static final String EMPTY_STR = " " ;
-  
+  private static final String NEW_LINE = "\n";
+
+  private static final String EMPTY_STR = " ";
+
   // Byte Order Mark - should be cleaned before parsing xml.
   private static final String BOM_IDENTIFIER = "^([\\W]+)<";
-  
+
   private static final String XML_TAG_START = "<";
-  
+
   /*
    * TEI related xml elements 
    */
-  
+
   private static final String TEI_NDB = "ndb";
-  
+
   // TEI attribute names
   private static final String TEI_ATTRIBUTE_TYPE = "type";
-  
+
   private static final String TEI_ATTRIBUTE_SUBTYPE = "subtype";
-  
+
+  // private static final String TEI_ATTRIBUTE_REF = "n";
+
   // TEI element names
   private static final String TEI_ELEMENT_TEXT = "text";
-  
+
   private static final String TEI_ELEMENT_BODY = "body";
-  
+
   private static final String TEI_ELEMENT_DIV = "div";
-  
+
   private static final String TEI_ELEMENT_PARA = "p";
-    
+
   private static final String TEI_ELEMENT_CHOICE_ABBR = "abbr";
-  
+
   private static final String TEI_ELEMENT_REF_TARGET = "ref";
-  
+
   private static final String TEI_ELEMENT_PERSON_NAME = "persName";
-  
+
   private static final String TEI_ELEMENT_SEGMENT = "seg";
-  
+
   // Top level divs type names
   private static final String TEI_ENTRY_HEAD = "kopf";
-  
+
   private static final String TEI_ENTRY_GENEAL = "geneal";
-  
+
   private static final String TEI_ENTRY_LIFE = "leben";
-  
+
   @SuppressWarnings("unused")
   private int fromPage = -1;
 
@@ -90,12 +96,14 @@ private static final String NEW_LINE = "\n";
 
   @SuppressWarnings("unused")
   private int composedBlockCount = 0;
-  
+
   @SuppressWarnings("unused")
   private int textBlockCount = 0;
-  
+
   private static FilterMentions filterMention = new FilterMentions();
-  
+
+  private static Map<String, String> stringToGroundTruth = new HashMap<String, String>();
+
   public XmlPreparator(int from, int to) {
     fromPage = from;
     toPage = to;
@@ -108,24 +116,45 @@ private static final String NEW_LINE = "\n";
   /*
    * TEI Related Methods
    */
-  
+
   private static Element removeElement(Element parent, String elementToRemove, Namespace ns) {
     List<Element> children = parent.getChildren();
-    if(children.isEmpty()) {
+    if (children.isEmpty()) {
       return parent;
     }
-    
-    for(Element child : children) {
+
+    for (Element child : children) {
       removeElement(child, elementToRemove, ns);
     }
-    
+
     switch (elementToRemove) {
       case TEI_ELEMENT_REF_TARGET:
-        parent.removeChildren(elementToRemove, ns);        
+        // if parent is name and ref type = "n"
+        for (Element child : parent.getChildren()) {
+          Element refChild = child.getChild(TEI_ELEMENT_REF_TARGET, ns);
+          if (refChild == null) {
+            //System.out.println("No Ref Child for : " + child.getName());
+            continue;
+          }
+
+          String typeAttr = refChild.getAttributeValue("type");
+          refChild.getParentElement().getTextTrim();
+          refChild.getTextTrim();
+          if (typeAttr != null && typeAttr.equalsIgnoreCase("n")) {
+            //System.out.println("Store the target url : " + refChild.getAttributeValue("target"));
+            Pattern pattern = Pattern.compile("\\W(.+) \\W");
+            Matcher matcher = pattern.matcher(child.getValue());
+            if (matcher.find()) {
+              stringToGroundTruth.put(matcher.group(1), refChild.getAttributeValue("target"));
+            }
+          }
+          child.removeChild(refChild.getName(), ns);                
+        }
+        //parent.removeChildren(elementToRemove, ns);
         break;
       case TEI_ELEMENT_CHOICE_ABBR:
         Element ele = parent.getChild(elementToRemove, ns);
-        if(ele != null) {
+        if (ele != null) {
           ele.setText(EMPTY_STR);
         }
         break;
@@ -134,7 +163,7 @@ private static final String NEW_LINE = "\n";
     }
     return parent;
   }
-  
+
   private static Element cleanup(Element parent, Namespace ns) {
     // removes "->" link symbol from text
     parent = removeElement(parent, TEI_ELEMENT_REF_TARGET, ns);
@@ -151,7 +180,7 @@ private static final String NEW_LINE = "\n";
     switch (divType) {
       case TEI_ENTRY_HEAD:
         Element tmpEle = para.getChild(TEI_ELEMENT_PERSON_NAME, ns);
-        if(tmpEle != null) {
+        if (tmpEle != null) {
           StringBuffer tmpNameBuff = new StringBuffer();
           //tmpNameBuff.append("Start : ");
           List<Element> children = tmpEle.getChildren();
@@ -161,21 +190,20 @@ private static final String NEW_LINE = "\n";
             if(i!=0) {
               tmpNameBuff.append(EMPTY_STR);
             }
-          }
-          
+          }          
           info.append(tmpNameBuff.toString()).append(EMPTY_STR + ":");
         }
         tmpEle = para.getChild(TEI_ELEMENT_SEGMENT, ns);
-        
-        if(tmpEle != null) {
-          info.append(cleanup(tmpEle, ns).getValue()).append(NEW_LINE);        
+
+        if (tmpEle != null) {
+          info.append(cleanup(tmpEle, ns).getValue()).append(NEW_LINE);
         }
         break;
-      case TEI_ENTRY_GENEAL:       
-      case TEI_ENTRY_LIFE:        
-        if(para == null) {
+      case TEI_ENTRY_GENEAL:
+      case TEI_ENTRY_LIFE:
+        if (para == null) {
           info.append(cleanup(element, ns).getValue()).append(NEW_LINE);
-        }else{
+        } else {
           info.append(cleanup(para, ns).getValue()).append(NEW_LINE);
         }
         break;
@@ -183,39 +211,39 @@ private static final String NEW_LINE = "\n";
         addNewLineAtEnd = false;
         break;
     }
-    
-    if(addNewLineAtEnd) {
+
+    if (addNewLineAtEnd) {
       info.append(NEW_LINE);
     }
-    
+
     return info.toString();
   }
-  
+
   private static String getCompleteBiographie(Element divEntry, Namespace ns) {
     StringBuffer sb = new StringBuffer();
-    
-    for(Element child : divEntry.getChildren()) {
-      if(!child.getName().equals(TEI_ELEMENT_DIV) || !child.hasAttributes())
-        continue;
-      
+
+    for (Element child : divEntry.getChildren()) {
+      if (!child.getName().equals(TEI_ELEMENT_DIV) || !child.hasAttributes()) continue;
+
       Attribute attr = child.getAttribute(TEI_ATTRIBUTE_TYPE);
-      if(attr != null) {
+      if (attr != null) {
         sb.append(getInfo(child, attr.getValue(), ns));
-      }      
-    }        
+      }
+
+    }
     return sb.toString();
   }
-  
+
   private static String cleanExtractedText(String extractedText) {
     extractedText = extractedText.replaceAll("[ ]+", " ");
-    extractedText = extractedText.substring(0,extractedText.length() - 1);
+    extractedText = extractedText.substring(0, extractedText.length() - 1);
     return extractedText;
   }
-  
+
   /*
    *  Utility methods 
    */
-  
+
   /**
    * Process the smallest alto xml unit <String> 
    * 
@@ -245,7 +273,7 @@ private static final String NEW_LINE = "\n";
    * @param block A TextBlock to be processed
    * @return String representation of the Text block (with lines of content)
    */
-  private String processTextBlock(Element block){
+  private String processTextBlock(Element block) {
     StringBuffer textContent = new StringBuffer();
     List<Element> lstLines = block.getChildren("TextLine", block.getNamespace());
     for (Element line : lstLines) {
@@ -267,11 +295,11 @@ private static final String NEW_LINE = "\n";
       if ("ComposedBlock".equalsIgnoreCase(ele.getName())) {
         composedBlockCount++;
         List<Element> lstChildren = ele.getChildren();
-        for(Element child : lstChildren){
-          if("TextBlock".equalsIgnoreCase(child.getName())){
+        for (Element child : lstChildren) {
+          if ("TextBlock".equalsIgnoreCase(child.getName())) {
             textBlockCount++;
             content.append(processTextBlock(child));
-          }else{
+          } else {
             // TextLine
             content.append(processLine(child)).append("\n");
           }
@@ -290,34 +318,34 @@ private static final String NEW_LINE = "\n";
    * @param xmlContent XML string to be cleaned
    * @return XML string with all junk characters removed
    */
-  private static String cleanXmlString(String xmlContent){
+  private static String cleanXmlString(String xmlContent) {
     return xmlContent.replaceFirst(BOM_IDENTIFIER, XML_TAG_START);
   }
   
-  private Element getXmlRootElement(String content) throws Exception{
+  private Element getXmlRootElement(String content) throws Exception {
     // Step 1: Clean XML to remove junk characters
     StringReader sr = new StringReader(cleanXmlString(content));
     SAXBuilder sBuilder = new SAXBuilder();
-    
+
     // Step 2: Build XML object model
     Document xmlBook = sBuilder.build(sr);
-    return xmlBook.getRootElement();    
+    return xmlBook.getRootElement();
   }
-  
-  private String extractTeiText(String content) throws Exception{
+
+  public String extractTeiText(String content) throws Exception {
     String result = "";
     Element root = getXmlRootElement(content);
     Element body = root.getChild(TEI_ELEMENT_TEXT, root.getNamespace()).getChild(TEI_ELEMENT_BODY, root.getNamespace());
-    for(Element entry : body.getChildren()) {
-      if(TEI_NDB.equalsIgnoreCase(entry.getAttributeValue(TEI_ATTRIBUTE_SUBTYPE))){
+    for (Element entry : body.getChildren()) {
+      if (TEI_NDB.equalsIgnoreCase(entry.getAttributeValue(TEI_ATTRIBUTE_SUBTYPE))) {
         result = getCompleteBiographie(entry, root.getNamespace());
         return cleanExtractedText(result);
-      }                   
+      }
     }
-    
+
     return result;
   }
-    
+
   /**
    * Parses the TEI xml format and extracts the biographie text
    * @param content
@@ -325,29 +353,30 @@ private static final String NEW_LINE = "\n";
    * @param prepSettings
    * @return
    * @throws Exception
-   */  
-  public PreparedInput prepareTeiXml(String content, String docId, PreparationSettings prepSettings) throws Exception{
+   */
+  public PreparedInput prepareTeiXml(String content, String docId, PreparationSettings prepSettings) throws Exception {
+    stringToGroundTruth.clear();
     String text = extractTeiText(content);
     PreparedInput pInp = prepareInputData(text, docId, prepSettings);
+
     return pInp;
   }
-  
+
   /**
    * Parses the ALTO xml format and process each page creating a prepared input.
-   * @param content
+   * @param contentTEI_ATTRIBUTE_TYPE
    * @param docId
    * @param prepSettings
    * @return
    * @throws Exception
    */
   @SuppressWarnings("unused")
-  public PreparedInput prepareAltoXml(String content, String docId, PreparationSettings prepSettings)
-      throws Exception {
-    
+  public PreparedInput prepareAltoXml(String content, String docId, PreparationSettings prepSettings) throws Exception {
+
     Element root = getXmlRootElement(content);
     Element layout = root.getChild("Layout", root.getNamespace());
 
-    // Step 3: Process all extracted pages, generating Prepared Input Chunks
+    // Step 3: Process all extracted pages, generatin<ref target="http://www.deutsche-biographie.de/sfz11652.html" type="n">→</ref>g Prepared Input Chunks
     Tokens allTokens = new Tokens();
     Mentions allMentions = new Mentions();
     int lastTokenStartPos = 0;
@@ -362,16 +391,18 @@ private static final String NEW_LINE = "\n";
       Mentions currPageMentions = pInp.getMentions();
       currPageTokens.setPageNumber(pageNumber);
       //pInp.getMentions().setPageNumber(pageNumber);      
-      
-      if(isAnyPageProcessed){
-        for(Token token : currPageTokens){
+
+      if (isAnyPageProcessed) {
+        for (Token token : currPageTokens) {
           int currTokenStartPos = lastTokenEndPos + 1; // assuming the original end of previous token is taken care of
           int currTokenEndPos = currTokenStartPos + token.getOriginal().length() + token.getOriginalEnd().length();
-          Token newToken = new Token(token.getStandfordId(), token.getOriginal(), token.getOriginalEnd(), currTokenStartPos, currTokenEndPos, token.getSentence(), token.getParagraph(), token.getPOS(), token.getNE());
+          Token newToken = new Token(token.getStandfordId(), token.getOriginal(), token.getOriginalEnd(), currTokenStartPos, currTokenEndPos,
+              token.getSentence(), token.getParagraph(), token.getPOS(), token.getNE());
           // UPDATE MENTION Mention mention = new Me
-          if(currPageMentions.containsOffset(token.getBeginIndex())){            
+          if (currPageMentions.containsOffset(token.getBeginIndex())) {
             Mention mention = currPageMentions.getMentionForOffset(token.getBeginIndex());
-            Mention newMention = new Mention(mention.getMention(), mention.getStartToken(), mention.getEndToken(), mention.getStartStanford(), mention.getEndStanford(), mention.getSentenceId());
+            Mention newMention = new Mention(mention.getMention(), mention.getStartToken(), mention.getEndToken(), mention.getStartStanford(),
+                mention.getEndStanford(), mention.getSentenceId());
             newMention.setCharOffset(newToken.getBeginIndex());
             newMention.setCharLength(mention.getCharLength());
             allMentions.addMention(newMention);
@@ -380,48 +411,47 @@ private static final String NEW_LINE = "\n";
           allTokens.addToken(newToken);
           lastTokenEndPos = currTokenEndPos;
         }
-      }else{
-        for(Token token : currPageTokens){
+      } else {
+        for (Token token : currPageTokens) {
           lastTokenStartPos = token.getBeginIndex();
           lastTokenEndPos = token.getEndIndex();
           allTokens.addToken(token);
-          if(currPageMentions.containsOffset(token.getBeginIndex())){
+          if (currPageMentions.containsOffset(token.getBeginIndex())) {
             allMentions.addMention(currPageMentions.getMentionForOffset(token.getBeginIndex()));
           }
         }
         isAnyPageProcessed = true;
-      }     
+      }
     }// end of loop over pages
-    
+
     DocumentChunker docChunker = prepSettings.getDocumentChunker();
     PreparedInput fullPrepInp = docChunker.process(docId, allTokens, allMentions);
-    
+
     return fullPrepInp;
   }
-  
+
   private PreparedInput prepareInputData(String text, String docId, PreparationSettings settings) {
     Pair<Tokens, Mentions> tokensMentions = null;
     if (settings.getMentionsFilter().equals(FilterType.Manual)) {
       tokensMentions = filterMention.filter(docId, text, settings.getMentionsFilter(), false, settings.getLanguage());
     } else {
-      tokensMentions = filterMention.filter(docId, text, settings.getMentionsFilter(), settings.isUseHybridMentionDetection(), settings.getLanguage());
+      tokensMentions = filterMention
+          .filter(docId, text, settings.getMentionsFilter(), settings.isUseHybridMentionDetection(), settings.getLanguage());
     }
-    
+
     // Drop mentions below min occurrence count.
     if (settings.getMinMentionOccurrenceCount() > 1) {
       dropMentionsBelowOccurrenceCount(tokensMentions.second, settings.getMinMentionOccurrenceCount());
     }
-    
+
     //NOTE: calling settings.getChunker will create a page based chunker which is not required 
     DocumentChunker chunker = new SingleChunkDocumentChunker();
-    PreparedInput preparedInput = 
-        chunker.process(docId, tokensMentions.first, tokensMentions.second);
-    
+    PreparedInput preparedInput = chunker.process(docId, tokensMentions.first, tokensMentions.second);
+
     return preparedInput;
   }
 
-  public static void dropMentionsBelowOccurrenceCount(Mentions docMentions,
-      int minMentionOccurrenceCount) {
+  public static void dropMentionsBelowOccurrenceCount(Mentions docMentions, int minMentionOccurrenceCount) {
     TObjectIntHashMap<String> mentionCounts = new TObjectIntHashMap<String>();
     for (Mention m : docMentions.getMentions()) {
       mentionCounts.adjustOrPutValue(m.getMention(), 1, 1);
@@ -435,5 +465,9 @@ private static final String NEW_LINE = "\n";
     for (Mention m : mentionsToRemove) {
       docMentions.remove(m);
     }
-  }   
+  }
+
+  public Map<String, String> getExtractedGroundTruth() {
+    return stringToGroundTruth;
+  }
 }

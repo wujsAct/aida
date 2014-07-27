@@ -4,7 +4,9 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +21,6 @@ import mpi.aida.config.settings.JsonSettings.JSONTYPE;
 import mpi.aida.config.settings.PreparationSettings;
 import mpi.aida.config.settings.disambiguation.CocktailPartyDisambiguationWithNullSettings;
 import mpi.aida.config.settings.disambiguation.CocktailPartyKOREDisambiguationWithNullSettings;
-import mpi.aida.config.settings.disambiguation.CocktailPartyKOREIDFDisambiguationWithNullSettings;
 import mpi.aida.config.settings.disambiguation.LocalDisambiguationIDFWithNullSettings;
 import mpi.aida.config.settings.disambiguation.LocalDisambiguationWithNullSettings;
 import mpi.aida.config.settings.disambiguation.PriorOnlyDisambiguationSettings;
@@ -31,8 +32,8 @@ import mpi.aida.data.KBIdentifiedEntity;
 import mpi.aida.data.PreparedInput;
 import mpi.aida.data.ResultMention;
 import mpi.aida.data.ResultProcessor;
-import mpi.aida.util.RunningTimer;
 import mpi.aida.util.htmloutput.HtmlGenerator;
+import mpi.aida.util.timing.RunningTimer;
 import mpi.tools.javatools.util.FileUtils;
 
 import org.apache.commons.cli.CommandLine;
@@ -121,7 +122,13 @@ public class CommandLineDisambiguator {
     int threadCount = 1;
     if (cmd.hasOption("c")) {
       threadCount = Integer.parseInt(cmd.getOptionValue("c"));
-    }    
+    }
+    
+    int chunkThreadCount = 1;
+    if(cmd.hasOption("x")) {
+      chunkThreadCount = Integer.parseInt(cmd.getOptionValue("x"));
+    }
+    
     int resultCount = 10;
     if (cmd.hasOption("e")) {
       resultCount = Integer.parseInt(cmd.getOptionValue("e"));
@@ -131,27 +138,98 @@ public class CommandLineDisambiguator {
       threshold = Double.parseDouble(cmd.getOptionValue("r"));
     }
     
-    boolean isTimed = false;
-    if(cmd.hasOption('z')) {
-      isTimed = true;
+    boolean isTimed = cmd.hasOption('z');        
+    boolean runDummyDoc = cmd.hasOption('g');
+    boolean writeTimingInfo = false;
+    
+    String timingDir = "";
+    if(cmd.hasOption('w')) {
+      writeTimingInfo = true;
+      timingDir = cmd.getOptionValue("w");
+      File f = new File(timingDir);
+      if(!f.exists() || !f.isDirectory()) {
+       System.out.println("Timing directory doesnt exists or not a directory!");
+       printHelp(commandLineOptions);
+      }
     }
-    
-    ExecutorService es = Executors.newFixedThreadPool(threadCount);
-    System.out.println("Processing " + files.size() + " documents with " +
-        threadCount + " threads, ignoring existing .html and .json files.");
-    
+        
+    ExecutorService es = Executors.newFixedThreadPool(threadCount);        
     Preparator p = new Preparator();
+    
+    
+    if(runDummyDoc) {
+      // To eliminate the cache loading time effect on overall running timer results.      
+      System.out.println("Executing disambiguation on dummy document..");
+
+      // execute dummy disambiguation
+      runDummyDisambiguation("A dummy text to disambigute.", 
+          disambiguationTechniqueSetting, p, prepSettings, inputFormat, outputFormat, resultCount,
+          false, false);
+      
+      RunningTimer.clear();
+    }
+     
+    System.out.println("Processing " + files.size() + " documents with " +
+        threadCount + " threads, ignoring existing .html and .json files.");        
+    
     for (File f : files) {
       Processor proc = new Processor(f.getAbsolutePath(), 
           disambiguationTechniqueSetting, p, prepSettings, inputFormat, outputFormat, resultCount,
           !inputFile.isDirectory(), isTimed);   
       // pass the threshold
       proc.setThreshold(threshold);      
+      proc.setChunkThreadCount(chunkThreadCount);
       es.execute(proc);
     }
+    
     es.shutdown();
     es.awaitTermination(1, TimeUnit.DAYS);
+    if(writeTimingInfo) {      
+      if(es.isTerminated()) {           
+        String content = RunningTimer.getDetailedOverview();
+        FileUtils.writeFileContent(new File(timingDir + File.separator + "overall_timing_" + new SimpleDateFormat("yyyy_MM_dd_hh_mm_ss'.txt'").format(new Date())), content);
+        content = RunningTimer.getTrackedDocumentTime();
+        FileUtils.writeFileContent(new File(timingDir + File.separator + "document_timing_" + new SimpleDateFormat("yyyy_MM_dd_hh_mm_ss'.txt'").format(new Date())), content);
+      }
+    }
   } 
+
+  
+  private void runDummyDisambiguation(String content, String disambiguationTechniqueSetting, Preparator p, PreparationSettings prepSettings,
+      String inputFormat, String outputFormat, int resultCount, boolean logResults, boolean isTimed) {
+    PreparedInput input = null;
+    String fName = "dummyText_" + System.currentTimeMillis() + ".txt";
+    try {
+      input = p.prepare(fName, content.toString(), prepSettings);
+      
+      DisambiguationSettings disSettings = null;
+      if (disambiguationTechniqueSetting.equals("PRIOR")) {
+        disSettings = new PriorOnlyDisambiguationSettings();
+      } else if (disambiguationTechniqueSetting.equals("LOCAL")) {
+        disSettings = new LocalDisambiguationWithNullSettings();
+      } else if (disambiguationTechniqueSetting.equals("LOCAL-IDF")) {
+        disSettings = new LocalDisambiguationIDFWithNullSettings();
+      } else if (disambiguationTechniqueSetting.equals("GRAPH")) {
+        disSettings = new CocktailPartyDisambiguationWithNullSettings();    
+      } else if (disambiguationTechniqueSetting.equals("GRAPH-KORE")) {
+        disSettings = new CocktailPartyKOREDisambiguationWithNullSettings();       
+      } else {
+        System.err
+            .println("disambiguation-technique can be either: "
+                + "'PRIOR', 'LOCAL', 'LOCAL-IDF', 'GRAPH', 'GRAPH-IDF' or 'GRAPH-KORE");
+        System.exit(2);
+      }
+
+      disSettings.setNumChunkThreads(1);        
+      Disambiguator d = new Disambiguator(input, disSettings);
+      // ignoring the results
+      d.disambiguate();
+    }catch(Exception e) {
+      System.err.println("Error while processing '" + fName + "': " + 
+          e.getLocalizedMessage());
+      e.printStackTrace();
+    }
+  }
 
   @SuppressWarnings("static-access")
   private Options buildCommandLineOptions() throws ParseException {
@@ -213,6 +291,13 @@ public class CommandLineDisambiguator {
         .create("c"));    
     options
     .addOption(OptionBuilder
+        .withLongOpt("numChunkThread")
+        .withDescription("Set the maximum number of chunk disambiguation threads to be created.")
+        .hasArg()
+        .withArgName("NUMCHUNKTHREAD")
+        .create("x"));
+    options
+    .addOption(OptionBuilder
         .withLongOpt("minmentioncount")
         .withDescription(
             "Set the minimum occurrence count of a mention to be considered for disambiguation. Default is 1.")
@@ -241,6 +326,20 @@ public class CommandLineDisambiguator {
         .withDescription(
             "To Retrieve RunningTimer overview.")
         .create("z"));
+    options
+    .addOption(OptionBuilder
+        .withLongOpt("ignore-cacheloadtime")
+        .withDescription(
+            "Run disambiguation on dummy document to ignore the cache loading time. Disabled by default")
+        .create("g"));
+    options
+    .addOption(OptionBuilder
+        .withLongOpt("writetime")
+        .withDescription(
+            "To write RunningTimer overview details to file.")
+        .hasArg()
+        .withArgName("DIRECTORYNAME")
+        .create("w"));
     options.addOption(OptionBuilder.withLongOpt("help").create('h'));
     return options;
   }
@@ -261,6 +360,7 @@ public class CommandLineDisambiguator {
     private String inputFormat;
     private String outputFormat;
     private int resultCount;
+    private int numChunkThread;
     private boolean logResults;
     private double threshold;
     private boolean isTimed;
@@ -280,6 +380,10 @@ public class CommandLineDisambiguator {
       this.isTimed = isTimed;
     }    
     
+    public void setChunkThreadCount(int numChunkThread) {
+      this.numChunkThread = numChunkThread;
+    }
+
     public void setThreshold(double threshold) {
       this.threshold = threshold;
     }
@@ -287,6 +391,16 @@ public class CommandLineDisambiguator {
     @Override
     public void run() {
       try {
+        
+        /*
+         * if timing is enabled, then use real time tracker for detailed module level info
+         * else use No op tracker for getting only the total time
+         */
+        if(isTimed) {
+          System.out.println("Timing info requested. Enabling Real Time Tracker.");
+          RunningTimer.enableRealTimeTracker();
+        }
+        
         if (outputFormat.equals("JSON") || outputFormat.equals("ALL")) {
           File resultFile = new File(inputFile + ".json");
           if (resultFile.exists()) {
@@ -333,8 +447,6 @@ public class CommandLineDisambiguator {
           disSettings = new LocalDisambiguationIDFWithNullSettings();
         } else if (disambiguationTechniqueSetting.equals("GRAPH")) {
           disSettings = new CocktailPartyDisambiguationWithNullSettings();
-        } else if (disambiguationTechniqueSetting.equals("GRAPH-IDF")) {
-          disSettings = new CocktailPartyKOREIDFDisambiguationWithNullSettings();
         } else if (disambiguationTechniqueSetting.equals("GRAPH-KORE")) {
           disSettings = new CocktailPartyKOREDisambiguationWithNullSettings();       
         } else {
@@ -348,6 +460,7 @@ public class CommandLineDisambiguator {
           disSettings.setNullMappingThreshold(threshold);
         }
         
+        disSettings.setNumChunkThreads(numChunkThread);        
         Disambiguator d = new Disambiguator(input, disSettings);
         DisambiguationResults results = d.disambiguate();
         if (logResults) {
@@ -371,6 +484,7 @@ public class CommandLineDisambiguator {
             System.out.println("Result written to '" + resultFile + "' in " + outputFormat);
           }
         }
+        
         if (outputFormat.equals("HTML") || outputFormat.equals("ALL")) {
           File resultFile = new File(inputFile + ".html");
           // generate HTML from Disambiguated Results
@@ -405,11 +519,9 @@ public class CommandLineDisambiguator {
             }
           }  
         }
-        
-        if (isTimed) {
-          String timerContent = RunningTimer.getOverview();
-          System.out.println(timerContent);
-        }
+
+        // Prints Total time for default No-op tracker and detailed info for real time tracker
+        System.out.println(RunningTimer.getDetailedOverview());        
       } catch (Exception e) {
         System.err.println("Error while processing '" + inputFile + "': " + 
             e.getLocalizedMessage());

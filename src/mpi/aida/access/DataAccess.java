@@ -26,8 +26,8 @@ import mpi.aida.data.EntityMetaData;
 import mpi.aida.data.KBIdentifiedEntity;
 import mpi.aida.data.Keyphrases;
 import mpi.aida.data.Type;
-import mpi.aida.util.RunningTimer;
 import mpi.aida.util.YagoUtil.Gender;
+import mpi.aida.util.timing.RunningTimer;
 import mpi.tools.javatools.datatypes.Pair;
 
 import org.slf4j.Logger;
@@ -442,7 +442,7 @@ public class DataAccess {
   public static int[] getAllKeywordDocumentFrequencies() {
     return getInstance().getAllKeywordDocumentFrequencies();
   }
-    
+  
   public static Pair<Integer, Integer> getImportanceComponentMinMax(String importanceId) {
     return DataAccess.getInstance().getImportanceComponentMinMax(importanceId);
   }

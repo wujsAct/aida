@@ -15,12 +15,15 @@ import mpi.aida.data.DisambiguationResults;
 import mpi.aida.data.PreparedInput;
 import mpi.aida.data.ResultProcessor;
 import mpi.aida.preparation.mentionrecognition.FilterMentions.FilterType;
+import mpi.aida.service.web.logger.WebCallLogger;
+
+import org.json.simple.JSONObject;
 
 /*
  * A simple class to disambiguate the input text received by Requestprocessor.
  */
 public class DisambiguateResource {
-
+  
 	private final PreparationSettings prepSettings;
 	private DisambiguationSettings disSettings;
 
@@ -49,10 +52,23 @@ public class DisambiguateResource {
 	/**
 	 * Responsible for disambiguating the given input string.
 	 * 
-	 * @param input
-	 * @return
+	 * @param input Input string to disambiguate
+	 * @return JSON results
 	 */
 	public String process(String input) throws Exception {
+	  return process(input, null);
+	}
+
+  /**
+   * Responsible for disambiguating the given input string.
+   * 
+   * @param input Input string to disambiguate.
+   * @param callerIP IP address of the caller for logging.
+   * @return JSON results
+   */
+	public String process(String input, String callerIP) throws Exception {
+	  long start = System.currentTimeMillis();
+	  
 		Preparator p = new Preparator();
 		PreparedInput preInput = p.prepare(
 				String.valueOf(input.hashCode() + System.currentTimeMillis()),
@@ -65,14 +81,19 @@ public class DisambiguateResource {
 		results = d.disambiguate();
 		ResultProcessor rp = new ResultProcessor(input, results, null,
 				preInput, 5);
-		jsonStr = rp.process(JSONTYPE.EXTENDED).toJSONString();
+		JSONObject result = rp.process(JSONTYPE.EXTENDED);
+		jsonStr = result.toJSONString();
+				
+		long dur = System.currentTimeMillis() - start;
 
 		// log call details
-		// WebCallLogger.log(input, jsonStr, prepSettings.getClass().getName(), disSettings.getDisambiguationTechnique().toString(), disSettings.getDisambiguationAlgorithm().toString());
+		RequestLogger.logProcess(callerIP, preInput, prepSettings.getClass().getName(), 
+		    disSettings.getDisambiguationTechnique(), 
+		    disSettings.getDisambiguationAlgorithm(), dur);
+		WebCallLogger.log(input, jsonStr, prepSettings.getClass().getName(), disSettings.getDisambiguationTechnique().toString(), disSettings.getDisambiguationAlgorithm().toString());
 		return jsonStr;
-
 	}
-
+	
 	public DisambiguationResults disambiguate(String input) throws Exception {
 		Preparator p = new Preparator();
 		PreparedInput preInput = p.prepare(

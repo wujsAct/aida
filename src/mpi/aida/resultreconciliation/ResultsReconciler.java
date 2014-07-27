@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 import mpi.aida.data.ResultEntity;
 import mpi.aida.data.ResultMention;
 import mpi.aida.util.CollectionUtils;
-import mpi.aida.util.RunningTimer;
+import mpi.aida.util.timing.RunningTimer;
 
 
 public class ResultsReconciler {

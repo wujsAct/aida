@@ -45,7 +45,8 @@ public abstract class CountBasedImportance extends EntityImportance {
     if(importances.contains(id)) {
       return importances.get(id);
     } else {
-      return -1;
+      // Do not differentiate between a missing entity and a 0 score.
+      return 0.0;
     }
   }
 

@@ -192,31 +192,7 @@ public class FileUtils {
     }
   }
   
-  public static void checkFileExistsOrDie(File file, boolean isDirectory) throws FileNotFoundException {
-    if (!file.exists()) {
-      throw new FileNotFoundException(file + " does not exist.");
-    } else {
-      if (file.isDirectory() != isDirectory) {
-        throw new IllegalStateException("Assumed " + file + " to be a " +
-            (isDirectory ? "directory" : "file") + " but is a " +
-            (isDirectory ? "file" : "directory"));
-      } 
-    }
-  }
-  
-  public static void checkFileIsWritableOrDie(File file) throws IOException {
-    checkFileExistsOrDie(file.getParentFile(), true);
-    if (file.exists()) {
-      if (!file.canWrite()) {
-        throw new IOException("Can not write to " + file);
-      }
-    } else {
-      try {
-        file.createNewFile();
-        file.delete();
-      } catch (IOException e) {
-        throw new IOException("Can not create " + file + ": " + e.getMessage());
-      }
-    }
+  public static void main(String[] args) throws IOException {
+    verifyOrderedFile(new File(args[0]), false);
   }
 }

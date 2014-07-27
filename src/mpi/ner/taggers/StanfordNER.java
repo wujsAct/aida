@@ -34,7 +34,9 @@ public class StanfordNER implements NER {
       "resources/corenlp/germanmodels/ner/hgc_175m_600.crf.ser.gz";
   private final String GERMAN_POS_HGC = 
       "resources/corenlp/germanmodels/pos/german-hgc.tagger";
-
+  private final String ARABIC_POS_MODELS = 
+      "resources/corenlp/arabicmodels/arabicFactored.ser.gz";
+  
 	private HashMap<String, String> expectedSuccessdingTags = null;
 
 	public StanfordNER() {
@@ -50,6 +52,10 @@ public class StanfordNER implements NER {
 	        props.put("ner.model", GERMAN_NER_HGC);
 	        props.put("ner.useSUTime", "false"); //false not for english
 	        props.put("ner.applyNumericClassifiers", "false"); //false not for english
+		     break;
+		   case ar:
+		     props.put("annotators", "tokenize, ssplit, pos");
+		     props.put("pos.model", ARABIC_POS_MODELS);
 		     break;
 		   default:
 		       break;

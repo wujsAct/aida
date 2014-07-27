@@ -23,7 +23,7 @@ import mpi.aida.graph.similarity.EnsembleMentionEntitySimilarity;
 import mpi.aida.graph.similarity.MaterializedPriorProbability;
 import mpi.aida.util.CollectionUtils;
 import mpi.aida.util.Counter;
-import mpi.aida.util.RunningTimer;
+import mpi.aida.util.timing.RunningTimer;
 import mpi.experiment.trace.GraphTracer;
 import mpi.experiment.trace.NullGraphTracer;
 import mpi.experiment.trace.Tracer;

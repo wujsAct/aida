@@ -2,6 +2,7 @@ package mpi.aida.graph.similarity;
 
 import gnu.trove.iterator.TIntDoubleIterator;
 import gnu.trove.map.hash.TIntDoubleHashMap;
+import gnu.trove.map.hash.TObjectDoubleHashMap;
 
 import java.sql.SQLException;
 import java.util.HashMap;
@@ -9,6 +10,7 @@ import java.util.Set;
 
 import mpi.aida.access.DataAccess;
 import mpi.aida.data.Mention;
+import mpi.aida.util.CollectionUtils;
 
 /**
  * This class calculates the prior probability of a mention
@@ -30,19 +32,26 @@ public class MaterializedPriorProbability extends PriorProbability {
   }
 
   public void setupMentions(Set<Mention> mentions) throws SQLException {
+    // Get the prior for mention-entity pairs (aggregate normalized mentions).
+    // Precompute the best prior per mention as well.
     priors = new HashMap<Mention, TIntDoubleHashMap>();
-    for (Mention mention : mentions) {        
+    bestPriors = new TObjectDoubleHashMap<Mention>();
+    for (Mention mention : mentions) {
       if (mention.getNormalizedMention().size() == 1) {
-        String normalizedMention = mention.getNormalizedMention().iterator().next();
+        String normalizedMention = 
+            mention.getNormalizedMention().iterator().next();
         normalizedMention = conflateMention(normalizedMention);
-        TIntDoubleHashMap entityPriors = DataAccess.getEntityPriors(normalizedMention);
+        TIntDoubleHashMap entityPriors = 
+            DataAccess.getEntityPriors(normalizedMention);
         priors.put(mention, entityPriors);
+        bestPriors.put(mention, CollectionUtils.getMaxValue(entityPriors));
       } else {    
         TIntDoubleHashMap allMentionPriors = new TIntDoubleHashMap();
         priors.put(mention, allMentionPriors);
         for(String normalizedMention: mention.getNormalizedMention()) {
           normalizedMention = conflateMention(normalizedMention);
-          TIntDoubleHashMap entityPriors = DataAccess.getEntityPriors(normalizedMention);  
+          TIntDoubleHashMap entityPriors = 
+              DataAccess.getEntityPriors(normalizedMention);  
           for (TIntDoubleIterator it = entityPriors.iterator(); it.hasNext();) {
             it.advance();
             int e = it.key();
@@ -54,6 +63,7 @@ public class MaterializedPriorProbability extends PriorProbability {
             }
           }
         }
+        bestPriors.put(mention, CollectionUtils.getMaxValue(allMentionPriors));
       }
     }
   }

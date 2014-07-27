@@ -14,7 +14,7 @@ import mpi.aida.access.DataAccess;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
 import mpi.aida.data.KBIdentifiedEntity;
-import mpi.tools.basics.Normalize;
+import mpi.tools.basics2.Normalize;
 
 import org.apache.commons.lang.StringUtils;
 

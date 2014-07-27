@@ -2,14 +2,16 @@ package mpi.aida.graph.similarity;
 
 import gnu.trove.iterator.TIntDoubleIterator;
 import gnu.trove.map.hash.TIntDoubleHashMap;
+import gnu.trove.map.hash.TObjectDoubleHashMap;
 
 import java.sql.SQLException;
-import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import mpi.aida.data.Entity;
 import mpi.aida.data.Mention;
+import mpi.aida.util.timing.RunningTimer;
 
 /**
  * This class calculates the prior probability of a mention
@@ -27,7 +29,9 @@ import mpi.aida.data.Mention;
  */
 public abstract class PriorProbability {
  
-  protected HashMap<Mention, TIntDoubleHashMap> priors;
+  protected Map<Mention, TIntDoubleHashMap> priors;
+  
+  protected TObjectDoubleHashMap<Mention> bestPriors;
   
   private double weight;
   
@@ -57,7 +61,7 @@ public abstract class PriorProbability {
    */
   public double getPriorProbability(
       Mention mention, Entity entity, boolean smoothing) {
-    
+    Integer id = RunningTimer.recordStartTime("PriorProbability");
     TIntDoubleHashMap allMentionPriors = priors.get(mention);    
     double entityPrior = allMentionPriors.get(entity.getId());
     
@@ -73,24 +77,12 @@ public abstract class PriorProbability {
       }      
       entityPrior = smallestPrior;
     }
-    
+    RunningTimer.recordEndTime("PriorProbability", id);
     return entityPrior;
   }
   
   public double getBestPrior(Mention mention) {
-    TIntDoubleHashMap allMentionPriors = priors.get(mention);
-
-
-    double bestPrior = 0.0;
-    for (TIntDoubleIterator it = allMentionPriors.iterator(); it.hasNext();) {
-      it.advance();
-      double currentPrior = it.value();
-      if (currentPrior > bestPrior) {
-        bestPrior = currentPrior;
-      }
-    }
-    
-    return bestPrior;
+    return bestPriors.get(mention);
   }
   
   public double getPriorProbability(Mention mention, Entity entity) {

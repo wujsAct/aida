@@ -46,8 +46,18 @@ public class PreparedInput implements Iterable<PreparedInputChunk> {
   private Set<String> punctuations_ = getPuncuations();
   
   public PreparedInput(String docId, List<PreparedInputChunk> chunks) {
-    docId_ = docId;
+    setDocId(docId);
     chunks_ = chunks;
+  }
+  
+  /**
+   * Use this very carefully, e.g. during dataset construction.
+   * When reading a dataset this should never be called.
+   * 
+   * @param docId The id of the document.
+   */
+  public void setDocId(String docId) {
+    docId_ = docId;
   }
 
   public String getDocId() {
@@ -118,7 +128,7 @@ public class PreparedInput implements Iterable<PreparedInputChunk> {
   public PreparedInput(File file, int mentionMinOccurrences, boolean inludeOODMentions) {
     Pair<PreparedInputChunk, Long> loaded = 
         loadFrom(file, mentionMinOccurrences, inludeOODMentions);
-    docId_ = loaded.first.getChunkId();
+    setDocId(loaded.first.getChunkId());
     chunks_ = new ArrayList<PreparedInputChunk>(1);
     chunks_.add(loaded.first);
     timestamp_ = loaded.second;
@@ -264,7 +274,7 @@ public class PreparedInput implements Iterable<PreparedInputChunk> {
    */
   public void writeTo(BufferedWriter writer) throws IOException {
     writer.write("-DOCSTART- (");
-    writer.write(docId_);
+    writer.write(docId_.replace('/', '_'));
     writer.write(")");
     if (timestamp_ != 0) {
       DateTimeFormatter fmt = DateTimeFormat.forPattern("yyyy-MM-dd").withZoneUTC();

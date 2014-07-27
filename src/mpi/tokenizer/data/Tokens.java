@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
+import mpi.aida.util.timing.RunningTimer;
 import mpi.tools.javatools.datatypes.Pair;
 
 public class Tokens implements Iterable<Token>, Serializable {
@@ -73,6 +74,7 @@ public class Tokens implements Iterable<Token>, Serializable {
   }
 
   public String toText() {
+    Integer id = RunningTimer.recordStartTime("Tokens.toText");
     StringBuffer sb = new StringBuffer(200);
     sb.append(originalStart);
     for (int i = 0; i < tokens.size(); i++) {
@@ -80,6 +82,7 @@ public class Tokens implements Iterable<Token>, Serializable {
       sb.append(tokens.get(i).getOriginalEnd());
     }
     sb.append(originalEnd);
+    RunningTimer.recordEndTime("Tokens.toText", id);
     return sb.toString();
   }
 

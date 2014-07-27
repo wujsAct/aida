@@ -1,9 +1,7 @@
 package mpi.aida;
 
-import java.text.NumberFormat;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
@@ -20,7 +18,7 @@ import mpi.aida.data.ResultEntity;
 import mpi.aida.data.ResultMention;
 import mpi.aida.resultreconciliation.ResultsReconciler;
 import mpi.aida.util.DocumentCounter;
-import mpi.aida.util.RunningTimer;
+import mpi.aida.util.timing.RunningTimer;
 import mpi.experiment.trace.NullTracer;
 import mpi.experiment.trace.Tracer;
 
@@ -36,9 +34,7 @@ public class Disambiguator implements Callable<DisambiguationResults> {
   private DisambiguationSettings settings_;
   private DocumentCounter documentCounter_;
   private Tracer tracer_;
- 
-  private NumberFormat nf;
-  
+   
   /** 
    * Common init.
    */
@@ -47,8 +43,6 @@ public class Disambiguator implements Callable<DisambiguationResults> {
     preparedInput_ = input;
     settings_ = settings;
     tracer_ = tracer;
-    nf = NumberFormat.getNumberInstance(Locale.ENGLISH);
-    nf.setMaximumFractionDigits(2);
   }
   
   /**
@@ -81,18 +75,22 @@ public class Disambiguator implements Callable<DisambiguationResults> {
 
   
   public DisambiguationResults disambiguate() throws Exception {
-    logger_.info("Disambiguating '" + preparedInput_.getDocId() + "' with " + 
+    logger_.debug("Disambiguating '" + preparedInput_.getDocId() + "' with " + 
         preparedInput_.getChunksCount() + " chunks and " +
         preparedInput_.getMentionSize() + " mentions."); 
     Integer runningId = RunningTimer.recordStartTime("Disambiguator");
+    long startTime = System.currentTimeMillis();
     Map<PreparedInputChunk, ChunkDisambiguationResults> chunkResults =
         disambiguateChunks(preparedInput_);
     DisambiguationResults results = 
         aggregateChunks(preparedInput_, chunkResults);
-    Long runTimeInMs = RunningTimer.recordEndTime("Disambiguator", runningId);
-    double runTime = runTimeInMs / (double) 1000;
+    RunningTimer.recordEndTime("Disambiguator", runningId);
+    double runTime = System.currentTimeMillis() - startTime;
     logger_.info("Document '" + preparedInput_.getDocId() + "' done in " + 
-                nf.format(runTime) + "s");
+                runTime + "ms (" + 
+                preparedInput_.getChunksCount() + " chunks, " +
+                preparedInput_.getMentionSize() + " mentions).");
+    RunningTimer.trackDocumentTime(preparedInput_.getDocId(), runTime);
     return results;
   }
 

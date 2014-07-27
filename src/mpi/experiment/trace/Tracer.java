@@ -186,6 +186,7 @@ public class Tracer {
       if (md != null) {
         uriString = entitiesMetaData.get(entityId).getUrl();
         displayString = Char.toHTML(entitiesMetaData.get(entityId).getHumanReadableRepresentation());
+        displayString += "<br /><span font-size='small'>[" + uriString + "]</span>";
       }
     }
     String entityAnchor = "<a class='entityAnchor' target='_blank' href='" + uriString + "'>" + displayString + "</a>";
@@ -250,9 +251,7 @@ public class Tracer {
           entities.add(e.getEntityId());
         }
     }
-
     entitiesMetaData = DataAccess.getEntitiesMetaData(entities.toArray());
   }
-
 }
   

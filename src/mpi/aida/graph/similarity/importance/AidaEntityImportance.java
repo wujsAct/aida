@@ -37,5 +37,4 @@ public class AidaEntityImportance extends EntityImportance {
   public String toString() {
     return "AidaEntityImportance";
   }
-
 }

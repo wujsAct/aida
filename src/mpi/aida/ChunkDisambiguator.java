@@ -20,7 +20,7 @@ import mpi.aida.graph.algorithms.CocktailPartySizeConstrained;
 import mpi.aida.graph.algorithms.DisambiguationAlgorithm;
 import mpi.aida.graph.algorithms.SimpleGreedy;
 import mpi.aida.resultreconciliation.PersonMerger;
-import mpi.aida.util.RunningTimer;
+import mpi.aida.util.timing.RunningTimer;
 import mpi.experiment.trace.GraphTracer;
 import mpi.experiment.trace.GraphTracer.TracingTarget;
 import mpi.experiment.trace.Tracer;

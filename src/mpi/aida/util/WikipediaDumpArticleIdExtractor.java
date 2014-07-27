@@ -3,7 +3,7 @@ package mpi.aida.util;
 import java.io.BufferedWriter;
 import java.io.Reader;
 
-import mpi.tools.basics.Normalize;
+import mpi.tools.basics2.Normalize;
 import mpi.tools.javatools.filehandlers.FileLines;
 import mpi.tools.javatools.util.FileUtils;
 

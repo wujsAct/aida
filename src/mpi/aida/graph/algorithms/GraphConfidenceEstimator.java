@@ -24,7 +24,7 @@ import mpi.aida.data.Mention;
 import mpi.aida.graph.Graph;
 import mpi.aida.graph.GraphNode;
 import mpi.aida.util.CollectionUtils;
-import mpi.aida.util.RunningTimer;
+import mpi.aida.util.timing.RunningTimer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

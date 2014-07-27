@@ -18,7 +18,7 @@ import mpi.aida.data.Type;
 import mpi.aida.preparation.documentchunking.DocumentChunker;
 import mpi.aida.preparation.mentionrecognition.FilterMentions;
 import mpi.aida.preparation.mentionrecognition.FilterMentions.FilterType;
-import mpi.aida.util.RunningTimer;
+import mpi.aida.util.timing.RunningTimer;
 import mpi.tokenizer.data.Tokens;
 import mpi.tools.javatools.datatypes.Pair;
 

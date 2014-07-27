@@ -12,13 +12,13 @@ import mpi.tokenizer.data.Tokens;
 import mpi.tools.javatools.datatypes.Pair;
 
 public class FilterMentions implements Serializable {
- 
+  
   private static final long serialVersionUID = 6260499966421708963L;
 
   private ManualFilter manualFilter = null;
 
   private HybridFilter hybridFilter = null;
-  
+
   public FilterMentions() {
     manualFilter = new ManualFilter();
     hybridFilter = new HybridFilter();

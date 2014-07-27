@@ -7,11 +7,13 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 
 import mpi.aida.AidaManager;
@@ -25,8 +27,6 @@ import mpi.aida.config.settings.Settings.ALGORITHM;
 import mpi.aida.config.settings.Settings.TECHNIQUE;
 import mpi.aida.config.settings.disambiguation.CocktailPartyDisambiguationSettings;
 import mpi.aida.config.settings.disambiguation.CocktailPartyKOREDisambiguationSettings;
-import mpi.aida.config.settings.disambiguation.CocktailPartyKOREIDFDisambiguationSettings;
-import mpi.aida.config.settings.disambiguation.CocktailPartyKORELSHDisambiguationSettings;
 import mpi.aida.config.settings.disambiguation.FastCocktailPartyDisambiguationSettings;
 import mpi.aida.config.settings.disambiguation.FastLocalDisambiguationSettings;
 import mpi.aida.config.settings.disambiguation.LocalDisambiguationIDFSettings;
@@ -100,11 +100,13 @@ public class RequestProcessor {
 	@Path("/disambiguate-defaultsettings")
 	@POST
 	@Produces(MediaType.TEXT_PLAIN)
-	public String process(@FormParam("text") String text,
+	public String process(
+	    @Context HttpServletRequest req,
+	    @FormParam("text") String text,
 			@FormParam("tech") String technique,
 			@FormParam("tag_mode") String mTagMode) {
 		boolean isManual = false;
-
+		
 		if (text == null)
 			return "MISSING: Text to Disambiguate";
 
@@ -121,11 +123,35 @@ public class RequestProcessor {
 			DisambiguateResource dResource = new DisambiguateResource(
 					technique, isManual);
 			incrememtProcessCount();
-			return dResource.process(text);
+			return dResource.process(text, getCallerIp(req));
 		} catch (Exception e) {
 			e.printStackTrace();
 			return "ERROR: Failed Disambiguating";
 		}
+	}
+	
+	private String getCallerIp(HttpServletRequest req) {
+	   String ip = req.getRemoteAddr();
+	   // Make sure to get the actual IP of the requester if 
+	   // the service works behind a gateway.
+	   String forward = req.getHeader("X-Forwarded-For");
+	   if (forward != null) {
+	     ip = forward;
+	   }
+	   return ip;
+	}
+	
+	@Path("/callerinfo")
+	@GET
+	@Produces(MediaType.TEXT_PLAIN)	
+	public String getCallerInfo(@Context HttpServletRequest req) {
+	  String remoteHost = req.getRemoteHost();
+    String remoteAddr = req.getRemoteAddr();
+    int remotePort = req.getRemotePort();
+    String forward = req.getHeader("X-Forwarded-For");
+    
+    String msg = remoteHost + " (" + remoteAddr + ":" + remotePort + ") forward for " + forward;
+    return msg;
 	}
 
 	/**
@@ -183,6 +209,7 @@ public class RequestProcessor {
 	@POST
 	@Produces(MediaType.TEXT_PLAIN)
 	public String processWebRequest(
+	    @Context HttpServletRequest req,
 			@FormParam("text") String text,
 			@FormParam("type") String inputType,
 			@FormParam("tag_mode") String tagMode,
@@ -263,13 +290,9 @@ public class RequestProcessor {
 							.setDisambiguationAlgorithm(ALGORITHM.COCKTAIL_PARTY_SIZE_CONSTRAINED);
 				// else if(algorithm.equalsIgnoreCase("random"))
 				// disSettings.setDisambiguationAlgorithm(ALGORITHM.RANDOM_WALK);
-			}
-		} else if (technique.equals("GRAPH-IDF")) {
-			disSettings = new CocktailPartyKOREIDFDisambiguationSettings();
+			}		
 		} else if (technique.equals("GRAPH-KORE")) {
-			disSettings = new CocktailPartyKOREDisambiguationSettings();
-		} else if (technique.equals("GRAPH-KORELSH")) {
-			disSettings = new CocktailPartyKORELSHDisambiguationSettings();
+			disSettings = new CocktailPartyKOREDisambiguationSettings();		
 		} else {
 			// TODO return something that makes sense.. like a json with error
 			// code
@@ -345,7 +368,8 @@ public class RequestProcessor {
 		}
 		ResultProcessor rp = new ResultProcessor(text, results, null, preInput,
 				maxNum);
-		rp.setOverallTime(System.currentTimeMillis() - time);
+		long duration = System.currentTimeMillis() - time;
+		rp.setOverallTime(duration);
 		JSONObject json;
 		if (isWebInterface) {
 			json = rp.process(JSONTYPE.WEB);
@@ -354,7 +378,11 @@ public class RequestProcessor {
 		}
 		
 		// log request details
-		// WebCallLogger.log(text, json.toJSONString(), prepSettings.getClass().getName(), technique, algorithm);
+		RequestLogger.logProcess(getCallerIp(req), preInput, 
+		    prepSettings.getClass().getName(), 
+		    disSettings.getDisambiguationTechnique(), 
+		    disSettings.getDisambiguationAlgorithm(), duration);
+		WebCallLogger.log(text, json.toJSONString(), prepSettings.getClass().getName(), technique, algorithm);
 		return json.toJSONString();
 	}
 
@@ -417,8 +445,12 @@ public class RequestProcessor {
 	@Path("/computeMilneWittenRelatedness")
 	@POST
 	@Produces(MediaType.APPLICATION_JSON)
-	public String computeRelatedness(@FormParam("source") List<String> sources,
+	public String computeRelatedness(
+	    @Context HttpServletRequest req,
+	    @FormParam("source") List<String> sources,
 			@FormParam("target") List<String> targets) {
+	  long start = System.currentTimeMillis();
+	  
 		Set<KBIdentifiedEntity> sourceIds = new HashSet<>(sources.size());
 		for (String s : sources) {
 			sourceIds.add(new KBIdentifiedEntity(s));
@@ -456,6 +488,15 @@ public class RequestProcessor {
 			result.put(s.getKbIdentifiedEntity().getDictionaryKey(), sObject);
 		}
 
+		long dur = System.currentTimeMillis() - start;
+		
+    StringBuilder sb = new StringBuilder();
+    sb.append("RELATEDNESS ");
+    sb.append(sources.size()).append(" ");
+    sb.append(targets.size()).append(" ");
+    sb.append(dur).append("ms");
+    logger.info(sb.toString());
+		
 		return result.toJSONString();
 	}
 

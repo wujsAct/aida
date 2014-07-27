@@ -13,12 +13,16 @@ import java.util.Set;
 import mpi.aida.data.Mention;
 import mpi.aida.data.Mentions;
 import mpi.aida.util.ClassPathUtils;
+import mpi.aida.util.timing.RunningTimer;
+import mpi.tokenizer.data.Token;
 import mpi.tokenizer.data.Tokens;
+import mpi.tools.javatools.datatypes.Pair;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import edu.emory.mathcs.backport.java.util.Collections;
+import gnu.trove.map.hash.TIntObjectHashMap;
 
 public class NERManager {
 
@@ -158,29 +162,27 @@ public class NERManager {
 	}
 
 	private Mentions alignNameAndCreateMentions(List<Name> names, Tokens tokens) {
-		Mentions mentions = new Mentions();
+		Integer id = RunningTimer.recordStartTime("NERManager:alignName");
+	  Mentions mentions = new Mentions();
 
-		// TODO(mamir): create map from character offset to token for O(1) lookups 
+		TIntObjectHashMap<Pair<Token, Integer>> characterOffsetToTokenMap = new TIntObjectHashMap<>();
+		for(int i=0; i<tokens.size(); i++) {
+		  Token token = tokens.getToken(i);
+		  for(int j = token.getBeginIndex(); j <= token.getEndIndex(); j++) {
+		    characterOffsetToTokenMap.put(j, new Pair<Token, Integer>(token, i));
+		  }
+		}
+		
+		
+		
 		for (Name name : names) {
-			int start = name.getStart(), end = name.getEnd();
-			int startTokenOffset = -1, endTokenOffset = -1;
-			int startTokenIndex = -1, endTokenIndex = -1;
-
-			int i = 0;
-      while (i < tokens.size() && tokens.getToken(i).getBeginIndex() <= start) {
-				startTokenOffset = tokens.getToken(i).getBeginIndex();
-				startTokenIndex = i;
-				i++;
-			}
-
-			i--;
-
-			while (i < tokens.size() && tokens.getToken(i).getEndIndex() < end) {
-				i++;
-			}
-
-			endTokenOffset = tokens.getToken(i).getEndIndex();
-			endTokenIndex = i;
+			Pair<Token, Integer> startToken = characterOffsetToTokenMap.get(name.getStart());
+			Pair<Token, Integer> endToken = characterOffsetToTokenMap.get(name.getEnd());
+		
+      int startTokenOffset = startToken.first.getBeginIndex();
+      int endTokenOffset = endToken.first.getEndIndex();
+      int startTokenIndex = startToken.second;
+      int endTokenIndex = endToken.second;
 
 			Mention mention = new Mention();
 			mention.setCharOffset(startTokenOffset);
@@ -188,10 +190,8 @@ public class NERManager {
 			mention.setMention(tokens.toText(startTokenIndex, endTokenIndex));
 			mention.setStartToken(startTokenIndex);
 			mention.setEndToken(endTokenIndex);
-			mention.setStartStanford(tokens.getToken(startTokenIndex)
-					.getStandfordId());
-			mention.setEndStanford(tokens.getToken(endTokenIndex)
-					.getStandfordId());
+			mention.setStartStanford(startToken.first.getStandfordId());
+			mention.setEndStanford(endToken.first.getStandfordId());
 			for(MentionNormalizer normalizer: normalizers) {
 			  String normalizedMention = normalizer.normalize(mention.getMention());
 			  mention.getNormalizedMention().add(normalizedMention);
@@ -199,7 +199,15 @@ public class NERManager {
 
 			mentions.addMention(mention);
 		}
-
+		RunningTimer.recordEndTime("NERManager:alignName", id);
 		return mentions;
 	}
+	
+	
+//	public static void main(String[] args) {
+//    NERManager nerManager = NERManager.singleton();
+//    String text = "Albert Einstein was born in Ulm.";
+//    Tokens tokens = TokenizerManager.tokenize(text, type.TOKENS, false);
+//    System.out.println(nerManager.findMentions("test", text , tokens));
+//  }
 }

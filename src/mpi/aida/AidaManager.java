@@ -29,8 +29,9 @@ import mpi.aida.data.Mentions;
 import mpi.aida.data.OokbEntity;
 import mpi.aida.data.Type;
 import mpi.aida.util.ClassPathUtils;
-import mpi.aida.util.RunningTimer;
+import mpi.aida.util.Counter;
 import mpi.aida.util.YagoUtil.Gender;
+import mpi.aida.util.timing.RunningTimer;
 import mpi.tokenizer.data.Tokenizer;
 import mpi.tokenizer.data.TokenizerManager;
 import mpi.tokenizer.data.Tokens;
@@ -55,6 +56,8 @@ public class AidaManager {
   
   public static final String DB_YAGO2 = "DatabaseYago";
 
+  public static final String DB_YAGO3 = "DatabaseYago3";
+  
   public static final String DB_YAGO2_FULL = "DatabaseYago2Full";
 
   public static final String DB_YAGO2_SPOTLX = "DatabaseYago2SPOTLX";
@@ -68,6 +71,8 @@ public class AidaManager {
   public static String databaseAidaConfig = "database_aida.properties";
   
   private static String databaseYago2Config = "database_yago2.properties";
+
+  public static String databaseYago3Config = "database_yago3.properties";
 
   private static String databaseYAGO2SPOTLXConfig = "database_yago2spotlx.properties";
 
@@ -90,6 +95,7 @@ public class AidaManager {
   static {
     dbIdToConfig.put(DB_AIDA, databaseAidaConfig);
     dbIdToConfig.put(DB_YAGO2, databaseYago2Config);
+    dbIdToConfig.put(DB_YAGO3, databaseYago3Config);
     dbIdToConfig.put(DB_YAGO2_SPOTLX, databaseYAGO2SPOTLXConfig);
     dbIdToConfig.put(DB_RMI_LOGGER, databaseRMILoggerConfig);
     dbIdToConfig.put(DB_HYENA, databaseHYENAConfig);
@@ -223,6 +229,9 @@ public class AidaManager {
           String database = prop.getProperty("dataSource.databaseName");
           String username = prop.getProperty("dataSource.user");
           String port = prop.getProperty("dataSource.portNumber");
+          if (port == null) { 
+            port = "5432"; // Standard postgres port.
+          }
           slogger_.info("Connecting to database " + username + "@" + serverName + ":" + port + "/" + database);
 
           HikariConfig config = new HikariConfig(prop);
@@ -338,34 +347,6 @@ public class AidaManager {
     return entities;
   }
 
-  /**
-   * Returns the potential entity candidates for a mention (via the candidates 
-   * dictionary) and filters those candidates against the given list of types
-   * 
-   * @param mention
-   *            Mention to get entity candidates for
-   * @return Candidate entities for this mention (in YAGO2 encoding) including
-   *         their prior probability
-   * @throws SQLException
-   */
-  public static Entities getEntitiesForMention(Mention mention, Set<Type> filteringTypes, double maxEntityRank) throws SQLException {
-    Entities entities = getEntitiesForMention(mention, maxEntityRank);
-    Entities filteredEntities = new Entities();
-    TIntObjectHashMap<Set<Type>> entitiesTypes = DataAccess.getTypes(entities);
-    for (TIntObjectIterator<Set<Type>> itr = entitiesTypes.iterator(); 
-        itr.hasNext(); ) {
-      itr.advance();
-      int id = itr.key();
-      Set<Type> entityTypes = itr.value();
-      for (Type t : entityTypes) {
-        if (filteringTypes.contains(t)) {
-          filteredEntities.add(entities.getEntityById(id));
-          break;
-        }
-      }
-    }
-    return filteredEntities;
-  }
 
   public static TIntObjectHashMap<Gender> getGenderForEntities(Entities entities) {
     return DataAccess.getGenderForEntities(entities);
@@ -392,6 +373,10 @@ public class AidaManager {
     //and some of them are linked by a sameAs relation
     //currently applicable only for the configuration GND_PLUS_YAGO
     Integer id = RunningTimer.recordStartTime("AidaManager:fillInCandidates");
+    boolean removeDuplicateEntities = false;
+    if(DataAccess.getConfigurationName().equals("GND_PLUS_YAGO")) {
+      removeDuplicateEntities = true;
+    }
     
     Set<Type> filteringTypes = mentions.getEntitiesTypes();
     //TODO This method shouldn't be doing one DB call per mention!
@@ -401,23 +386,29 @@ public class AidaManager {
       if (malePronouns.contains(m.getMention()) || femalePronouns.contains(m.getMention())) {
         setCandiatesFromPreviousMentions(mentions, i);
       } else {
-        if (filteringTypes != null) {
-          mentionCandidateEntities = AidaManager.getEntitiesForMention(m, filteringTypes, maxEntityRank);
-        } else {
           mentionCandidateEntities = AidaManager.getEntitiesForMention(m, maxEntityRank);
-        }
-        
         // Check for fallback options when no candidate was found using direct lookup.
         if(mentionCandidateEntities.size() == 0) {
           slogger_.debug("No candidates found for " + m);
+          Counter.incrementCount("MENTION_WITHOUT_CANDIDATE");
           
           boolean doDictionaryFuzzyMatching = AidaConfig.getBoolean(AidaConfig.DICTIONARY_FUZZY_MATCHING);
+          boolean doLshMatching = AidaConfig.getBoolean(AidaConfig.DICTIONARY_LSH_MATCHING);
           if (doDictionaryFuzzyMatching) {
             double minSim = AidaConfig.getDouble(AidaConfig.DICTIONARY_FUZZY_MATCHING_MIN_SIM);
             mentionCandidateEntities = DataAccess.getEntitiesForMentionByFuzzyMatcyhing(m.getMention(), minSim);
+            if (mentionCandidateEntities.size() > 0) {
+              Counter.incrementCount("MENTION_CANDIDATE_BY_PG_FUZZY");
+            }
           }
         }          
 
+        int candidateCount = mentionCandidateEntities.size();
+        mentionCandidateEntities = filterEntitiesByType(mentionCandidateEntities, filteringTypes);
+        int filteredCandidateCount = mentionCandidateEntities.size();
+        if (filteredCandidateCount < candidateCount) {
+          Counter.incrementCountByValue("MENTION_CANDIDATE_FILTERED_BY_TYPE", candidateCount - filteredCandidateCount);
+        }
         if (includeNullEntityCandidates) {
           Entity nmeEntity = new OokbEntity(m.getMention()); 
 
@@ -435,11 +426,39 @@ public class AidaManager {
           }
 
           mentionCandidateEntities.add(nmeEntity);
-        }      
+        }
         m.setCandidateEntities(mentionCandidateEntities);
       }
     }
     RunningTimer.recordEndTime("AidaManager:fillInCandidates", id);
+  }
+
+  /**
+   * Filters the entity candidates against the given list of types
+   * 
+   * @param entities Entities to filter'
+   * @param filteringTypes Set of types to filter the entities against
+   * @return filtered entities
+   */
+  private static Entities filterEntitiesByType(Entities entities, Set<Type> filteringTypes) {
+    if(filteringTypes == null) {
+      return entities;
+    }
+    Entities filteredEntities = new Entities();
+    TIntObjectHashMap<Set<Type>> entitiesTypes = DataAccess.getTypes(entities);
+    for (TIntObjectIterator<Set<Type>> itr = entitiesTypes.iterator(); 
+        itr.hasNext(); ) {
+      itr.advance();
+      int id = itr.key();
+      Set<Type> entityTypes = itr.value();
+      for (Type t : entityTypes) {
+        if (filteringTypes.contains(t)) {
+          filteredEntities.add(entities.getEntityById(id));
+          break;
+        }
+      }
+    }
+    return filteredEntities;
   }
 
   private static void setCandiatesFromPreviousMentions(Mentions mentions, int mentionIndex) {

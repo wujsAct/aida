@@ -118,7 +118,7 @@ public class EntityEntitySimilarity {
   public static EntityEntitySimilarity getKOREEntityEntitySimilarity(Entities entities, EntitiesContextSettings settings, Tracer tracer) throws Exception {
     return new EntityEntitySimilarity(new KOREEntityEntitySimilarityMeasure(tracer), new FastWeightedKeyphrasesContext(entities, settings));
   }
-  
+
   public static EntityEntitySimilarity getJaccardKeywordEntityEntitySimilarity(Entities entities, Tracer tracer) throws Exception {
     return new EntityEntitySimilarity(new JaccardEntityEntitySimilarityMeasure(tracer), new FastWeightedKeyphrasesContext(entities));
   }

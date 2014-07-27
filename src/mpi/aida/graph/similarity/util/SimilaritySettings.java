@@ -335,6 +335,8 @@ public class SimilaritySettings implements Serializable {
       return EntityEntitySimilarity.getKeyphraseBasedEntityEntitySimilarity(entities, settings, tracer);
     } else if (eeIdentifier.equals("KOREEntityEntitySimilarity")) {
       return EntityEntitySimilarity.getKOREEntityEntitySimilarity(entities, settings, tracer);
+//    } else if (eeIdentifier.equals("KORELSHEntityEntitySimilarity")) {
+//      return EntityEntitySimilarity.getKORELSHEntityEntitySimilarity(entities, settings, tracer);
     } else if (eeIdentifier.equals("TopKeyphraseBasedEntityEntitySimilarity")) {
       return EntityEntitySimilarity.getTopKeyphraseBasedEntityEntitySimilarity(entities, numberOfEntityKeyphrase, tracer);
     } else {

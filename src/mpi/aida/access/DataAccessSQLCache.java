@@ -24,7 +24,7 @@ import java.util.Set;
 import mpi.aida.AidaManager;
 import mpi.aida.config.AidaConfig;
 import mpi.aida.data.Entities;
-import mpi.aida.util.RunningTimer;
+import mpi.aida.util.timing.RunningTimer;
 
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
