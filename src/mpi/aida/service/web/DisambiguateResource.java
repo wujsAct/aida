@@ -15,7 +15,6 @@ import mpi.aida.data.DisambiguationResults;
 import mpi.aida.data.PreparedInput;
 import mpi.aida.data.ResultProcessor;
 import mpi.aida.preparation.mentionrecognition.FilterMentions.FilterType;
-import mpi.aida.service.web.logger.WebCallLogger;
 
 import org.json.simple.JSONObject;
 
@@ -90,7 +89,6 @@ public class DisambiguateResource {
 		RequestLogger.logProcess(callerIP, preInput, prepSettings.getClass().getName(), 
 		    disSettings.getDisambiguationTechnique(), 
 		    disSettings.getDisambiguationAlgorithm(), dur);
-		WebCallLogger.log(input, jsonStr, prepSettings.getClass().getName(), disSettings.getDisambiguationTechnique().toString(), disSettings.getDisambiguationAlgorithm().toString());
 		return jsonStr;
 	}
 	

@@ -45,7 +45,6 @@ import mpi.aida.data.Type;
 import mpi.aida.graph.similarity.EntityEntitySimilarity;
 import mpi.aida.graph.similarity.util.SimilaritySettings;
 import mpi.aida.preparation.mentionrecognition.FilterMentions.FilterType;
-import mpi.aida.service.web.logger.WebCallLogger;
 import mpi.experiment.trace.GraphTracer;
 import mpi.experiment.trace.GraphTracer.TracingTarget;
 import mpi.experiment.trace.NullTracer;
@@ -382,7 +381,6 @@ public class RequestProcessor {
 		    prepSettings.getClass().getName(), 
 		    disSettings.getDisambiguationTechnique(), 
 		    disSettings.getDisambiguationAlgorithm(), duration);
-		WebCallLogger.log(text, json.toJSONString(), prepSettings.getClass().getName(), technique, algorithm);
 		return json.toJSONString();
 	}
 
