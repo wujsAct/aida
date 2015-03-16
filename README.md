@@ -145,7 +145,7 @@ See the `mpi.aida.config.settings.disambiguation` package for all possible prede
 
     `java -Xmx4G -cp target/aida-2.X.X-jar-with-dependencies.jar mpi.aida.CommandLineDisambiguator -t GRAPH -s -i "Einstein was born in Ulm"`
 
-`<INPUT-FILE>` is path to the text file to be annotated with entities. The format for `<INPUT-FILE>` should be plain text with UTF-8 encoding.
+To process a file, remove `-s` and pass `<INPUT-FILE>` as parameter to `-i` instead, which is then treated as path to the text file to be annotated with entities. The format for `<INPUT-FILE>` should be plain text with UTF-8 encoding.
 
 Instead of `GRAPH`, you can put one of the following, corresponding to the settings described above:
 
