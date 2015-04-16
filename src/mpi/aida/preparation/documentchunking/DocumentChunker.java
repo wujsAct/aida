@@ -6,5 +6,5 @@ import mpi.tokenizer.data.Tokens;
 
 
 public abstract class DocumentChunker {
-  public abstract PreparedInput process(String docId, Tokens tokens, Mentions mentions);
+  public abstract PreparedInput process(String docId, String text, Tokens tokens, Mentions mentions);
 }

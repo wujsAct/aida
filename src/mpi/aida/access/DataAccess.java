@@ -1,5 +1,6 @@
 package mpi.aida.access;
 
+import gnu.trove.impl.Constants;
 import gnu.trove.iterator.TIntIterator;
 import gnu.trove.iterator.TIntObjectIterator;
 import gnu.trove.iterator.TObjectIntIterator;
@@ -9,29 +10,16 @@ import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import gnu.trove.set.TIntSet;
 import gnu.trove.set.hash.TIntHashSet;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-
 import mpi.aida.config.AidaConfig;
-import mpi.aida.data.Entities;
-import mpi.aida.data.Entity;
-import mpi.aida.data.EntityMetaData;
-import mpi.aida.data.KBIdentifiedEntity;
-import mpi.aida.data.Keyphrases;
-import mpi.aida.data.Type;
+import mpi.aida.data.*;
+import mpi.aida.graph.similarity.UnitType;
 import mpi.aida.util.YagoUtil.Gender;
 import mpi.aida.util.timing.RunningTimer;
 import mpi.tools.javatools.datatypes.Pair;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.*;
 
 public class DataAccess {
   private static final Logger logger = 
@@ -50,8 +38,8 @@ public class DataAccess {
   
   /** which type of data access*/
   public static enum type {
-    sql, testing
-  };
+    sql, testing, dmap
+  }
 
   private static synchronized void initDataAccess() {
     if (dataAccess != null) {
@@ -61,6 +49,8 @@ public class DataAccess {
       dataAccess = new DataAccessSQL();
     } else if (DataAccess.type.testing.toString().equalsIgnoreCase(AidaConfig.get(AidaConfig.DATAACCESS))) {
       dataAccess = new DataAccessForTesting();
+    } else if (type.dmap.toString().equalsIgnoreCase(AidaConfig.get(AidaConfig.DATAACCESS))) {
+      dataAccess = new DataAccessDMap();
     } else {
       // Default is sql.
       logger.info("No dataAccess given in 'settings/aida.properties', " +
@@ -84,19 +74,36 @@ public class DataAccess {
     return DataAccess.getInstance().getAccessType();
   }
 
-  public static Entities getEntitiesForMention(String mention, double maxEntityRank) {
+  /**
+   * Returns candidate entities for the given mention.
+   * The candidate space can be restricted globally by the maxEntityRank, and on a per mention
+   * basis only the topK according to the prior can be returned.
+   *
+   * @param mention Mention to get candidates for
+   * @param maxEntityRank Maximum rank of the candidate entity (according to global rank in [0.0,1.0] where 0.0 is the best rank.
+   * @param topByPrior  How many candidates to return, according to the ranking by prior. Set to 0 to return all.
+   * @return  Candidate entities for mention.
+   */
+  public static Entities getEntitiesForMention(String mention, double maxEntityRank, int topByPrior) {
     List<String> mentionAsList = new ArrayList<String>(1);
     mentionAsList.add(mention);
-    Map<String, Entities> candidates = getEntitiesForMentions(mentionAsList, maxEntityRank);
+    Map<String, Entities> candidates = getEntitiesForMentions(mentionAsList, maxEntityRank, topByPrior);
     return candidates.get(mention);
   }
   
-  public static Map<String, Entities> getEntitiesForMentions(Collection<String> mention, double maxEntityRank) {
-    return DataAccess.getInstance().getEntitiesForMentions(mention, maxEntityRank);
+  public static Map<String, Entities> getEntitiesForMentions(Collection<String> mention, double maxEntityRank, int topByPrior) {
+    return DataAccess.getInstance().getEntitiesForMentions(mention, maxEntityRank, topByPrior);
   }
   
   public static Entities getEntitiesForMentionByFuzzyMatcyhing(String mention, double minSimilarity) {
     return DataAccess.getInstance().getEntitiesForMentionByFuzzyMatching(mention, minSimilarity);
+  }
+  
+  /**
+   * @return The complete mention-entity dictionary.
+   */
+  public static Map<String, int[]> getDictionary() {
+    return DataAccess.getInstance().getDictionary();
   }
   
   /**
@@ -340,24 +347,47 @@ public class DataAccess {
   public static TIntDoubleHashMap getEntityPriors(String mention) {
     return getInstance().getEntityPriors(mention);
   }
-  public static TIntIntHashMap getKeywordDocumentFrequencies(TIntHashSet keywords) {
+
+  public static TIntIntHashMap getKeywordDocumentFrequencies(TIntSet keywords) {
     Integer runId = RunningTimer.recordStartTime("DataAccess:KWDocFreq");
-    TIntIntHashMap keywordCounts = new TIntIntHashMap(keywords.size(), 1.0f);
+    TIntIntHashMap keywordCounts = new TIntIntHashMap((int) (keywords.size() / Constants.DEFAULT_LOAD_FACTOR));
     for (TIntIterator itr = keywords.iterator(); itr.hasNext(); ) {
       int keywordId = itr.next();      
       int count = DataAccessCache.singleton().getKeywordCount(keywordId);
       keywordCounts.put(keywordId, count);
     }    
     RunningTimer.recordEndTime("DataAccess:KWDocFreq", runId);
-    return keywordCounts;   
+    return keywordCounts;
+  }
+
+  public static TIntIntHashMap getUnitDocumentFrequencies(TIntSet keywords, UnitType unitType) {
+    Integer runId = RunningTimer.recordStartTime("DataAccess:KWDocFreq");
+    TIntIntHashMap keywordCounts = new TIntIntHashMap((int) (keywords.size() / Constants.DEFAULT_LOAD_FACTOR));
+    for (TIntIterator itr = keywords.iterator(); itr.hasNext(); ) {
+      int keywordId = itr.next();
+      int count = DataAccessCache.singleton().getUnitCount(keywordId, unitType);
+      keywordCounts.put(keywordId, count);
+    }
+    RunningTimer.recordEndTime("DataAccess:KWDocFreq", runId);
+    return keywordCounts;
+  }
+  
+  public static int getUnitDocumentFrequency(int unit, UnitType unitType) {
+    int frequency = 0;
+    try {
+      frequency = DataAccessCache.singleton().getUnitCount(unit, unitType);
+    } catch (Exception e) {
+      logger.debug("Could not get frequency of " + unitType.getUnitName() + ": " + unit);
+    }
+    return frequency;
   }
 
   public static TIntIntHashMap getEntitySuperdocSize(Entities entities) {
     return getInstance().getEntitySuperdocSize(entities);
   }
 
-  public static TIntObjectHashMap<TIntIntHashMap> getEntityKeywordIntersectionCount(Entities entities) {
-    return getInstance().getEntityKeywordIntersectionCount(entities);
+  public static TIntObjectHashMap<TIntIntHashMap> getEntityUnitIntersectionCount(Entities entities, UnitType unitType) {
+    return getInstance().getEntityUnitIntersectionCount(entities, unitType);
   }
 
   public static TObjectIntHashMap<KBIdentifiedEntity> getAllEntityIds() {
@@ -398,6 +428,10 @@ public class DataAccess {
   public static int[] getAllWordExpansions() {
     return getInstance().getAllWordExpansions();
   }
+  
+  public static int[] getAllWordContractions() {
+    return getInstance().getAllWordContractions();
+  }
 
   public static boolean isYagoEntity(Entity entity) {
     return getInstance().isYagoEntity(entity);
@@ -423,6 +457,14 @@ public class DataAccess {
     return getInstance().getCollectionSize();
   }
 
+  public static int getMaximumEntityId() {
+    return getInstance().getMaximumEntityId();
+  }
+
+  public static int getMaximumWordId() {
+    return getInstance().getMaximumWordId();
+  }
+
   public static int getWordExpansion(int wordId) {
     return getInstance().getWordExpansion(wordId);
   }
@@ -438,19 +480,57 @@ public class DataAccess {
   public static String expandTerm(String term) {
     return term.toUpperCase(Locale.ENGLISH);
   }
-
+  
+  public static int contractTerm(int wordId) {
+    return DataAccessCache.singleton().contractTerm(wordId);
+  }
+  
   public static int[] getAllKeywordDocumentFrequencies() {
     return getInstance().getAllKeywordDocumentFrequencies();
+  }
+
+  public static int[] getAllUnitDocumentFrequencies(UnitType unitType) {
+    return getInstance().getAllUnitDocumentFrequencies(unitType);
+  }
+  
+  public static int getGNDTripleCount(Entity e) {
+    Entities entities = new Entities();
+    entities.add(e);
+    TIntIntHashMap  counts = getGNDTripleCount(entities);
+    return counts.get(e.getId());
+  }
+
+  public static TIntIntHashMap getGNDTripleCount(Entities entities) {
+    return DataAccess.getInstance().getGNDTripleCount(entities);
+  }
+  
+  public static int getGNDTitleCount(Entity e) {
+    Entities entities = new Entities();
+    entities.add(e);
+    TIntIntHashMap  counts = getGNDTitleCount(entities);
+    return counts.get(e.getId());
+  }
+
+  public static TIntIntHashMap getGNDTitleCount(Entities entities) {
+    return DataAccess.getInstance().getGNDTitleCount(entities);
+  }
+  
+  //use only for importance component computation 
+  public static int getYagoOutlinkCount(Entity e) {
+    Entities entities = new Entities();
+    entities.add(e);
+    TIntIntHashMap  counts = getYagoOutlinkCount(entities);
+    return counts.get(e.getId());
+  }
+
+  public static TIntIntHashMap getYagoOutlinkCount(Entities entities) {
+    return DataAccess.getInstance().getYagoOutlinkCount(entities);
   }
   
   public static Pair<Integer, Integer> getImportanceComponentMinMax(String importanceId) {
     return DataAccess.getInstance().getImportanceComponentMinMax(importanceId);
   }
   
-  public double getKeyphraseSourceWeights(String source){
-    return getKeyphraseSourceWeights().get(source);
-  }
-
   public static Map<String, Double> getKeyphraseSourceWeights() {
      return DataAccess.getInstance().getKeyphraseSourceWeights();
   }

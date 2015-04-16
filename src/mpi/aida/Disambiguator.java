@@ -8,15 +8,18 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import mpi.aida.config.settings.DisambiguationSettings;
 import mpi.aida.data.ChunkDisambiguationResults;
 import mpi.aida.data.DisambiguationResults;
+import mpi.aida.data.ExternalEntitiesContext;
 import mpi.aida.data.PreparedInput;
 import mpi.aida.data.PreparedInputChunk;
 import mpi.aida.data.ResultEntity;
 import mpi.aida.data.ResultMention;
 import mpi.aida.resultreconciliation.ResultsReconciler;
+import mpi.aida.util.Counter;
 import mpi.aida.util.DocumentCounter;
 import mpi.aida.util.timing.RunningTimer;
 import mpi.experiment.trace.NullTracer;
@@ -32,6 +35,7 @@ public class Disambiguator implements Callable<DisambiguationResults> {
   
   private PreparedInput preparedInput_;
   private DisambiguationSettings settings_;
+  private ExternalEntitiesContext externalContext_;
   private DocumentCounter documentCounter_;
   private Tracer tracer_;
    
@@ -39,9 +43,10 @@ public class Disambiguator implements Callable<DisambiguationResults> {
    * Common init.
    */
   private void init(PreparedInput input, DisambiguationSettings settings,
-                  Tracer tracer) {
+                  Tracer tracer, ExternalEntitiesContext eec) {
     preparedInput_ = input;
     settings_ = settings;
+    externalContext_ = eec;
     tracer_ = tracer;
   }
   
@@ -50,7 +55,6 @@ public class Disambiguator implements Callable<DisambiguationResults> {
    * 
    * @param input
    * @param settings
-   * @param resultsMap
    * @param tracer
    * @param dc 
    */
@@ -66,14 +70,22 @@ public class Disambiguator implements Callable<DisambiguationResults> {
    * @param settings
    */
   public Disambiguator(PreparedInput input, DisambiguationSettings settings) {
-    init(input, settings, new NullTracer());
+    init(input, settings, new NullTracer(), new ExternalEntitiesContext());
+  }
+
+  public Disambiguator(PreparedInput input, DisambiguationSettings settings, ExternalEntitiesContext eec) {
+    init(input, settings, new NullTracer(), eec);
   }
 
   public Disambiguator(PreparedInput input, DisambiguationSettings settings, Tracer tracer) {
-    init(input, settings, tracer);
+    init(input, settings, tracer, new ExternalEntitiesContext());
   }
 
-  
+  public Disambiguator(PreparedInput input, DisambiguationSettings settings,
+                       Tracer tracer, ExternalEntitiesContext eec) {
+    init(input, settings, tracer, eec);
+  }
+
   public DisambiguationResults disambiguate() throws Exception {
     logger_.debug("Disambiguating '" + preparedInput_.getDocId() + "' with " + 
         preparedInput_.getChunksCount() + " chunks and " +
@@ -81,7 +93,7 @@ public class Disambiguator implements Callable<DisambiguationResults> {
     Integer runningId = RunningTimer.recordStartTime("Disambiguator");
     long startTime = System.currentTimeMillis();
     Map<PreparedInputChunk, ChunkDisambiguationResults> chunkResults =
-        disambiguateChunks(preparedInput_);
+        disambiguateChunks(preparedInput_, externalContext_);
     DisambiguationResults results = 
         aggregateChunks(preparedInput_, chunkResults);
     RunningTimer.recordEndTime("Disambiguator", runningId);
@@ -91,25 +103,27 @@ public class Disambiguator implements Callable<DisambiguationResults> {
                 preparedInput_.getChunksCount() + " chunks, " +
                 preparedInput_.getMentionSize() + " mentions).");
     RunningTimer.trackDocumentTime(preparedInput_.getDocId(), runTime);
+    Counter.incrementCount("DOCUMENTS_PROCESSED");
     return results;
   }
 
   private Map<PreparedInputChunk, ChunkDisambiguationResults> disambiguateChunks(
-      PreparedInput preparedInput) throws Exception {
+      PreparedInput preparedInput, ExternalEntitiesContext eec) throws Exception {
     Map<PreparedInputChunk, ChunkDisambiguationResults> chunkResults =
         new HashMap<PreparedInputChunk, ChunkDisambiguationResults>();
     ExecutorService es = Executors.newFixedThreadPool(settings_.getNumChunkThreads());
     Map<PreparedInputChunk, Future<ChunkDisambiguationResults>> futureResults = 
         new HashMap<PreparedInputChunk, Future<ChunkDisambiguationResults>>();
-    for (PreparedInputChunk c : preparedInput_) {
-      ChunkDisambiguator cd = new ChunkDisambiguator(c, settings_, tracer_);
+    for (PreparedInputChunk c : preparedInput) {
+      ChunkDisambiguator cd = new ChunkDisambiguator(c, eec, settings_, tracer_);
       Future<ChunkDisambiguationResults> result = es.submit(cd);
       futureResults.put(c, result);
     }
-    for (PreparedInputChunk c : preparedInput_) {
+    for (PreparedInputChunk c : preparedInput) {
       chunkResults.put(c, futureResults.get(c).get());
     }
     es.shutdown();
+    es.awaitTermination(1, TimeUnit.DAYS);
     return chunkResults;
   }
   

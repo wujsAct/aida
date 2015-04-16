@@ -1,15 +1,9 @@
 package mpi.aida.graph.similarity.context;
 
-import java.util.LinkedList;
-import java.util.List;
-
-import mpi.aida.AidaManager;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
-import mpi.tokenizer.data.Token;
-import mpi.tokenizer.data.Tokens;
-import mpi.tools.basics2.Normalize;
 
+import mpi.aida.data.ExternalEntitiesContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,10 +12,17 @@ public abstract class EntitiesContext {
       LoggerFactory.getLogger(EntitiesContext.class);
   
   protected Entities entities;
+  protected ExternalEntitiesContext externalContext;
   protected EntitiesContextSettings settings;
 
   public EntitiesContext(Entities entities, EntitiesContextSettings settings) throws Exception {
+    this(entities, new ExternalEntitiesContext(), settings);
+  }
+
+  public EntitiesContext(Entities entities, ExternalEntitiesContext externalContext,
+                         EntitiesContextSettings settings) throws Exception {
     this.entities = entities;
+    this.externalContext = externalContext;
     this.settings = settings;
 
     long beginTime = System.currentTimeMillis();
@@ -44,25 +45,6 @@ public abstract class EntitiesContext {
   public abstract int[] getContext(Entity entity);
 
   protected abstract void setupEntities(Entities entities) throws Exception;
-
-  protected List<String> getTokens(String string) {
-    List<String> tokens = new LinkedList<String>();
-
-    Tokens advTokens = AidaManager.tokenize(string);
-
-    for (Token token : advTokens) {
-      tokens.add(token.getOriginal());
-    }
-
-    return tokens;
-  }
-
-  public static String getEntityName(String entity) {
-    String norm = Normalize.unEntity(entity);
-    norm = norm.replaceAll(" \\(.*?\\)$", "");
-
-    return norm;
-  }
   
   public String toString() {
     return getIdentifier();

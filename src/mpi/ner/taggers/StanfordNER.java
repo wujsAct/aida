@@ -32,6 +32,8 @@ public class StanfordNER implements NER {
   // German Models
   private final String GERMAN_NER_HGC = 
       "resources/corenlp/germanmodels/ner/hgc_175m_600.crf.ser.gz";
+//  private final String GERMAN_NER_DEWAC =
+//          "resources/corenlp/germanmodels/ner/dewac_175m_600.crf.ser.gz";
   private final String GERMAN_POS_HGC = 
       "resources/corenlp/germanmodels/pos/german-hgc.tagger";
   private final String ARABIC_POS_MODELS = 
@@ -41,6 +43,25 @@ public class StanfordNER implements NER {
 
 	public StanfordNER() {
 		logger.info("Initilaizing Stanford NER");
+		Properties props = buildProperties();
+		stanfordCoreNLP = new StanfordCoreNLP(props, true);
+		
+		expectedSuccessdingTags = new HashMap<String, String>();
+		expectedSuccessdingTags.put("LOCATION", "LOCATION");
+		expectedSuccessdingTags.put("I-LOC", "I-LOC");
+		expectedSuccessdingTags.put("B-LOC", "I-LOC");
+		expectedSuccessdingTags.put("PERSON", "PERSON");
+		expectedSuccessdingTags.put("I-PER", "I-PER");
+		expectedSuccessdingTags.put("B-PER", "I-PER");
+		expectedSuccessdingTags.put("ORGANIZATION", "ORGANIZATION");
+		expectedSuccessdingTags.put("I-ORG", "I-ORG");
+		expectedSuccessdingTags.put("B-ORG", "I-ORG");
+		expectedSuccessdingTags.put("MISC", "MISC");
+		expectedSuccessdingTags.put("I-MISC", "I-MISC");
+		expectedSuccessdingTags.put("B-MISC", "I-MISC");
+	}
+	
+	protected Properties buildProperties() {
 		Properties props = new Properties();
 		switch(AidaConfig.getLanguage()) {
 		   case en:
@@ -61,21 +82,7 @@ public class StanfordNER implements NER {
 		       break;
 		  
 		}
-		stanfordCoreNLP = new StanfordCoreNLP(props, true);
-		
-		expectedSuccessdingTags = new HashMap<String, String>();
-		expectedSuccessdingTags.put("LOCATION", "LOCATION");
-		expectedSuccessdingTags.put("I-LOC", "I-LOC");
-		expectedSuccessdingTags.put("B-LOC", "I-LOC");
-		expectedSuccessdingTags.put("PERSON", "PERSON");
-		expectedSuccessdingTags.put("I-PER", "I-PER");
-		expectedSuccessdingTags.put("B-PER", "I-PER");
-		expectedSuccessdingTags.put("ORGANIZATION", "ORGANIZATION");
-		expectedSuccessdingTags.put("I-ORG", "I-ORG");
-		expectedSuccessdingTags.put("B-ORG", "I-ORG");
-		expectedSuccessdingTags.put("MISC", "MISC");
-		expectedSuccessdingTags.put("I-MISC", "I-MISC");
-		expectedSuccessdingTags.put("B-MISC", "I-MISC");
+		return props;
 	}
 
 	@Override
@@ -89,10 +96,13 @@ public class StanfordNER implements NER {
 		stanfordCoreNLP.annotate(document);
 		List<CoreMap> sentences = document.get(SentencesAnnotation.class);
 		String previousTag = null;
+		//Save the previous token's sentence 
+		CoreMap previousTokenSentence=null;
 		int start = 0, end = 0;
 		for (CoreMap sentence : sentences) {
+			
 			for (CoreLabel token : sentence.get(TokensAnnotation.class)) {
-
+				
 				String currentTokenTag = token
 						.get(NamedEntityTagAnnotation.class);
 
@@ -102,8 +112,9 @@ public class StanfordNER implements NER {
 					start = token.get(CharacterOffsetBeginAnnotation.class);
 					end = token.get(CharacterOffsetEndAnnotation.class);
 					}
+					//combine 2 named NEs iff both of them arr in the same sentence
 				} else if (expectedSuccessdingTags.get(previousTag).equals(
-						currentTokenTag)) {
+						currentTokenTag) && previousTokenSentence==sentence) {
 					end = token.get(CharacterOffsetEndAnnotation.class);
 				} else {
 					Name name = new Name(text.substring(start, end), start);
@@ -116,7 +127,8 @@ public class StanfordNER implements NER {
 						end = token.get(CharacterOffsetEndAnnotation.class);
 					}
 				}
-
+				//set previous token's sentence to current token's sentence
+				previousTokenSentence=sentence;
 			}
 
 		}

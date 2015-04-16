@@ -36,6 +36,7 @@ public class MilneWittenEntityEntitySimilarity extends EntityEntitySimilarity {
     TIntObjectHashMap<int[]> entityInlinks = 
         DataAccess.getInlinkNeighbors(entities);
     
+    // inlinks are assumed to be pre-sorted.
     entity2vector = new TIntObjectHashMap<EWAHCompressedBitmap>();
 
     for (TIntObjectIterator<int[]> itr = entityInlinks.iterator();

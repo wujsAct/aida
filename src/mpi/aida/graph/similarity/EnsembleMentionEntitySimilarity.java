@@ -1,21 +1,21 @@
 package mpi.aida.graph.similarity;
 
+import com.google.common.collect.Iterables;
 import gnu.trove.iterator.TIntDoubleIterator;
 import gnu.trove.map.hash.TIntDoubleHashMap;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import mpi.aida.data.Context;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
+import mpi.aida.data.ExternalEntitiesContext;
 import mpi.aida.data.Mention;
 import mpi.aida.data.Mentions;
 import mpi.aida.graph.similarity.importance.EntityImportance;
 import mpi.aida.graph.similarity.util.SimilaritySettings;
+import mpi.aida.util.MathUtil;
 import mpi.aida.util.timing.RunningTimer;
 import mpi.experiment.trace.Tracer;
 import mpi.experiment.trace.measures.EntityImportanceMeasureTracer;
@@ -38,13 +38,15 @@ public class EnsembleMentionEntitySimilarity {
   private static final Logger logger = 
       LoggerFactory.getLogger(EnsembleMentionEntitySimilarity.class);
   
-  private List<MentionEntitySimilarity> mes;
+  private List<MentionEntitySimilarity> mesNoPrior;
+  private List<MentionEntitySimilarity> mesWithPrior;
   private Map<String, double[]> mesMinMax;
   Map<String, Map<Mention, TIntDoubleHashMap>> precomputedScores;  
   /**
    * EntityImportances need to be in [0, 1].
    */
-  private List<EntityImportance> eis;
+  private List<EntityImportance> eisNoPrior;
+  private List<EntityImportance> eisWithPrior;
 
   private PriorProbability pp = null;
 
@@ -55,26 +57,36 @@ public class EnsembleMentionEntitySimilarity {
   /**
    * Use this constructor if the context is the same for all mention-entity pairs.
    * 
+   * TODO For efficieny reasons, the MentionEntitySimilarity should get the SAME Context object passed in the 
+   * constructor, and the calcSimilarity method should ONLY get the offsets with respect to the Context. Otherwise
+   * it's not possible to efficiently pre-process the Context, e.g. creating indexes or bigrams. At the moment,
+   * Context objects are passed to be able to have dynamic token-windows around the mention, but then any pre-processing
+   * has to be done in EACH calcSimilarity call.
+   * 
+   * Solution: 
+   *  - Pass Context to MentionEntitySimilarity constructor
+   *  - instead of Context in calcSimilarity, pass [from,to] pair.
+   * 
    * @param mentions
    * @param entities
    * @param context
-   * @param settings
-   * @param tracer
-   * @throws Exception
+   * @param externalContext
+   *@param settings
+   * @param tracer   @throws Exception
    */
-  public EnsembleMentionEntitySimilarity(Mentions mentions, Entities entities, Context context, SimilaritySettings settings, Tracer tracer) throws Exception {
+  public EnsembleMentionEntitySimilarity(Mentions mentions, Entities entities, Context context, ExternalEntitiesContext externalContext, SimilaritySettings settings, Tracer tracer) throws Exception {
     Map<Mention, Context> sameContexts = new HashMap<Mention, Context>();
     for (Mention m : mentions.getMentions()) {
       sameContexts.put(m, context);
     }
-    init(mentions, entities, sameContexts, settings, tracer);
+    init(mentions, entities, sameContexts, externalContext, settings, tracer);
   }
   
   public EnsembleMentionEntitySimilarity(Mentions mentions, Entities entities, Map<Mention, Context> mentionsContexts, SimilaritySettings settings, Tracer tracer) throws Exception {
-    init(mentions, entities, mentionsContexts, settings, tracer);
+    init(mentions, entities, mentionsContexts, new ExternalEntitiesContext(), settings, tracer);
   }
 
-  private void init(Mentions mentions, Entities entities, Map<Mention, Context> mentionsContexts, SimilaritySettings settings, Tracer tracer) throws Exception {
+  private void init(Mentions mentions, Entities entities, Map<Mention, Context> mentionsContexts, ExternalEntitiesContext externalContext, SimilaritySettings settings, Tracer tracer) throws Exception {
     this.settings = settings;
     double prior = settings.getPriorWeight();
     Set<Mention> mentionNames = new HashSet<>();
@@ -83,33 +95,10 @@ public class EnsembleMentionEntitySimilarity {
     }
     pp = new MaterializedPriorProbability(mentionNames);
     pp.setWeight(prior);
-    mes = settings.getMentionEntitySimilarities(entities, tracer);
-    // adjust weights when switched
-    if (settings.getPriorThreshold() >= 0.0) {
-      double[] nonPriorWeights = new double[mes.size() / 2];
-      for (int i = 0; i < mes.size() / 2; i++) {
-        nonPriorWeights[i] = mes.get(i).getWeight();
-      }
-      double[] normNonPriorWeights = rescaleArray(nonPriorWeights);
-      for (int i = 0; i < mes.size() / 2; i++) {
-        mes.get(i).setWeight(normNonPriorWeights[i]);
-      }
-
-      double[] withPriorWeights = new double[mes.size() / 2 + 1];
-
-      for (int i = mes.size() / 2; i < mes.size(); i++) {
-        withPriorWeights[i - mes.size() / 2] = mes.get(i).getWeight();
-      }
-
-      withPriorWeights[withPriorWeights.length - 1] = pp.getWeight();
-
-      double[] normWithPriorWeights = rescaleArray(withPriorWeights);
-      for (int i = mes.size() / 2; i < mes.size(); i++) {
-        mes.get(i).setWeight(normWithPriorWeights[i - mes.size() / 2]);
-      }
-      pp.setWeight(normWithPriorWeights[normWithPriorWeights.length - 1]);
-    }
-    eis = settings.getEntityImportances(entities);
+    mesNoPrior = settings.getMentionEntitySimilarities(entities, externalContext, tracer, false);
+    mesWithPrior = settings.getMentionEntitySimilarities(entities, externalContext, tracer, true);
+    eisNoPrior = settings.getEntityImportances(entities, false);
+    eisWithPrior = settings.getEntityImportances(entities, true);
     this.tracer = tracer;
     mesMinMax = precomputeMinMax(mentions, mentionsContexts);
   }
@@ -126,7 +115,8 @@ public class EnsembleMentionEntitySimilarity {
       Mentions mentions, Map<Mention, Context> mentionsContexts) throws Exception {
     precomputedScores = new HashMap<String, Map<Mention,TIntDoubleHashMap>>();
     //scores stay the same for the switched measures, only weights change
-    for (MentionEntitySimilarity s : mes) {
+    
+    for (MentionEntitySimilarity s : Iterables.concat(mesWithPrior, mesNoPrior)) {
       if(precomputedScores.containsKey(s.getIdentifier())) {
         continue;
       }
@@ -185,8 +175,8 @@ public class EnsembleMentionEntitySimilarity {
     boolean shouldSwitch = settings.getPriorThreshold() > 0.0; 
     // If non-switch sim is computed, prior is always used. Otherwise determine based on the threshold and the distribution.
     boolean shouldUsePrior = !shouldSwitch || shouldIncludePrior(bestPrior, settings.getPriorThreshold(), mention);
-    MentionEntitySimilarity[] mesToUse = 
-        getMentionEntitySimilarities(mes, shouldUsePrior, shouldSwitch);
+    List<MentionEntitySimilarity> mesToUse = shouldUsePrior ? mesWithPrior : mesNoPrior;
+    List<EntityImportance> eisToUse = shouldUsePrior ? eisWithPrior : eisNoPrior;
 
     double weightedSimilarity = 0.0;
 
@@ -199,7 +189,7 @@ public class EnsembleMentionEntitySimilarity {
 
     switch (settings.getImportanceAggregationStrategy()) {
       case LINEAR_COMBINATION:
-        for (EntityImportance ei : eis) {
+        for (EntityImportance ei : eisToUse) {
           double singleImportance = ei.getImportance(entity);
           weightedSimilarity += singleImportance * ei.getWeight();
           
@@ -212,7 +202,7 @@ public class EnsembleMentionEntitySimilarity {
       case AVERGAE:
         int count = 0;
         double importancesSum = 0;
-        for (EntityImportance ei : eis) {
+        for (EntityImportance ei : eisToUse) {
           double singleImportance = ei.getImportance(entity);
           if (singleImportance >= 0) { //entity has an importance from that measure
             importancesSum += singleImportance * ei.getWeight();
@@ -233,6 +223,9 @@ public class EnsembleMentionEntitySimilarity {
 
     if (shouldUsePrior && pp != null && settings.getPriorWeight() > 0.0) {
       double weightedPrior = pp.getPriorProbability(mention, entity);
+      if (settings.shouldPriorTakeLog()) {
+        weightedPrior = MathUtil.logDamping(weightedPrior, settings.getPriorDampingFactor());
+      }
       weightedSimilarity += weightedPrior * pp.getWeight();
 
       PriorMeasureTracer mt = new PriorMeasureTracer("Prior", pp.getWeight());
@@ -252,7 +245,6 @@ public class EnsembleMentionEntitySimilarity {
    * @param mentionEntitySimilarities
    * @param shouldSwitch 
    * @param shouldUsePrior 
-   * @param usePrior
    * @return
    */
   private MentionEntitySimilarity[] getMentionEntitySimilarities(
@@ -303,33 +295,23 @@ public class EnsembleMentionEntitySimilarity {
   }
 
   public static double rescale(double value, double min, double max) {
-    if (min == max) {
-      // No score or only one, return max.
-      return 1.0;
-    }
-    
     if (value < min) {
       logger.debug("Wrong normalization, " + 
                     value + " not in [" + min + "," + max + "], " +
                    "renormalizing to 0.0.");
-      return 0.0;
+      return min;
     } else if (value > max) {
       logger.debug("Wrong normalization, " + 
           value + " not in [" + min + "," + max + "], " +
          "renormalizing to 1.0.");
-      return 1.0;
+      return max;
     }
+
+    if (min == max) {
+      // No score or only one, return max.
+      return max;
+    }
+
     return (value - min) / (max - min);
-  }
-  
-  public void announceMentionAssignment(Mention mention, Entity entity) {
-	  for(MentionEntitySimilarity mesInstance: mes) {
-		  mesInstance.announceMentionAssignment(mention, entity);
-	  }
-  }
-  public void addExtraContext(Mention mention, Object context) {
-	  for(MentionEntitySimilarity mesInstance: mes) {
-		  mesInstance.addExtraContext(mention, context);
-	  }
   }
 }

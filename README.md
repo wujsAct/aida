@@ -73,7 +73,7 @@ After changing these settings, run `mvn package` again to update the jar with th
 
 ## Hands-On API Example
 
-If you want to use AIDA in a maven project, add mpi.aida:aida-2.X as dependency. Otherwise, build the jar using `mvn package` and add `target/aida-VERSION.jar` to your project's classpath.  
+If you want to use AIDA in a maven project, add mpi.aida:aida-3.X as dependency. Otherwise, build the jar using `mvn package` and add `target/aida-VERSION.jar` to your project's classpath.  
 
 The main classes in AIDA are `mpi.aida.Preparator` for preparing an input document and `mpi.aida.Disambiguator` for running the disambiguation on the prepared input.
 
@@ -143,7 +143,7 @@ See the `mpi.aida.config.settings.disambiguation` package for all possible prede
     
 1. Run the CommandLineDisambiguator:
 
-    `java -Xmx4G -cp target/aida-2.X.X-jar-with-dependencies.jar mpi.aida.CommandLineDisambiguator -t GRAPH -s -i "Einstein was born in Ulm"`
+    `java -Xmx12G -cp target/aida-3.X.X-jar-with-dependencies.jar mpi.aida.CommandLineDisambiguator -t GRAPH -s -i "Einstein was born in Ulm"`
 
 To process a file, remove `-s` and pass `<INPUT-FILE>` as parameter to `-i` instead, which is then treated as path to the text file to be annotated with entities. The format for `<INPUT-FILE>` should be plain text with UTF-8 encoding.
 
@@ -161,115 +161,119 @@ The output will be an HTML file with annotated mentions, linking to the correspo
 Start the AIDA web service with
 
 ```
-export MAVEN_OPTS="-Xmx4G"
+export MAVEN_OPTS="-Xmx12G"
 mvn jetty:run
 ```
 
 This will expose the RESTful API, which can be accessed at the URL:
 
-`http://localhost:8080/aida/service/disambiguate-defaultsettings`
-
-The most basic example calls this convenience wrapper with just one parameter, 'text', which contains the input text to disambiguate. In general, the input is expected as HTTP POST request containing application/x-www-form-urlencoded parameters specifying the settings and input text. The output is a JSON object containing the disambiguation results.
-
-You can configure all settings by accessing the following URL:
-
 `http://localhost:8080/aida/service/disambiguate`
+
+The most basic example calls this convenience wrapper with just one parameter, 'text', which contains the input text to disambiguate. 
+In general, the input is expected as HTTP POST request containing application/x-www-form-urlencoded parameters specifying the settings and input text.
+However, JSON as input is also supported.
+
+The output is a JSON object containing the disambiguation results.
 
 Please look at `mpi.aida.service.web.RequestProcessor` for details about the parameters it expects. The most simple call is
 
 ```
-curl --data text="Einstein was born in Ulm." http://localhost:8080/aida/service/disambiguate-defaultsettings
+curl --data text="Einstein was born in Ulm." http://localhost:8080/aida/service/disambiguate
 ```
 
-which should return a JSON string containing the following fields (among others)
+which returns a JSON string containing the following fields (among others)
 
 ```
 {
-   "formatVersion":"2.1",
-   "entityMetadata":{
-      "YAGO:Ulm":{
-         "depictionthumbnailurl":"http:\/\/upload.wikimedia.org\/wikipedia\/commons\/thumb\/4\/46\/Ulm_Donauschwabenufer1.jpg\/200px-Ulm_Donauschwabenufer1.jpg",
-         "importance":0.0015091850539983515,
-         "readableRepr":"Ulm",
-         "entityId":"Ulm",
-         "depictionurl":"http:\/\/upload.wikimedia.org\/wikipedia\/commons\/4\/46\/Ulm_Donauschwabenufer1.jpg",
-         "type":[
-            "YAGO_yagoGeoEntity",
-            "YAGO_wikicategory_Cities_in_Baden\\u002dW\\u00fcrttemberg",
-            "YAGO_wikicategory_States_and_territories_established_in_1181",
-            "YAGO_wordnet_city_108524735",
-            ...
-         ],
-         "knowledgebase":"YAGO",
-         "url":"http:\/\/en.wikipedia.org\/wiki\/Ulm"
-      },
-      "YAGO:Albert_Einstein":{ "depictionthumbnailurl":"http:\/\/upload.wikimedia.org\/wikipedia\/commons\/thumb\/6\/66\/Einstein_1921_by_F_Schmutzer.jpg\/200px-Einstein_1921_by_F_Schmutzer.jpg",
-         "importance":5.540363736439131E-4,
-         "readableRepr":"Albert Einstein",
-         "entityId":"Albert_Einstein",
-         "depictionurl":"http:\/\/upload.wikimedia.org\/wikipedia\/commons\/6\/66\/Einstein_1921_by_F_Schmutzer.jpg",
-         "type":[
-            "YAGO_wikicategory_German_Nobel_laureates",
-            "YAGO_wikicategory_People_with_acquired_Swiss_citizenship",
-            "YAGO_wordnet_physicist_110428004",
-            "YAGO_wordnet_person_100007846",
-            ...
-         ],
-         "knowledgebase":"YAGO",
-         "url":"http:\/\/en.wikipedia.org\/wiki\/Albert%20Einstein"
+  "formatVersion": "2.3",
+  "annotatedText": "[[YAGO:Albert_Einstein|Einstein]] was born in [[YAGO:Ulm|Ulm]].",
+  "originalText": "Einstein was born in Ulm.",
+  "overallTime": "29460",
+  "allEntities": [
+    "YAGO:Ulm",
+    "YAGO:Albert_Einstein"
+  ],
+  "entityMetadata": {
+    "YAGO:Ulm": {
+      "knowledgebase": "YAGO",
+      "depictionurl": "http:\/\/upload.wikimedia.org\/wikipedia\/commons\/4\/46\/Ulm_Donauschwabenufer1.jpg",
+      "depictionthumbnailurl": "http:\/\/upload.wikimedia.org\/wikipedia\/commons\/thumbUlm_Donauschwabenufer1.jpg\/200px-Ulm_Donauschwabenufer1.jpg",
+      "importance": 0.0015091850539984,
+      "entityId": "Ulm",
+      "type": [
+        "YAGO_wordnet_district_108552138",
+        "YAGO_yagoPermanentlyLocatedEntity",
+        "YAGO_yagoLegalActorGeo",
+        "YAGO_wordnet_urban_area_108675967",
+        "YAGO_wikicategory_Populated_places_on_the_Danube",
+		...
+	  ],
+      "readableRepr": "Ulm",
+      "url": "http:\/\/en.wikipedia.org\/wiki\/Ulm"
+    },
+    "YAGO:Albert_Einstein": {
+      "knowledgebase": "YAGO",
+      "depictionurl": "http:\/\/upload.wikimedia.org\/wikipedia\/commons\/3\/3e\/Einstein_1921_by_F_Schmutzer_-_restoration.jpg",
+      "depictionthumbnailurl": "http:\/\/upload.wikimedia.org\/wikipedia\/commons\/thumbEinstein_1921_by_F_Schmutzer_-_restoration.jpg\/200px-Einstein_1921_by_F_Schmutzer_-_restoration.jpg",
+      "importance": 0.00055403637364391,
+      "entityId": "Albert_Einstein",
+      "type": [
+        "YAGO_wordnet_absentee_109757653",
+        "YAGO_wordnet_laureate_110249011",
+        "YAGO_wikicategory_People_from_Ulm",
+        "YAGO_wordnet_pantheist_110396594",
+		... 
+      ],
+      "readableRepr": "Albert Einstein",
+      "url": "http:\/\/en.wikipedia.org\/wiki\/Albert%20Einstein"
+    }
+  },
+  "mentions": [
+    {
+      "allEntities": [
+        {
+          "kbIdentifier": "YAGO:Albert_Einstein",
+          "disambiguationScore": "1"
+        }
+      ],
+      "offset": 0,
+      "name": "Einstein",
+      "length": 8,
+      "bestEntity": {
+        "kbIdentifier": "YAGO:Albert_Einstein",
+        "disambiguationScore": "1"
       }
-   },
-   "cleanedText":"Einstein was born in Ulm.",
-   "annotatedText":"[[http:\/\/en.wikipedia.org\/wiki\/Albert%20Einstein|Einstein]] was born in [[http:\/\/en.wikipedia.org\/wiki\/Ulm|Ulm]].",
-   "allEntities":[
-      "YAGO:Ulm",
-      "YAGO:Albert_Einstein"
-   ],
-   "mentions":[
-      {
-         "allEntities":[
-            {
-               "kbIdentifier":"YAGO:Albert_Einstein",
-               "disambiguationScore":"1"
-            }
-         ],
-         "bestEntity":{
-            "kbIdentifier":"YAGO:Albert_Einstein",
-            "disambiguationScore":"1"
-         },
-         "name":"Einstein",
-         "length":8,
-         "offset":0
-      },
-      {
-         "allEntities":[
-            {
-               "kbIdentifier":"YAGO:Ulm",
-               "disambiguationScore":"0.28552"
-            }
-         ],
-         "bestEntity":{
-            "kbIdentifier":"YAGO:Ulm",
-            "disambiguationScore":"0.28552"
-         },
-         "name":"Ulm",
-         "length":3,
-         "offset":21
+    },
+    {
+      "allEntities": [
+        {
+          "kbIdentifier": "YAGO:Ulm",
+          "disambiguationScore": "0.50725"
+        }
+      ],
+      "offset": 21,
+      "name": "Ulm",
+      "length": 3,
+      "bestEntity": {
+        "kbIdentifier": "YAGO:Ulm",
+        "disambiguationScore": "0.50725"
       }
-   ],
-   "allTypes":[
-      "YAGO_yagoGeoEntity",
-      "YAGO_wikicategory_Cities_in_Baden\\u002dW\\u00fcrttemberg",
-      "YAGO_wikicategory_States_and_territories_established_in_1181",
-      "YAGO_wordnet_city_108524735",
-      "YAGO_wikicategory_German_Nobel_laureates",
-      "YAGO_wikicategory_People_with_acquired_Swiss_citizenship",
-      "YAGO_wordnet_physicist_110428004",
-      "YAGO_wordnet_person_100007846",
-      ...
-   ]
+    }
+  ],
+  "allTypes": [
+    "YAGO_wordnet_scholar_110557854",
+    "YAGO_wikicategory_German_physicists",
+    "YAGO_wikicategory_ETH_Zurich_alumni",
+    "YAGO_wordnet_cosmologist_109819667",
+    "YAGO_wikicategory_Swiss_agnostics",
+    "YAGO_wordnet_agnostic_109779124",
+    "YAGO_wikicategory_German_Nobel_laureates",
+	...
+  ]
 }
 ```
+
+If you only need the entities, pass `--data jsonType="compact"` as additional parameter.
 
 ## Input Format
 
@@ -280,9 +284,24 @@ The input of AIDA is an English language text (as Java String) or file in UTF-8 
 The mention recognition can be configured by using different `PreparationSettings` in the `mpi.aida.config.settings.preparation` package:
 
 * `StanfordHybridPreparationSettings`: Use Stanford CoreNLP NER and allow manual markup using [[...]]
-* `StanfordManualPreparationSettings`: Use Stanford CoreNLP only for tokenization and sentence splitting, mentions need to be marked up by [[...]].
+* `ManualPreparationSettings`: Use Stanford CoreNLP only for tokenization and sentence splitting, mentions need to be marked up by [[...]].
 
 The `PreparationSettings` are passed to the `Preparator`, see the Hands-On API Example.
+
+## Comparing Your NED Algorithm against AIDA
+
+### Configuring AIDA
+
+To get the best results for AIDA, please use the `mpi.aida.config.settings.disambiguation.CocktailPartyDisambiguationSettings` for the Disambiguator, as described in _Pre-configured DisambiguationSettings_ . You can also compare your results on the datasets where we already ran AIDA, see below.
+
+### Available Datasets
+
+There are two main datasets we created to do research on AIDA. Both are available on the [AIDA website][AIDA].
+
+* CONLL-YAGO: A collection of 1393 Newswire documents from the Reuters RCV-1 collection. All names are annotated with their respective YAGO2 entities. We make the annotations available for research purposes, however the Reuters RCV-1 collection must be purchased to use the dataset.
+* KORE50: A collection of 50 handcrafted sentences from 5 different domains.
+
+We provide readers for these two datasets in the `mpi.experiment.reader` package which will produce `PreparedInput` objects for each document in the collection. See the respective `CoNLLReader` and `KORE50Reader` classes for the location of the data.
 
 ## Advanced Configuration
 
@@ -294,11 +313,13 @@ The `mpi.aida.config.settings.DisambiguationSettings` contain all the configurat
 
 These pre-configured `DisambiguatorSettings` objects can be passed to the `Disambiguator`:
 
+* `CocktailPartyWithHeuristicsDisambiguationWithNullSettings`: The default configuration that should be used. Thresholds for discovering nil entities.
+
+Other possibilities (mainly to experiment with) are the following. All of these settings assume that all mentions in the input should be linked:
+
 * `PriorOnlyDisambiguationSettings`: Annotate each mention with the most prominent entity.
 * `LocalDisambiguationSettings`: Use the entity prominence and the keyphrase-context similarity to disambiguate.
-* `FastLocalDisambiguationSettings`: Same as above but sacrificing a bit of accuracy for roughly 5 times quicker disambiguation by dropping low weight keyphrases.
 * `CocktailPartyDisambiguationSettings`: Use a graph algorithm on the entity coherence graph ([MilneWitten] link coherence) to disambiguate.
-* `FastCocktailPartyDisambiguationSettings`: Same as above but sacrificing a bit of accuracy for roughly 5 times quicker disambiguation by dropping low weight keyphrases
 * `CocktailPartyKOREDisambiguationSettings`: Use a graph algorithm on the entity coherence graph ([KORE] link coherence) to disambiguate. 
 
 #### DisambiguationSettings Parameters
@@ -360,16 +381,22 @@ The mandatory database tables are:
 Each one is described in detail below, starting with the table name plus column names and SQL types.
     
     dictionary (
-      mention text, entity integer, prior double precision
+      mention text, entity integer, source text, prior double precision
     )
     
-The _dictionary_ is used for looking up _entity_ candidates for a given surface form of a _mention_. Each mention-entity pair can have an associated prior probability. Mentions with the length of 4 characters or more are case-conflated to all-upper case. Also, mentions are normalized using the YAGO2 basics.Normalize.string() method (included as a jar.). To get the original mentoin string, use basics.Normalize.unString().
+The _dictionary_ is used for looking up _entity_ candidates for a given surface form of a _mention_. Each mention-entity pair can have an associated prior probability. Mentions with the length of 4 characters or more are case-conflated to all-upper case.
     
     entity_ids (
-      entity text, id integer
+      entity text, knowledgebase text, id integer
     )
     
-This table is used for mapping the integer ids to a human-readable entity representation. In the existing repository, entities are encoded using the basics.Normalize.entity() method. To get the original entity name (as taken from Wikipedia), use basics.Normalize.unEntity().
+This table is used for mapping the integer ids to the original _entity_ in the _knowledgebase_.
+
+    entity_metadata (
+      entity integer, humanreadablererpresentation text, url text, knowledgebase text, depictionurl text, description text
+    )
+    
+Contains metadata for each entity, most importantly the human readable representation (used to display the entity) and the url to link it.
 
     keyword_counts (
       keyword integer, count integer
@@ -390,21 +417,23 @@ All keyphrase and keyword ids must be present here. The input text will be trans
 AIDA tries to match ALL_CAPS variants of mixed-case keywords. Put the ids of the UPPER_CASED word it in this table.
 
     entity_keyphrases (
-      entity integer, keyphrase integer, keyphrase_tokens integer[], source character varying(100), count integer, weight double precision DEFAULT 1.0, keyphrase_token_weights double precision[]
+      entity integer, keyphrase integer, source integer, weight double precision, count integer
     )
     
-This is the meat of AIDA. All entities are associated with (optionally weighted) keyphrases, represented by an integer id. As the keyphrases are matched partially against input text, the (weighted) _keyphrase\_tokens_ are stored alongside each keyphrase. The mandatory fields are:
+    entity_keywords (
+      entity integer, keyword integer, count integer, weight double precision
+    )
+        
+This is the meat of AIDA. All entities are associated with (optionally weighted) keyphrases and keywords (connected by the _keyphrase_tokens_ table), represented by an integer id. As the keyphrases are matched partially against input text. The mandatory fields are:
 
 * entity: The id corresponds to the id in the _dictionary_ and the _entity_ids_ table.
-* keyphrase: The id corresponds to the id in the _word_ids_ table.
-* keyphrase_tokens: Each id in the array corresponds to one word in the _word_ids_ table.
-* keyphrase_token_weights: Each entry in the double array is the entity-specific weight of the keyword at the same position as _keyphrase_tokens_.
+* keyphrase/keyword: The id corresponds to the id in the _word_ids_ table.
 
 The optional fields are:
 
 * source: Keyphrases can be filtered by source
 * count: This can be used to keep the co-occurrence counts of the entity-keyphrase pairs, but is superflous if all the weights are pre-computed
-* weight: AIDA can use keyphrase weights but by default does not.
+* weight: Weight derived by the co-occurrence counts.
 
 #### Optional Tables
     
@@ -414,20 +443,73 @@ The optional fields are:
     
 If you want to use coherence based on a link graph (_MilneWittenEntityEntitySimilarity_) instead of keyphrases (_KOREEntityEntitySimilarity_), this table needs to be populated with all entities and their inlinks.
 
-## Comparing Your NED Algorithm against AIDA
+Other data that is not explicitly described here includes types and global entity weights.
 
-### Configuring AIDA
+## DMap usage
 
-To get the best results for AIDA, please use the `mpi.aida.config.settings.disambiguation.CocktailPartyDisambiguationSettings` for the Disambiguator, as described in _Pre-configured DisambiguationSettings_ . You can also compare your results on the datasets where we already ran AIDA, see below.
+### DMap creation
 
-### Available Datasets
+#### Add a new DMap
 
-There are two main datasets we created to do research on AIDA. Both are available on the [AIDA website][AIDA].
+To add a new DMap to the system you have to edit the `mpi.aida.access.DatabaseDMap` enum file.
+You can use on of three constructors:
 
-* CONLL-YAGO: A collection of 1393 Newswire documents from the Reuters RCV-1 collection. All names are annotated with their respective YAGO2 entities. We make the annotations available for research purposes, however the Reuters RCV-1 collection must be purchased to use the dataset.
-* KORE50: A collection of 50 handcrafted sentences from 5 different domains.
+The main constructor:   
+`DatabaseDMap(String name, String source, boolean isSourceSorted, boolean isSourceTable, String... keys)`   
 
-We provide readers for these two datasets in the `mpi.experiment.reader` package which will produce `PreparedInput` objects for each document in the collection. See the respective `CoNLLReader` and `KORE50Reader` classes for the location of the data.
+The constructor for tables:   
+`DatabaseDMap(String tableName, String... keys)`
+
+The constructor for sql commands:   
+`DatabaseDMap(String namePrefix, String sqlCommand, boolean isSourceSorted, String... keys)`
+
+Detailed descriptions for the arguments are in de comments of the enum file itself.
+
+
+#### Settings
+
+The Configuration for the DMap creation is done in the `settings/preparation.properties` file.   
+There are four keys that can/must be set:
+
+`dMapTargetDirectory`   
+The directory where the .dmap and .proto files are saved. (The default is: `dMaps`)
+
+`dMapProtoClassesTargetPackage`   
+The package where the classes from the .proto files should go. (This is required)
+
+`aidaSourceFolder`   
+The root directory for the package path. (The default is: `src`)
+
+`protocPath`   
+Path to the protoc executable. (The default is: `protoc`)
+
+#### Execution
+
+To create the DMaps just run the `mpi.aida.datapreparation.PrepareData` like so:
+
+`mpi.aida.datapreparation.PrepareData <workingDir> DMAP_CREATION`
+
+### Use DMaps
+
+To use the DMaps as a data source the value of `dataAccess` in the `settings/aida.properties` has to be `dmap`.
+
+#### Settings
+
+The settings for the usage of the DMaps are saved in the `settings/dmap_aida.properties` file.   
+There are four keys with fixed names:
+
+`directoryName`   
+The directory where the dMaps are located. (The default is: `dMaps`)
+
+`mapsToLoad`   
+This is a comma separated list of all maps that should be loaded. (The default is: all)
+
+`default.preloadKeys` and `default.preloadValues`   
+Defines if the Keys/Values should be preloaded into memory.
+
+It is possible to set the preload behavior for each DMap individually:   
+`<DMapName>.preloadKeys` and `<DMapName>.preloadValues`   
+Defines if the Keys/Values of a specific DMap should be preloaded into memory.
 
 ## Further Information
 
@@ -443,6 +525,7 @@ The AIDA developers are (in alphabetical order):
 
 * Ilaria Bordino
 * Johannes Hoffart ( http://www.mpi-inf.mpg.de/~jhoffart )
+* Felix Keller
 * Edwin Lewis-Kelham
 * Dat Ba Nguyen ( http://www.mpi-inf.mpg.de/~datnb )
 * Stephan Seufert ( http://www.mpi-inf.mpg.de/~sseufert )

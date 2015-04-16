@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
+import mpi.aida.config.AidaConfig;
 import mpi.aida.graph.similarity.util.SimilaritySettings;
 import mpi.experiment.trace.GraphTracer.TracingTarget;
 
@@ -44,6 +45,12 @@ public class DisambiguationSettings implements Serializable {
    * is included, 1.0 means all are included. Default is to include all.
    */
   private double maxEntityRank = 1.0;
+
+  /**
+   * Maximum number of candidates to retrieve for a mention, ordered by prior.
+   * Set to 0 to retrieve all.
+   */
+  private int maxCandidatesPerEntityByPrior = 0;
   
   private double nullMappingThreshold = -1.0;
   
@@ -74,19 +81,11 @@ public class DisambiguationSettings implements Serializable {
   /**
    * Number of chunks to process in parallel.
    */
-  private int numChunkThreads = 4;  
-  
+  private int numChunkThreads = 4;
+
   public DisambiguationSettings() {
     graphSettings = new GraphSettings();
     confidenceSettings = new ConfidenceSettings();
-  }
-          
-  public void setStoreFile(String path) {
-    this.storeFile = path;
-  }
-
-  public String getStoreFile() {
-    return storeFile;
   }
 
   public void setTracingTarget(TracingTarget tracingTarget) {
@@ -185,6 +184,18 @@ public class DisambiguationSettings implements Serializable {
     this.numChunkThreads = numChunkThreads;
   }
 
+  public int getMaxCandidatesPerEntityByPrior() {
+    return maxCandidatesPerEntityByPrior;
+  }
+
+  public void setMaxCandidatesPerEntityByPrior(int maxCandidatesPerEntityByPrior) {
+    this.maxCandidatesPerEntityByPrior = maxCandidatesPerEntityByPrior;
+  }
+
+  public boolean isMentionLookupPrefix() {
+    return AidaConfig.getBoolean(AidaConfig.CANDIDATE_ENTITY_LOOKUP_MENTION_IS_PREFIX);
+  }
+
   public Map<String, Object> getAsMap() {
     Map<String, Object> s = new HashMap<String, Object>();
     if (disambiguationTechnique != null) {
@@ -194,6 +205,7 @@ public class DisambiguationSettings implements Serializable {
       s.put("disambiguationAlgorithm", disambiguationAlgorithm.toString());
     }
     s.put("maxEntityRank", String.valueOf(maxEntityRank));
+    s.put("maxCandidatesPerEntityByPrior", String.valueOf(maxCandidatesPerEntityByPrior));
     s.put("nullMappingThreshold", String.valueOf(nullMappingThreshold));
     s.put("includeNullAsEntityCandidate", String.valueOf(includeNullAsEntityCandidate));
     s.put("includeContextMentions", String.valueOf(includeContextMentions));

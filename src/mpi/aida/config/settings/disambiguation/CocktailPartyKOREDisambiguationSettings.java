@@ -16,16 +16,17 @@ public class CocktailPartyKOREDisambiguationSettings extends CocktailPartyDisamb
     
   private static final long serialVersionUID = 5867674989478781057L;
 
-  public CocktailPartyKOREDisambiguationSettings() throws MissingSettingException {
+  public CocktailPartyKOREDisambiguationSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException {
     super();
     List<String[]> cohConfigs = new LinkedList<String[]>();
     cohConfigs.add(new String[] { "KOREEntityEntitySimilarity", "1.0" });
 
     SimilaritySettings switchedKPsettings = new SimilaritySettings(
-        LocalDisambiguationSettings.getSimConfigs(), cohConfigs, 
-        LocalDisambiguationSettings.priorWeight);
+        LocalKeyphraseBasedDisambiguationSettings.getKeyphraseSimConfigsWithPrior(), cohConfigs,
+        LocalKeyphraseBasedDisambiguationSettings.getKeyphraseSimPriorWeight());
     switchedKPsettings.setIdentifier("SwitchedKP");
     switchedKPsettings.setPriorThreshold(0.9);
+    switchedKPsettings.setMentionEntitySimilaritiesNoPrior(LocalKeyphraseBasedDisambiguationSettings.getKeyphraseSimConfigsNoPrior());
     switchedKPsettings.setEntityCohKeyphraseAlpha(1.0);
     switchedKPsettings.setEntityCohKeywordAlpha(0.0);
     switchedKPsettings.setShouldNormalizeCoherenceWeights(true);

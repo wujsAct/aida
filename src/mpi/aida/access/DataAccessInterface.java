@@ -16,6 +16,7 @@ import mpi.aida.data.EntityMetaData;
 import mpi.aida.data.KBIdentifiedEntity;
 import mpi.aida.data.Keyphrases;
 import mpi.aida.data.Type;
+import mpi.aida.graph.similarity.UnitType;
 import mpi.aida.util.YagoUtil.Gender;
 import mpi.tools.javatools.datatypes.Pair;
 
@@ -24,7 +25,7 @@ public interface DataAccessInterface {
 
   public DataAccess.type getAccessType();
 
-  public Map<String, Entities> getEntitiesForMentions(Collection<String> mention, double maxEntityRank);
+  public Map<String, Entities> getEntitiesForMentions(Collection<String> mention, double maxEntityRank, int topByPrior);
 
   public Keyphrases getEntityKeyphrases(Entities entities, Map<String, Double> keyphraseSourceWeights, double minKeyphraseWeight,
       int maxEntityKeyphraseCount);
@@ -71,6 +72,8 @@ public interface DataAccessInterface {
 
   public TIntObjectHashMap<TIntIntHashMap> getEntityKeywordIntersectionCount(Entities entities);
 
+  public TIntObjectHashMap<TIntIntHashMap> getEntityUnitIntersectionCount(Entities entities, UnitType unitType);
+
   public TObjectIntHashMap<KBIdentifiedEntity> getAllEntityIds();
 
   public TObjectIntHashMap<Type> getAllTypeIds();
@@ -78,6 +81,8 @@ public interface DataAccessInterface {
   public Entities getAllEntities();
 
   public int[] getAllWordExpansions();
+  
+  public int[] getAllWordContractions();
 
   public boolean isYagoEntity(Entity entity);
 
@@ -92,6 +97,14 @@ public interface DataAccessInterface {
   public String getConfigurationName();
 
   public int[] getAllKeywordDocumentFrequencies();
+
+  public int[] getAllUnitDocumentFrequencies(UnitType unitType);
+
+  public TIntIntHashMap getGNDTripleCount(Entities entities);
+
+  public TIntIntHashMap getGNDTitleCount(Entities entities);
+
+  public TIntIntHashMap getYagoOutlinkCount(Entities entities);
 
   public Pair<Integer, Integer> getImportanceComponentMinMax(String importanceId);
 
@@ -108,4 +121,10 @@ public interface DataAccessInterface {
   public TIntObjectHashMap<int[]> getAllKeyphraseTokens();
 
   public TIntObjectHashMap<int[]> getTaxonomy();
+
+  public Map<String, int[]> getDictionary();
+
+  public int getMaximumEntityId();
+
+  public int getMaximumWordId();
 }

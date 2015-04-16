@@ -1,13 +1,14 @@
 package mpi.tokenizer.data;
 
+import gnu.trove.map.hash.TObjectIntHashMap;
+import mpi.aida.util.timing.RunningTimer;
+import mpi.tools.javatools.datatypes.Pair;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-
-import mpi.aida.util.timing.RunningTimer;
-import mpi.tools.javatools.datatypes.Pair;
 
 public class Tokens implements Iterable<Token>, Serializable {
 
@@ -23,8 +24,24 @@ public class Tokens implements Iterable<Token>, Serializable {
   
   private List<Pair<Integer, Integer>> sentencesBorders = null;
 
+  private TObjectIntHashMap<String> transientTokenIds = new TObjectIntHashMap<>();
+
   public Tokens() {
-    tokens = new LinkedList<Token>();
+    tokens = new ArrayList<>();
+  }
+
+  public Tokens(List<String> words) {
+    tokens = new ArrayList<>();
+    int tokenIndex = 0;
+    int charOffset = 0;
+    for (String word : words) {
+      int endOffset = charOffset + word.length();
+      Token t = new Token(tokenIndex, word, charOffset, endOffset, 1);
+      ++tokenIndex;
+      // Add a virtual space.
+      charOffset = endOffset + 2;
+      tokens.add(t);
+    }
   }
 
   public Token getToken(int position) {
@@ -44,7 +61,7 @@ public class Tokens implements Iterable<Token>, Serializable {
   }
 
   public String toString() {
-    StringBuffer sb = new StringBuffer(200);
+    StringBuilder sb = new StringBuilder(200);
     for (int i = 0; i < tokens.size(); i++) {
       sb.append(tokens.get(i).toString()).append('\n');
     }
@@ -52,7 +69,7 @@ public class Tokens implements Iterable<Token>, Serializable {
   }
 
   public String toText(int startToken, int endToken) {
-    StringBuffer sb = new StringBuffer(200);
+    StringBuilder sb = new StringBuilder(200);
     for (int i = startToken; i <= endToken; i++) {
       sb.append(tokens.get(i).getOriginal());
       if (i + 1 <= endToken) {
@@ -63,7 +80,7 @@ public class Tokens implements Iterable<Token>, Serializable {
   }
 
   public String toTextLemmatized(int startToken, int endToken) {
-    StringBuffer sb = new StringBuffer(200);
+    StringBuilder sb = new StringBuilder(200);
     for (int i = startToken; i <= endToken; i++) {
       sb.append(tokens.get(i).getLemma());
       if (i + 1 <= endToken) {
@@ -75,7 +92,7 @@ public class Tokens implements Iterable<Token>, Serializable {
 
   public String toText() {
     Integer id = RunningTimer.recordStartTime("Tokens.toText");
-    StringBuffer sb = new StringBuffer(200);
+    StringBuilder sb = new StringBuilder(200);
     sb.append(originalStart);
     for (int i = 0; i < tokens.size(); i++) {
       sb.append(tokens.get(i).getOriginal());
@@ -92,7 +109,7 @@ public class Tokens implements Iterable<Token>, Serializable {
    * @return
    */
   public String toTextCoNLL() {
-    StringBuffer sb = new StringBuffer(200);
+    StringBuilder sb = new StringBuilder(200);
     sb.append(originalStart);
     for (int i = 0; i < tokens.size(); i++) {
       sb.append(tokens.get(i).getOriginal());
@@ -219,5 +236,13 @@ public class Tokens implements Iterable<Token>, Serializable {
     for(Token tok : tokens){
       tok.setPageNumber(pNumber);
     }
+  }
+
+  public void setTransientTokenIds(TObjectIntHashMap<String> tokenIds) {
+    transientTokenIds = tokenIds;
+  }
+
+  public int getIdForTransientToken(String token) {
+    return transientTokenIds.get(token);
   }
 }

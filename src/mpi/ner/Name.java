@@ -40,6 +40,7 @@ public class Name {
 
 	public void setName(String name) {
 		this.name = name;
+		this.length = name.length();
 	}
 
 	public int getStart() {
@@ -84,10 +85,6 @@ public class Name {
 
 	public int getLength() {
 		return length;
-	}
-
-	public void setLength(int length) {
-		this.length = length;
 	}
 
 	@Override

@@ -76,10 +76,8 @@ public class AidaRESTJsonResults {
       String url = (String)jEntity.get("url");
       String knowledgebase = (String)jEntity.get("knowledgebase");
       String depictionurl = (String)jEntity.get("depictionurl");
-      String depictionthumbnailurl = (String)jEntity.get("depictionthumbnailurl");
 			hshMetaData.put((String)jEntity.get("name"), new EntityMetaData(id, 
-			    humanReadableRepresentation, url, knowledgebase, depictionurl, 
-			    depictionthumbnailurl));
+			    humanReadableRepresentation, url, knowledgebase, depictionurl));
 		}
 		return hshMetaData;
 	}

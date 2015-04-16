@@ -52,28 +52,30 @@ public class PersonMerger {
 
   private List<ResultMention> getPersonMentions(
       ChunkDisambiguationResults disambiguationResults) {
-    List<ResultMention> personMentions = new ArrayList<>();
-    Map<KBIdentifiedEntity, ResultMention> kbEntities2mentions = new HashMap<>();
-    for (Entry<ResultMention, List<ResultEntity>> e : 
-      disambiguationResults.getAllResults().entrySet()) {
-      List<ResultEntity> rankedEntities = e.getValue();
-      if (rankedEntities != null && rankedEntities.size() > 0) {
-        kbEntities2mentions.put(
-            rankedEntities.get(0).getKbEntity(), e.getKey());
-      }
-    }
-    
-    Entities entities = AidaManager.getEntities(kbEntities2mentions.keySet());    
-    TIntObjectHashMap<Set<Type>> entityTypes = DataAccess.getTypes(entities);
-    Type person = new Type("YAGO", Basics.PERSON);
-    for (Entity e : entities) {
-      Set<Type> types = entityTypes.get(e.getId());
-      if (types.contains(person)) {
-        personMentions.add(kbEntities2mentions.get(e.getKbIdentifiedEntity()));
-      }
-    }
-    
-    return personMentions;
+    return disambiguationResults.getResultMentions();
+
+//    List<ResultMention> personMentions = new ArrayList<>();
+//    Map<KBIdentifiedEntity, ResultMention> kbEntities2mentions = new HashMap<>();
+//    for (Entry<ResultMention, List<ResultEntity>> e :
+//      disambiguationResults.getAllResults().entrySet()) {
+//      List<ResultEntity> rankedEntities = e.getValue();
+//      if (rankedEntities != null && rankedEntities.size() > 0) {
+//        kbEntities2mentions.put(
+//            rankedEntities.get(0).getKbEntity(), e.getKey());
+//      }
+//    }
+//
+//    Entities entities = AidaManager.getEntities(kbEntities2mentions.keySet());
+//    TIntObjectHashMap<Set<Type>> entityTypes = DataAccess.getTypes(entities);
+//    Type person = new Type("YAGO", Basics.PERSON);
+//    for (Entity e : entities) {
+//      Set<Type> types = entityTypes.get(e.getId());
+//      if (types.contains(person)) {
+//        personMentions.add(kbEntities2mentions.get(e.getKbIdentifiedEntity()));
+//      }
+//    }
+//
+//    return personMentions;
   }
 
   private void assignBestEntity(
@@ -116,9 +118,7 @@ public class PersonMerger {
             // Note: One could also check that the candidate of the
             // superMention is actually also present in the current mention,
             // then just put this one first.            
-            logger_.debug("PersonMerger assigned to " + m + ": " + 
-                superAssigned + " (from " + sm + "). Original was " +
-                assigned);
+            logger_.debug("PersonMerger: [" + m + "//" + assigned + "] => [" + sm + "//" + superAssigned + "]");
             Counter.incrementCount("PERSONS_MERGED");
             disambiguationResults.getResultEntities(m).clear();
             disambiguationResults.getResultEntities(m).add(superAssigned);

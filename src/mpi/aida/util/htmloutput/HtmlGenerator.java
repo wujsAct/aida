@@ -6,6 +6,10 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import mpi.aida.config.AidaConfig;
+import mpi.aida.config.settings.PreparationSettings.LANGUAGE;
+
+import org.apache.commons.lang.StringEscapeUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -17,34 +21,18 @@ import org.json.simple.parser.JSONParser;
  */
 public class HtmlGenerator {
 
-  private String inputFile;
-  private JSONObject jsonContent;
-  
-  /**
-   * Initializes Converter object with input details
-   * 
-   * @param content The original string submitted for disambiguation.
-   * @param jsonRepr JSON representation of the disambiguated results.
-   * @param inputFile The name of the input file submitted.
-   * @param input Constructed PreparedInput object.
-   */
-  public HtmlGenerator(String jsonRepr, String inputFile) throws Exception {
-    this.inputFile = inputFile;
-    JSONParser jParser = new JSONParser();
-    this.jsonContent = (JSONObject) jParser.parse(jsonRepr);
-  }
-  
   /**
    * This method generates HTML from given JSON representation of disambiguated result
-   * 
-   * @param jsonRepr A JSON string of disambiguated result.
+   *
+   * @param docTitle Title of the HTML document.
+   * @param jsonResult A JSONObject containing the disambiguation results.
    * @return HTML body as a string
    * @throws Exception
    */
-  public String constructFromJson(String jsonRepr) throws Exception {
+  public String constructFromJson(String docTitle, JSONObject jsonResult) throws Exception {
     //GenerateWebHtml gen = new GenerateWebHtml();
     //String html = gen.processJSON(content, input, jsonRepr, false);
-    StringBuilder sb = constructHTML(null);
+    StringBuilder sb = constructHTML(docTitle, jsonResult, null);
     sb.append("</body></html>");
     return sb.toString().replaceAll("\n", "<br />");
   }
@@ -57,9 +45,9 @@ public class HtmlGenerator {
    */
   public String generateHeading(String content, int level){
       String tagVal = "h"+level;
-      String res = getTag(tagVal, false);
+      String res = "<" + tagVal + ">";
       res = res.concat(content);
-      res = res.concat(getTag(tagVal, true));
+      res = res.concat("</" + tagVal + ">");
       return res;
   }
 
@@ -67,27 +55,34 @@ public class HtmlGenerator {
    * Generates HTML snippet of annotated text with all hyperlinks.
    * @return HTML snippet for annotated string.
    */
-  public String getAnnotatedText(){
+  public String getAnnotatedText(JSONObject jsonContent) {
     Map<String, String> url2rep = new HashMap<String, String>();
     JSONObject entities = (JSONObject) jsonContent.get("entityMetadata");
     for (Object o : entities.keySet()) {
       String id = (String) o;
       url2rep.put(
-          (String) ((JSONObject) entities.get(id)).get("url"),
+          (String) ((JSONObject) entities.get(id)).get("entityId"),
           (String) ((JSONObject) entities.get(id)).get("readableRepr"));
     }
-    String annotatedText = (String)jsonContent.get("annotatedText");    
+    String annotatedText = (String)jsonContent.get("annotatedText");
     Pattern pattern = Pattern.compile("\\[\\[([^|]+)\\|([^]]+)\\]\\]");
     Matcher matcher = pattern.matcher(annotatedText);
     StringBuffer sb =  new StringBuffer();
     int current = 0;
     while (matcher.find()){
       sb.append(annotatedText.substring(current, matcher.start()));
-      String url = matcher.group(1);
+      String kbId = matcher.group(1);
       String mention = matcher.group(2);
-      String representation = url2rep.get(url);
+      String representation = (String) ((JSONObject) entities.get(kbId)).get("readableRepr");
+      if(representation == null) {
+        representation = kbId;
+      }
+      String url = (String) ((JSONObject) entities.get(kbId)).get("url");
+      if(url == null) {
+        url = kbId;
+      }
       sb.append("<span class='eq'>" + mention + "</span>");
-      sb.append(" <small>[<a href=" + url + ">" + representation + "</a>]</small>");
+      sb.append(" <small>[<a href=" + StringEscapeUtils.escapeHtml(url) + ">" + StringEscapeUtils.escapeHtml(representation) + "</a>]</small>");
       current = matcher.end();
     }
     sb.append(annotatedText.substring(current, annotatedText.length()));
@@ -99,64 +94,76 @@ public class HtmlGenerator {
    * @return HTML snippet
    */
   @SuppressWarnings("rawtypes")
-  public String generateMEHtml(){
-    JSONArray mentions = (JSONArray)jsonContent.get("mentions");
+  public String generateMEHtml(JSONObject jsonContent){
+    JSONArray mentions = (JSONArray) jsonContent.get("mentions");
+    JSONObject entityMetadata = (JSONObject) jsonContent.get("entityMetadata");
     Iterator itMention = mentions.iterator();
     StringBuilder htmlList = new StringBuilder();
     //htmlList.append(generateHeading("Mappings", 2));
-    htmlList.append(getTag("ul", false));
+    htmlList.append("<ul>");
     while(itMention.hasNext()){
-      htmlList.append(getTag("li", false));
+      htmlList.append("<li>");
       JSONObject tmpMention = (JSONObject)itMention.next();
-      htmlList.append("["+(String)jsonContent.get("docID")+"] ");
-      htmlList.append((String)tmpMention.get("name")+" ( ");
-      htmlList.append((Long)tmpMention.get("length")+"/");
-      htmlList.append((Long)tmpMention.get("offset")+") -> [");
+//      htmlList.append("["+(String)jsonContent.get("docID")+"] ");
+      htmlList.append("<strong>\"").append(tmpMention.get("name")).append("\"</strong>");
+      htmlList.append(" <em>[").append(tmpMention.get("offset")).append("]</em>");
+      htmlList.append("<ul>");
       JSONArray entities = (JSONArray)tmpMention.get("allEntities");
       for (int i = 0; i < entities.size(); ++i) {
+        htmlList.append("<li>");
         JSONObject entity = (JSONObject) entities.get(i);
-        htmlList.append((String)entity.get("kbIdentifier"));
-        htmlList.append("("+(String)entity.get("disambiguationScore")+")");
-        if(i < entities.size() - 1) {
-          htmlList.append(", ");
+        String kbId = (String) entity.get("kbIdentifier");
+        String url = (String) ((JSONObject) entityMetadata.get(kbId)).get("url");
+        String hkbId = StringEscapeUtils.escapeHtml(kbId);
+        if(url == null) {
+          url = "";
         }
+        htmlList.append("<a href=\"").append(url).append("\">").append(hkbId).append("</a>");
+        htmlList.append(" (" + entity.get("disambiguationScore") + ")");
+        htmlList.append("</li>");
       }
-      htmlList.append("]");
-      htmlList.append(getTag("li",true));
+      htmlList.append("</ul>");
+      htmlList.append("</li>");
     }
-    htmlList.append(getTag("ul", true));
+    htmlList.append("</ul>");
     return htmlList.toString();
   }
 
-  private String getTag(String tagValue, boolean endTag){
+  private StringBuilder constructHTML(String docTitle, JSONObject jsonContent, String html) {
     StringBuilder sb = new StringBuilder();
-    sb.append("<");
-    if(endTag)
-      sb.append("/");
-    sb.append(tagValue);
-    sb.append(">");
-    return sb.toString();
-  }
-
-  private StringBuilder constructHTML(String html) {
-    StringBuilder sb = new StringBuilder();
-    sb.append("<html><head><title>").append(inputFile).append("</title>");
+    String htmlTag = "<html>";
+    if(AidaConfig.getLanguage() == LANGUAGE.ar) {
+      htmlTag = "<html dir='rtl' lang='ar'>";
+    }
+    sb.append(htmlTag + "<head><title>AIDA annotations for ").append(docTitle).append("</title>");
     sb.append("<meta http-equiv='content-type'");
     sb.append("CONTENT='text/html; charset=utf-8' />");
     sb.append("<style type='text/css'>");
+    sb.append("html { font-family: sans-serif; } ");
+    sb.append("body { padding: 10pt; } ");
+    sb.append("a { background: 0 0 } ");
+    sb.append("a:active, a:hover { outline: 0 } ");
+    sb.append("b, strong { font-weight: 700 } ");
+    sb.append("h1 { font-size: 2em; margin: .67em 0 } ");
+    sb.append("small { font-size: 80% } ");
+    sb.append("img { border: 0 } ");
+    sb.append("hr { -moz-box-sizing: content-box; box-sizing: content-box; height: 0 } ");
+    sb.append("table { border-collapse: collapse; border-spacing: 0 } ");
+    sb.append("td, th { padding: 0 } ");
     sb.append(".eq { background-color:#87CEEB } ");
     sb.append("</style>").append("<body>");
-    sb.append(generateHeading(inputFile, 1));
-    sb.append("\n");
-    sb.append(generateHeading("AnotatedText", 2));
-    sb.append(getAnnotatedText());
+    sb.append(generateHeading("AIDA annotations for " + docTitle, 1));
+//    sb.append(generateHeading("AnotatedText", 2));
+    sb.append("<div id='annotatedText'>");
+    sb.append(getAnnotatedText(jsonContent));
+    sb.append("</div>");
     sb.append("\n");
     if(html!=null)
       sb.append(html);
     else
     {
-      sb.append("<h2>All Mappings</h2>");
-      sb.append(generateMEHtml());
+      sb.append("<h2>Mentions and Entities</h2>");
+      sb.append(generateMEHtml(jsonContent));
     }
     return sb;
   }

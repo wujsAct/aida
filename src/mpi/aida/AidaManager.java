@@ -1,6 +1,5 @@
 package mpi.aida;
 
-import gnu.trove.iterator.TIntObjectIterator;
 import gnu.trove.iterator.TObjectIntIterator;
 import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
@@ -9,32 +8,27 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
 
 import javax.sql.DataSource;
 
 import mpi.aida.access.DataAccess;
-import mpi.aida.config.AidaConfig;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
+import mpi.aida.data.ExternalEntitiesContext;
 import mpi.aida.data.KBIdentifiedEntity;
 import mpi.aida.data.Mention;
 import mpi.aida.data.Mentions;
-import mpi.aida.data.OokbEntity;
-import mpi.aida.data.Type;
 import mpi.aida.util.ClassPathUtils;
-import mpi.aida.util.Counter;
 import mpi.aida.util.YagoUtil.Gender;
 import mpi.aida.util.timing.RunningTimer;
-import mpi.tokenizer.data.Tokenizer;
+import mpi.experiment.trace.Tracer;
+import mpi.experiment.trace.data.EntityTracer;
+import mpi.experiment.trace.data.MentionTracer;
 import mpi.tokenizer.data.TokenizerManager;
-import mpi.tokenizer.data.Tokens;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,16 +42,16 @@ public class AidaManager {
     // Always need to do this.
     init();
   }
-  
+
   private static Logger slogger_ = LoggerFactory.getLogger(AidaManager.class);
 
   // This is more couple to SQL than it should be. Works for now.
   public static final String DB_AIDA = "DatabaseAida";
-  
+
   public static final String DB_YAGO2 = "DatabaseYago";
 
   public static final String DB_YAGO3 = "DatabaseYago3";
-  
+
   public static final String DB_YAGO2_FULL = "DatabaseYago2Full";
 
   public static final String DB_YAGO2_SPOTLX = "DatabaseYago2SPOTLX";
@@ -67,9 +61,9 @@ public class AidaManager {
   public static final String DB_HYENA = "DatabaseHYENA";
 
   public static final String DB_WEBSERVICE_LOGGER = "DatabaseWSLogger";
-  
+
   public static String databaseAidaConfig = "database_aida.properties";
-  
+
   private static String databaseYago2Config = "database_yago2.properties";
 
   public static String databaseYago3Config = "database_yago3.properties";
@@ -79,7 +73,7 @@ public class AidaManager {
   private static String databaseRMILoggerConfig = "databaseRmiLogger.properties";
 
   private static String databaseWSLoggerConfig = "databaseWsLogger.properties";
-  
+
   private static String databaseHYENAConfig = "database_hyena.properties";
 
   public static final String WIKIPEDIA_PREFIX = "http://en.wikipedia.org/wiki/";
@@ -87,9 +81,9 @@ public class AidaManager {
   public static final String YAGO_PREFIX = "http://yago-knowledge.org/resource/";
 
   private static Map<String, String> dbIdToConfig = new HashMap<String, String>();
-  
+
   private static Map<String, Properties> dbIdToProperties = new HashMap<String, Properties>();
-  
+
   private static Map<String, DataSource> dbIdToDataSource = new HashMap<>();
 
   static {
@@ -108,32 +102,6 @@ public class AidaManager {
     english, german
   }
 
-  private static final Set<String> malePronouns = new HashSet<String>() {
-
-    private static final long serialVersionUID = 2L;
-    {
-      add("He");
-      add("he");
-      add("Him");
-      add("him");
-      add("His");
-      add("his");
-    }
-  };
-
-  private static final Set<String> femalePronouns = new HashSet<String>() {
-
-    private static final long serialVersionUID = 3L;
-    {
-      add("she");
-      add("she");
-      add("Her");
-      add("her");
-      add("Hers");
-      add("hers");
-    }
-  };
-
   public static void init() {
     getTasksInstance();
   }
@@ -143,67 +111,16 @@ public class AidaManager {
       tasks = new AidaManager();
     }
     return tasks;
-  }
+  }  
 
- 
+  public static String getAidaDbIdentifier() throws SQLException {
+    // Make sure properties are loaded.
+    Connection con = getConnectionForDatabase(DB_AIDA);
+    releaseConnection(con);
 
-  /**
-   * tokenizes only the text,
-   * 
-   * @param docId
-   * @param text
-   * @return
-   */
-  public static Tokens tokenize(String text, boolean lemmatize) {
-    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.TOKENS, lemmatize);
-  }
-
-  public static Tokens tokenize(String text) {
-    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.TOKENS, false);
-  }
-
-  /**
-   * tokenizes the text with POS and NER
-   * 
-   * @param docId
-   * @param text
-   * @return
-   */
-  public static Tokens tokenizeNER( String text, boolean lemmatize) {
-    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.NER, lemmatize);
-  }
-
-  /**
-   * tokenizes the text with POS
-   * 
-   * @param docId
-   * @param text
-   * @return
-   */
-  public static Tokens tokenizePOS(String text, boolean lemmatize) {
-    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.POS, lemmatize);
-  }
-
-  /**
-   * tokenizes the text with PARSE
-   * 
-   * @param docId
-   * @param text
-   * @return
-   */
-  public static Tokens tokenizePARSE(String text, boolean lemmatize) {
-    return AidaManager.getTasksInstance().tokenize(text, Tokenizer.type.PARSE, lemmatize);
-  }
-
-  /**
-   * tokenizes the text with PARSE
-   * 
-   * @param docId
-   * @param text
-   * @return
-   */
-  public static Tokens tokenizePARSE(String text, Tokenizer.type type, boolean lemmatize) {
-    return AidaManager.getTasksInstance().tokenize(text, type, lemmatize);
+    // Get database name
+    Properties prop = dbIdToProperties.get(DB_AIDA);
+    return prop.getProperty("dataSource.databaseName");
   }
 
   public static Connection getConnectionForDatabase(String dbId) throws SQLException {
@@ -218,7 +135,7 @@ public class AidaManager {
     }
     return getConnectionForNameAndProperties(dbId, prop);
   }
-  
+
   public static Connection getConnectionForNameAndProperties(String dbId, Properties prop) throws SQLException {
     DataSource ds = null;
     synchronized (dbIdToDataSource) {
@@ -229,7 +146,7 @@ public class AidaManager {
           String database = prop.getProperty("dataSource.databaseName");
           String username = prop.getProperty("dataSource.user");
           String port = prop.getProperty("dataSource.portNumber");
-          if (port == null) { 
+          if (port == null) {
             port = "5432"; // Standard postgres port.
           }
           slogger_.info("Connecting to database " + username + "@" + serverName + ":" + port + "/" + database);
@@ -244,7 +161,7 @@ public class AidaManager {
       }
     }
     if (ds == null) {
-      slogger_.error("Could not connect to the database. " + 
+      slogger_.error("Could not connect to the database. " +
           "Please check the settings in '" + dbIdToConfig.get(dbId) +
           "' and make sure the Postgres server is up and running.");
       return null;
@@ -260,7 +177,7 @@ public class AidaManager {
       Integer maxCon, String database) {
     Properties prop = new Properties();
     prop.put("dataSourceClassName", "org.postgresql.ds.PGSimpleDataSource");
-    prop.put("maximumPoolSize", maxCon);    
+    prop.put("maximumPoolSize", maxCon);
     prop.put("dataSource.user", username);
     prop.put("dataSource.password", password);
     prop.put("dataSource.databaseName", database);
@@ -280,7 +197,7 @@ public class AidaManager {
   /**
    * Gets an AIDA entity for the given entity id.
    * This is slow, as it accesses the DB for each call.
-   * Do in batch using DataAccess directly for a larger number 
+   * Do in batch using DataAccess directly for a larger number
    * of entities.
    * 
    * @return              AIDA Entity
@@ -291,7 +208,7 @@ public class AidaManager {
   }
 
   public static Entities getEntities(Set<KBIdentifiedEntity> kbEntities) {
-    TObjectIntHashMap<KBIdentifiedEntity> ids = 
+    TObjectIntHashMap<KBIdentifiedEntity> ids =
         DataAccess.getInternalIdsForKBEntities(kbEntities);
     Entities entities = new Entities();
     for(TObjectIntIterator<KBIdentifiedEntity> itr = ids.iterator(); itr.hasNext(); ) {
@@ -304,10 +221,10 @@ public class AidaManager {
   /**
    * Gets an AIDA entity for the given AIDA entity id.
    * This is slow, as it accesses the DB for each call.
-   * Do in batch using DataAccess directly for a larger number 
+   * Do in batch using DataAccess directly for a larger number
    * of entities.
    * 
-   * @param entityId  Internal AIDA int ID 
+   * @param entityId  Internal AIDA int ID
    * @return          AIDA Entity
    */
   public static Entity getEntity(int entityId) {
@@ -316,186 +233,55 @@ public class AidaManager {
   }
 
   /**
-   * Returns the potential entity candidates for a mention (from AIDA dictionary)
-   * 
-   * @param mention
-   *            Mention to get entity candidates for
-   * @return Candidate entities for this mention.
-   * 
+   * Extracts all candidate entities from a Mentions collection, not including the ones that have been
+   * passed as ExternalEntitiesContext. It also adds tracers if a Tracer has been passed.
+   *
+   * @param mentions mentions to extract candidates from.
+   * @param externalContext Context that has been passed externally.
+   * @param tracer  Tracer to trace mention-entity objects.
+   * @return All (non-external) candidate entities of the input.
    */
-  public static Entities getEntitiesForMention(Mention mention) {
-    return getEntitiesForMention(mention, 1.0);
-  }
-
-  /**
-   * Returns the potential entity candidates for a mention (from AIDA dictionary)
-   * 
-   * @param mention
-   *            Mention to get entity candidates for
-   * @param maxEntityRank Retrieve entities up to a global rank, where rank is 
-   * between 0.0 (best) and 1.0 (worst). Setting to 1.0 will retrieve all entities.
-   * @return Candidate entities for this mention.
-   * 
-   */
-  public static Entities getEntitiesForMention(Mention mention, double maxEntityRank) {
-    Set<String> normalizedMentions = mention.getNormalizedMention();
+  public static Entities getAllEntities(
+          Mentions mentions, ExternalEntitiesContext externalContext, Tracer tracer) {
     Entities entities = new Entities();
-    Map<String, Entities> entitiesMap = DataAccess.getEntitiesForMentions(normalizedMentions, maxEntityRank);
-    for(Entry<String, Entities> entry : entitiesMap.entrySet()) {
-      entities.addAll(entry.getValue());
+    for (Mention mention : mentions.getMentions()) {
+      MentionTracer mt = new MentionTracer(mention);
+      tracer.addMention(mention, mt);
+      for (Entity entity : mention.getCandidateEntities()) {
+        EntityTracer et = new EntityTracer(entity.getId());
+        tracer.addEntityForMention(mention, entity.getId(), et);
+      }
+      for (Entity entity : mention.getCandidateEntities()) {
+        if (!externalContext.contains(entity)) {
+          entities.add(entity);
+        }
+      }
     }
     return entities;
   }
 
-
   public static TIntObjectHashMap<Gender> getGenderForEntities(Entities entities) {
     return DataAccess.getGenderForEntities(entities);
-  }
-
-  public static void fillInCandidateEntities(Mentions mentions) throws SQLException {
-    fillInCandidateEntities(mentions, false, false, 1.0);
-  }
-
-  /**
-   * Retrieves all the candidate entities for the given mentions.
-   * 
-   * @param mentions  All mentions in the input doc.
-   * @param includeNullEntityCandidates Set to true to include mentions flagged
-   * as NME in the ground-truth data.
-   * @param includeContextMentions  Include mentions as context.
-   * @param maxEntityRank Fraction of entities to include. Between 0.0 (none)
-   * and 1.0 (all). The ranks are taken from the entity_rank table.
-   * @throws SQLException
-   */
-  public static void fillInCandidateEntities(Mentions mentions, boolean includeNullEntityCandidates, boolean includeContextMentions,
-      double maxEntityRank) throws SQLException {
-    //flag to be used when having entities from different knowledge bases
-    //and some of them are linked by a sameAs relation
-    //currently applicable only for the configuration GND_PLUS_YAGO
-    Integer id = RunningTimer.recordStartTime("AidaManager:fillInCandidates");
-    boolean removeDuplicateEntities = false;
-    if(DataAccess.getConfigurationName().equals("GND_PLUS_YAGO")) {
-      removeDuplicateEntities = true;
-    }
-    
-    Set<Type> filteringTypes = mentions.getEntitiesTypes();
-    //TODO This method shouldn't be doing one DB call per mention!
-    for (int i = 0; i < mentions.getMentions().size(); i++) {
-      Mention m = mentions.getMentions().get(i);
-      Entities mentionCandidateEntities;
-      if (malePronouns.contains(m.getMention()) || femalePronouns.contains(m.getMention())) {
-        setCandiatesFromPreviousMentions(mentions, i);
-      } else {
-          mentionCandidateEntities = AidaManager.getEntitiesForMention(m, maxEntityRank);
-        // Check for fallback options when no candidate was found using direct lookup.
-        if(mentionCandidateEntities.size() == 0) {
-          slogger_.debug("No candidates found for " + m);
-          Counter.incrementCount("MENTION_WITHOUT_CANDIDATE");
-          
-          boolean doDictionaryFuzzyMatching = AidaConfig.getBoolean(AidaConfig.DICTIONARY_FUZZY_MATCHING);
-          boolean doLshMatching = AidaConfig.getBoolean(AidaConfig.DICTIONARY_LSH_MATCHING);
-          if (doDictionaryFuzzyMatching) {
-            double minSim = AidaConfig.getDouble(AidaConfig.DICTIONARY_FUZZY_MATCHING_MIN_SIM);
-            mentionCandidateEntities = DataAccess.getEntitiesForMentionByFuzzyMatcyhing(m.getMention(), minSim);
-            if (mentionCandidateEntities.size() > 0) {
-              Counter.incrementCount("MENTION_CANDIDATE_BY_PG_FUZZY");
-            }
-          }
-        }          
-
-        int candidateCount = mentionCandidateEntities.size();
-        mentionCandidateEntities = filterEntitiesByType(mentionCandidateEntities, filteringTypes);
-        int filteredCandidateCount = mentionCandidateEntities.size();
-        if (filteredCandidateCount < candidateCount) {
-          Counter.incrementCountByValue("MENTION_CANDIDATE_FILTERED_BY_TYPE", candidateCount - filteredCandidateCount);
-        }
-        if (includeNullEntityCandidates) {
-          Entity nmeEntity = new OokbEntity(m.getMention()); 
-
-          // add surrounding mentions as context
-          if (includeContextMentions) {
-            List<String> surroundingMentionsNames = new LinkedList<String>();
-            int begin = Math.max(i - 2, 0);
-            int end = Math.min(i + 3, mentions.getMentions().size());
-
-            for (int s = begin; s < end; s++) {
-              if (s == i) continue; // skip mention itself
-              surroundingMentionsNames.add(mentions.getMentions().get(s).getMention());
-            }
-            nmeEntity.setSurroundingMentionNames(surroundingMentionsNames);
-          }
-
-          mentionCandidateEntities.add(nmeEntity);
-        }
-        m.setCandidateEntities(mentionCandidateEntities);
-      }
-    }
-    RunningTimer.recordEndTime("AidaManager:fillInCandidates", id);
-  }
-
-  /**
-   * Filters the entity candidates against the given list of types
-   * 
-   * @param entities Entities to filter'
-   * @param filteringTypes Set of types to filter the entities against
-   * @return filtered entities
-   */
-  private static Entities filterEntitiesByType(Entities entities, Set<Type> filteringTypes) {
-    if(filteringTypes == null) {
-      return entities;
-    }
-    Entities filteredEntities = new Entities();
-    TIntObjectHashMap<Set<Type>> entitiesTypes = DataAccess.getTypes(entities);
-    for (TIntObjectIterator<Set<Type>> itr = entitiesTypes.iterator(); 
-        itr.hasNext(); ) {
-      itr.advance();
-      int id = itr.key();
-      Set<Type> entityTypes = itr.value();
-      for (Type t : entityTypes) {
-        if (filteringTypes.contains(t)) {
-          filteredEntities.add(entities.getEntityById(id));
-          break;
-        }
-      }
-    }
-    return filteredEntities;
-  }
-
-  private static void setCandiatesFromPreviousMentions(Mentions mentions, int mentionIndex) {
-    Mention mention = mentions.getMentions().get(mentionIndex);
-    Entities allPrevCandidates = new Entities();
-    if (mentionIndex == 0) {
-      mention.setCandidateEntities(allPrevCandidates);
-      return;
-    }
-
-    for (int i = 0; i < mentionIndex; i++) {
-      Mention m = mentions.getMentions().get(i);
-      for (Entity e : m.getCandidateEntities()) {
-        allPrevCandidates.add(e);
-      }
-    }
-
-    TIntObjectHashMap<Gender> entitiesGenders = AidaManager.getGenderForEntities(allPrevCandidates);
-
-    Gender targetGender = null;
-    if (malePronouns.contains(mention.getMention())) targetGender = Gender.MALE;
-    else if (femalePronouns.contains(mention.getMention())) targetGender = Gender.FEMALE;
-
-    Entities filteredCandidates = new Entities();
-    for (Entity e : allPrevCandidates) {
-      if (entitiesGenders != null && entitiesGenders.containsKey(e.getId()) 
-          && entitiesGenders.get(e.getId()) == targetGender) filteredCandidates
-          .add(e);
-    }
-    mention.setCandidateEntities(filteredCandidates);
   }
 
   private AidaManager() {
     TokenizerManager.init();
   }
 
-  private Tokens tokenize(String text, Tokenizer.type type, boolean lemmatize) {
-    return TokenizerManager.tokenize(text, type, lemmatize);
+  /**
+   * Uppercases a token of more than 4 characters. This is
+   * used as pre-processing method during name recognition
+   * and dictionary matching mainly.
+   *
+   * @param token Token to check for conflation.
+   * @return  ALL-UPPERCASE token if token is longer than 4 characters.
+   */
+  public static String conflateToken(String token) {
+    if (token.length() >= 4) {
+      token = token.toUpperCase(Locale.ENGLISH);
+    }
+
+    return token;
   }
+
 }

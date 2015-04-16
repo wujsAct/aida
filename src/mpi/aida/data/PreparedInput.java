@@ -7,13 +7,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.google.common.collect.Range;
 import mpi.aida.access.DataAccess;
 import mpi.aida.util.filereading.FileEntries;
 import mpi.tokenizer.data.Token;
@@ -33,6 +33,23 @@ public class PreparedInput implements Iterable<PreparedInputChunk> {
   private Logger logger_ = LoggerFactory.getLogger(PreparedInput.class);
   
   private String docId_;
+
+  /**
+   * The title of the document. Not part of the text that will be disambiguated.
+   */
+  private String title_;
+
+  private String text_;
+
+  /**
+   * The range of the title in the text_.
+   */
+  private Range<Integer> titleRange_;
+
+  /**
+   * The range of the abstract in the text_.
+   */
+  private Range<Integer> abstractRange_;
   
   private List<PreparedInputChunk> chunks_;
 
@@ -45,8 +62,9 @@ public class PreparedInput implements Iterable<PreparedInputChunk> {
   
   private Set<String> punctuations_ = getPuncuations();
   
-  public PreparedInput(String docId, List<PreparedInputChunk> chunks) {
+  public PreparedInput(String docId, String text, List<PreparedInputChunk> chunks) {
     setDocId(docId);
+    text_ = text;
     chunks_ = chunks;
   }
   
@@ -62,6 +80,30 @@ public class PreparedInput implements Iterable<PreparedInputChunk> {
 
   public String getDocId() {
     return docId_;
+  }
+
+  public String getTitle() {
+    return title_;
+  }
+
+  public void setTitle(String title) {
+    this.title_ = title;
+  }
+
+  public Range getTitleRange() {
+    return titleRange_;
+  }
+
+  public void setTitleRange(Range titleRange) {
+    this.titleRange_ = titleRange;
+  }
+
+  public Range getAbstractRange() {
+    return abstractRange_;
+  }
+
+  public void setAbstractRange(Range abstractRange) {
+    this.abstractRange_ = abstractRange;
   }
 
   public int getMentionSize() {
@@ -94,6 +136,10 @@ public class PreparedInput implements Iterable<PreparedInputChunk> {
       }
     }
     return allMentions;
+  }
+
+  public String getOriginalText() {
+    return text_;
   }
 
   @Override
@@ -240,7 +286,7 @@ public class PreparedInput implements Iterable<PreparedInputChunk> {
     // TODO(jhoffart): what about OOKBE?
     if (!includeOutOfDictionaryMentions) {
       Map<String, Entities> candidates = 
-          DataAccess.getEntitiesForMentions(mentions.getMentionNames(), 1.0);
+          DataAccess.getEntitiesForMentions(mentions.getMentionNames(), 1.0, 0);
       Mentions mentionsToInclude = new Mentions();
       for (Mention m : mentions.getMentions()) {
         Entities cands = candidates.get(m.getMention());
@@ -251,11 +297,6 @@ public class PreparedInput implements Iterable<PreparedInputChunk> {
       mentions = mentionsToInclude;
     }
     if (tokens != null) {
-      List<String> content = new LinkedList<String>();
-      for (int p = 0; p < tokens.size(); p++) {
-        Token token = tokens.getToken(p);
-        content.add(token.getOriginal());
-      }
       setTokensPositions(mentions, tokens);
     }
     PreparedInputChunk prepInput = new PreparedInputChunk(docId, tokens, mentions); 

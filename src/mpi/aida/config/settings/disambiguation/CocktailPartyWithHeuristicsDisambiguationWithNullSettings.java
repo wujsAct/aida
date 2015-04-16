@@ -27,37 +27,19 @@ public class CocktailPartyWithHeuristicsDisambiguationWithNullSettings extends C
   
   private Logger logger_ = LoggerFactory.getLogger(CocktailPartyWithHeuristicsDisambiguationWithNullSettings.class);
   
-  public CocktailPartyWithHeuristicsDisambiguationWithNullSettings() throws MissingSettingException {
+  public CocktailPartyWithHeuristicsDisambiguationWithNullSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException {
     super();
     setComputeConfidence(true);
+
+    getGraphSettings().setUseCoherenceRobustnessTest(true);
+    getGraphSettings().setCohRobustnessThreshold(1.15);
+    getGraphSettings().setUseEasyMentionsTest(true);
+    getGraphSettings().setEasyMentionsTestThreshold(5);
+    getGraphSettings().setUseConfidenceThresholdTest(true);
+    getGraphSettings().setConfidenceTestThreshold(0.9);
+    getGraphSettings().setPruneCandidateEntities(true);
+    getGraphSettings().setPruneCandidateThreshold(25);
     
-    //HACK FOR ERD CHALLENGE
-    String erdSettingsFile = "erd.properties";
-    Properties prop = null;
-    try {
-      prop = ClassPathUtils.getPropertiesFromClasspath(erdSettingsFile);
-    } catch (IOException e) {
-      // TODO Auto-generated catch block
-      e.printStackTrace();
-    }
-    
-    
-    getGraphSettings().setUseCoherenceRobustnessTest(Boolean.parseBoolean(prop.getProperty("UseCoherenceRobustnessTest", "true")));
-    getGraphSettings().setCohRobustnessThreshold(Double.parseDouble(prop.getProperty("CohRobustnessThreshold", "1.15")));
-    getGraphSettings().setUseEasyMentionsTest(Boolean.parseBoolean(prop.getProperty("UseEasyMentionsTest", "true")));
-    getGraphSettings().setEasyMentionsTestThreshold(Integer.parseInt(prop.getProperty("EasyMentionsTestThreshold", "5")));
-    getGraphSettings().setUseConfidenceThresholdTest(Boolean.parseBoolean(prop.getProperty("UseConfidenceThresholdTest", "true")));
-    getGraphSettings().setConfidenceTestThreshold(Double.parseDouble(prop.getProperty("ConfidenceTestThreshold", "0.9")));
-    getGraphSettings().setPruneCandidateEntities(Boolean.parseBoolean(prop.getProperty("PruneCandidateEntities", "true")));
-    getGraphSettings().setPruneCandidateThreshold(Integer.parseInt(prop.getProperty("PruneCandidateThreshold", "25")));
-    
-    setNullMappingThreshold(Double.parseDouble(prop.getProperty("NullMappingThreshold", "0.075")));
-    
-    String simSettingFile =  prop.getProperty("SimilaritySettingFilePath", null);
-    if(simSettingFile != null) {
-      logger_.info("Overriding simSettings from file: " + simSettingFile);
-      setSimilaritySettings(new SimilaritySettings(new File(simSettingFile)));
-    }
-    
+    setNullMappingThreshold(0.075);
   }
 }

@@ -115,7 +115,7 @@ public abstract class AidaFormatCollectionReader extends CollectionReader {
     DocumentChunker singleChunker = new SingleChunkDocumentChunker();
     for (String docId : experimentDocIds) {
       PreparedInput preparedInput = 
-          singleChunker.process(docId, tokensMap.get(docId), getDocumentMentions(docId));
+          singleChunker.process(docId, text.get(docId), tokensMap.get(docId), getDocumentMentions(docId));
       preparedInputs.add(preparedInput);
     }
   }
@@ -243,6 +243,8 @@ public abstract class AidaFormatCollectionReader extends CollectionReader {
         mentionsMap.put(docId, mentions);
       }
       breader.close();
+      
+      logger.info("Done loading from " + f.getName());
     } catch (Exception e) {
       logger.error(e.getLocalizedMessage());
     }
@@ -344,7 +346,7 @@ public abstract class AidaFormatCollectionReader extends CollectionReader {
     }
     if (!includeOutOfDictionaryMentions) {
       Map<String, Entities> candidates = 
-          DataAccess.getEntitiesForMentions(mentions.getMentionNames(), 1.0);
+          DataAccess.getEntitiesForMentions(mentions.getMentionNames(), 1.0, 0);
       Mentions mentionsToInclude = new Mentions();
       for (Mention m : mentions.getMentions()) {
         Entities cands = candidates.get(m.getMention());

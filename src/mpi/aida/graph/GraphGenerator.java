@@ -9,11 +9,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import mpi.aida.AidaManager;
 import mpi.aida.config.AidaConfig;
 import mpi.aida.config.settings.DisambiguationSettings;
 import mpi.aida.data.Context;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
+import mpi.aida.data.ExternalEntitiesContext;
 import mpi.aida.data.Mention;
 import mpi.aida.data.Mentions;
 import mpi.aida.data.NullEntity;
@@ -27,8 +29,6 @@ import mpi.aida.util.timing.RunningTimer;
 import mpi.experiment.trace.GraphTracer;
 import mpi.experiment.trace.NullGraphTracer;
 import mpi.experiment.trace.Tracer;
-import mpi.experiment.trace.data.EntityTracer;
-import mpi.experiment.trace.data.MentionTracer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -85,39 +85,13 @@ public class GraphGenerator {
 
   private Graph generateGraph() throws Exception {
     int timerId = RunningTimer.recordStartTime("GraphGenerator");
-    Set<String> mentionStrings = new HashSet<String>();
-    Entities allEntities = getNewEntities();
 
+    // gather candidate entities - and prepare tracing
+    Integer id = RunningTimer.recordStartTime("GatherCandidateEntities");
+    // TODO pass external entities here.
+    Entities allEntities = AidaManager.getAllEntities(mentions, new ExternalEntitiesContext(), tracer);
     if (settings.isIncludeNullAsEntityCandidate()) {
       allEntities.setIncludesOokbeEntities(true);
-    }
-
-    // prepare tracing
-    Integer id = RunningTimer.recordStartTime("PrepareTracer");
-    for (Mention mention : mentions.getMentions()) {
-      MentionTracer mt = new MentionTracer(mention);
-      tracer.addMention(mention, mt);
-
-      for (Entity entity : mention.getCandidateEntities()) {
-        EntityTracer et = new EntityTracer(entity.getId());
-        tracer.addEntityForMention(mention, entity.getId(), et);
-      }
-    }
-    RunningTimer.recordEndTime("PrepareTracer", id);
-    
-    // gather candidate entities - and prepare tracing
-    id = RunningTimer.recordStartTime("GatherCandidateEntities");
-    for (Mention mention : mentions.getMentions()) {
-      MentionTracer mt = new MentionTracer(mention);
-      tracer.addMention(mention, mt);
-      for (Entity entity : mention.getCandidateEntities()) {
-        EntityTracer et = new EntityTracer(entity.getId());
-        tracer.addEntityForMention(mention, entity.getId(), et);
-      }
-
-      String mentionString = mention.getMention();
-      mentionStrings.add(mentionString);
-      allEntities.addAll(mention.getCandidateEntities());
     }
     RunningTimer.recordEndTime("GatherCandidateEntities", id);
     
@@ -150,12 +124,15 @@ public class GraphGenerator {
     EnsembleMentionEntitySimilarity mentionEntitySimilarity = 
         new EnsembleMentionEntitySimilarity(
             mentions, allEntities, context,
-            settings.getSimilaritySettings(), tracer);
+                new ExternalEntitiesContext(), settings.getSimilaritySettings(), tracer);
     logger.debug("Computing the mention-entity similarities...");
     RunningTimer.recordEndTime("EnsembleMentionEntitySimInit", timer);
     // We might drop entities here, so we have to rebuild the list of unique
     // entities
-    allEntities = getNewEntities();
+    allEntities = new Entities();
+    if (settings.isIncludeNullAsEntityCandidate()) {
+      allEntities.setIncludesOokbeEntities(true);
+    }
     // Keep the similarities for all mention-entity pairs, as some are
     // dropped later on.
     Map<Mention, TIntDoubleHashMap> mentionEntityLocalSims =
@@ -177,7 +154,7 @@ public class GraphGenerator {
       }
       
       TIntDoubleHashMap normalizedEntityLocalSims = 
-          CollectionUtils.normalizeScores(entityLocalSims);
+          CollectionUtils.normalizeValuesToSum(entityLocalSims);
       
       Entity bestEntity = null;
 
@@ -266,7 +243,7 @@ public class GraphGenerator {
           docId, "Number of mentions with pruned candidates", 
           Integer.toString(prunedMentionsCount));
       GraphTracer.gTracer.addStat(
-          docId, "Number of mentions set to null before running the algoirhtm", 
+          docId, "Number of mentions set to null before running the algorithm",
           Integer.toString(preGraphNullMentions));
     }
     
@@ -312,7 +289,6 @@ public class GraphGenerator {
    * high enough to fix it.
    * 
    * @param mention
-   * @param entityLocalSims
    * @return best candidate or null if check failed.
    */
   private Entity doConfidenceThresholdCheck(
@@ -348,9 +324,6 @@ public class GraphGenerator {
   /**
    * Prunes candidates, keeping only the top K elements for each mention. K is
    * set in graphSettings.
-   * 
-   * CAVEAT: the actual topK retrieval is done by sorting - if this is too
-   * expensive, replace by heap-based topK retrieval. 
    * 
    * @param mention 
    * 
@@ -392,7 +365,7 @@ public class GraphGenerator {
     EnsembleMentionEntitySimilarity keyphraseSimMeasure = 
         new EnsembleMentionEntitySimilarity(
             mentions, allEntities, context,
-            settings.getGraphSettings().getCoherenceSimilaritySetting(),
+                new ExternalEntitiesContext(), settings.getGraphSettings().getCoherenceSimilaritySetting(),
             tracer);
 
     for (Mention mention : mentions.getMentions()) {
@@ -431,14 +404,6 @@ public class GraphGenerator {
     GraphTracer.gTracer.addStat(docId, "L1 (prior-sim) Mean", Double.toString(l1_mean));
     GraphTracer.gTracer.addStat(docId, "L1 (prior-sim) StdDev", Double.toString(Math.sqrt(variance)));
   }
-  
-  private Entities getNewEntities() {
-    Entities entities = new Entities();
-    if (settings.isIncludeNullAsEntityCandidate()) {
-      entities.setIncludesOokbeEntities(true);
-    }
-    return entities;
-  }
 
   private TIntDoubleHashMap calcPriorDistribution(
       Mention mention, MaterializedPriorProbability pp) {
@@ -460,7 +425,7 @@ public class GraphGenerator {
       sims.put(e.getId(),
               combSimMeasure.calcSimilarity(mention, context, e));
     }
-    return CollectionUtils.normalizeScores(sims);
+    return CollectionUtils.normalizeValuesToSum(sims);
   }
 
   private double calcL1(TIntDoubleHashMap priorDistribution, 

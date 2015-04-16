@@ -79,13 +79,13 @@ public class CollectionUtilsTest {
     Map<Integer, Double> scores = new HashMap<Integer, Double>();
     scores.put(0, 30.0);
     scores.put(1, 70.0);
-    Map<Integer, Double> norm = CollectionUtils.normalizeScores(scores);
+    Map<Integer, Double> norm = CollectionUtils.normalizeValuesToSum(scores);
     assertEquals(0.3, norm.get(0), 0.001);
     assertEquals(0.7, norm.get(1), 0.001);
     
     scores = new HashMap<Integer, Double>();
     scores.put(0, 9.0);
-    norm = CollectionUtils.normalizeScores(scores);
+    norm = CollectionUtils.normalizeValuesToSum(scores);
     assertEquals(1.0, norm.get(0), 0.001);
   }
   
@@ -118,7 +118,7 @@ public class CollectionUtilsTest {
       int chosen = CollectionUtils.getConditionalElement(elements, rand);
       counts.adjustOrPutValue(chosen, 1.0, 1.0);
     }
-    TIntDoubleHashMap actualProbs = CollectionUtils.normalizeScores(counts);
+    TIntDoubleHashMap actualProbs = CollectionUtils.normalizeValuesToSum(counts);
     assertEquals(0.1, actualProbs.get(0), 0.001);
     assertEquals(0.3, actualProbs.get(1), 0.001);
     assertEquals(0.05, actualProbs.get(2), 0.001);

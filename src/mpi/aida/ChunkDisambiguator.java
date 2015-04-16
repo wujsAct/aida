@@ -11,6 +11,7 @@ import mpi.aida.config.AidaConfig;
 import mpi.aida.config.settings.DisambiguationSettings;
 import mpi.aida.data.ChunkDisambiguationResults;
 import mpi.aida.data.Entities;
+import mpi.aida.data.ExternalEntitiesContext;
 import mpi.aida.data.PreparedInputChunk;
 import mpi.aida.data.ResultEntity;
 import mpi.aida.data.ResultMention;
@@ -19,6 +20,7 @@ import mpi.aida.graph.algorithms.CocktailParty;
 import mpi.aida.graph.algorithms.CocktailPartySizeConstrained;
 import mpi.aida.graph.algorithms.DisambiguationAlgorithm;
 import mpi.aida.graph.algorithms.SimpleGreedy;
+import mpi.aida.preparation.lookup.EntityLookupManager;
 import mpi.aida.resultreconciliation.PersonMerger;
 import mpi.aida.util.timing.RunningTimer;
 import mpi.experiment.trace.GraphTracer;
@@ -34,39 +36,49 @@ import org.slf4j.LoggerFactory;
  * 
  */
 public class ChunkDisambiguator implements Callable<ChunkDisambiguationResults> {
-  private static final Logger logger_ = 
+  private static final Logger logger_ =
       LoggerFactory.getLogger(ChunkDisambiguator.class);
+
+  private final PreparedInputChunk input_;
   
-  private PreparedInputChunk input_;
+  private final ExternalEntitiesContext externalContext_;
 
-  private DisambiguationSettings settings_;
+  private final DisambiguationSettings settings_;
 
-  private Tracer tracer_;
-      
-  public ChunkDisambiguator(PreparedInputChunk input, DisambiguationSettings settings,                       
-                      Tracer tracer) {
+  private final Tracer tracer_;
+
+  private final EntityLookupManager entityLookupMgr = EntityLookupManager.singleton();
+
+  public ChunkDisambiguator(PreparedInputChunk input, 
+      ExternalEntitiesContext eec, DisambiguationSettings settings,
+      Tracer tracer) {
     this.input_ = input;
+    this.externalContext_ = eec;
     this.settings_ = settings;
-    this.tracer_ = tracer;    
+    this.tracer_ = tracer;
   }
 
   public ChunkDisambiguationResults disambiguate() throws Exception {
     Integer timerId = RunningTimer.recordStartTime("ChunkDisambiguator");
-    AidaManager.fillInCandidateEntities(input_.getMentions(),
-        settings_.isIncludeNullAsEntityCandidate(), 
-        settings_.isIncludeContextMentions(), settings_.getMaxEntityRank());
-    
+    entityLookupMgr.fillInCandidateEntities(input_.getMentions(),
+        externalContext_.getDictionary(),
+        settings_.isIncludeNullAsEntityCandidate(),
+        settings_.isIncludeContextMentions(),
+        settings_.getMaxEntityRank(),
+        settings_.getMaxCandidatesPerEntityByPrior(),
+        settings_.isMentionLookupPrefix());
+
     Map<ResultMention, List<ResultEntity>> mentionMappings = null;
 
     DisambiguationAlgorithm da = null;
     switch (settings_.getDisambiguationTechnique()) {
       case LOCAL:
-        da = new LocalDisambiguation(input_, settings_, tracer_);
+        da = new LocalDisambiguation(input_, externalContext_, settings_, tracer_);
         break;
         // TODO outdated, adjust.
-//      case LOCAL_ITERATIVE:
-//        mentionMappings = runLocalDisambiguationIterative(input, settings, tracer);
-//        break;
+        //      case LOCAL_ITERATIVE:
+        //        mentionMappings = runLocalDisambiguationIterative(input, settings, tracer);
+        //        break;
       case GRAPH:
         switch(settings_.getDisambiguationAlgorithm()) {
           case COCKTAIL_PARTY:
@@ -78,23 +90,25 @@ public class ChunkDisambiguator implements Callable<ChunkDisambiguationResults> 
           case SIMPLE_GREEDY:
             da = new SimpleGreedy(input_, settings_, tracer_);
             break;
-//          case RANDOM_WALK:
-//            da = new RandomWalk(input_, settings_, tracer_);
-//            break;
+            //          case RANDOM_WALK:
+            //            da = new RandomWalk(input_, settings_, tracer_);
+            //            break;
           default:
             logger_.warn("Unsupported graph algorithm.");
+            // TODO(fkeller): shouldn't there be a return instead of a break?
             break;
         }
         break;
         // TODO outdated, adjust.
-//      case CHAKRABARTI:
-//        mentionMappings = runChakrabartiDisambiguation(input, settings);
+        //      case CHAKRABARTI:
+        //        mentionMappings = runChakrabartiDisambiguation(input, settings);
       default:
+        // TODO(fkeller): shouldn't there be a return instead of a break?
         break;
     }
     mentionMappings = da.disambiguate();
     RunningTimer.recordEndTime("ChunkDisambiguator", timerId);
-    
+
     if (mentionMappings == null) {
       mentionMappings = new HashMap<ResultMention, List<ResultEntity>>();
     }
@@ -113,12 +127,12 @@ public class ChunkDisambiguator implements Callable<ChunkDisambiguationResults> 
       tracerHtml = GraphTracer.gTracer.generateHtml(Integer.toString(input_.getChunkId().hashCode()), target);
       GraphTracer.gTracer.removeDocId(Integer.toString(input_.getChunkId().hashCode()));
     }
-       
-    ChunkDisambiguationResults disambiguationResults = 
+
+    ChunkDisambiguationResults disambiguationResults =
         new ChunkDisambiguationResults(mentionMappings, tracerHtml);
-    
-    boolean doPersonMerging = 
-        AidaConfig.getBoolean(AidaConfig.PERSON_NAME_MERGING);
+
+    boolean doPersonMerging =
+        AidaConfig.getBoolean(AidaConfig.RECONCILER_PERSON_MERGE);
     if (doPersonMerging) {
       PersonMerger pm = new PersonMerger();
       pm.reconcile(disambiguationResults);
@@ -129,12 +143,12 @@ public class ChunkDisambiguator implements Callable<ChunkDisambiguationResults> 
       logger_.debug(
           "Dropping all entities below the score threshold of " + threshold);
 
-      // drop anything below the threshold                  
+      // drop anything below the threshold
       for (ResultMention rm : disambiguationResults.getResultMentions()) {
         double score = disambiguationResults.getBestEntity(rm).getDisambiguationScore();
 
         if (score < threshold) {
-          logger_.debug("Dropping entity:" + 
+          logger_.debug("Dropping entity:" +
               disambiguationResults.getBestEntity(rm) + " for mention:" + rm );
           List<ResultEntity> nme = new ArrayList<ResultEntity>(1);
           nme.add(ResultEntity.getNoMatchingEntity());
@@ -145,10 +159,11 @@ public class ChunkDisambiguator implements Callable<ChunkDisambiguationResults> 
 
     return disambiguationResults;
   }
-
+  
+  // TODO: this seems to be broken
   private void adjustOokbeEntityNames(Map<ResultMention, List<ResultEntity>> solutions) {
-    // Replace name-OOKBE placeholders by plain OOKBE placeholders. 
-    Map<ResultMention, List<ResultEntity>> nmeCleanedResults = 
+    // Replace name-OOKBE placeholders by plain OOKBE placeholders.
+    Map<ResultMention, List<ResultEntity>> nmeCleanedResults =
         new HashMap<ResultMention, List<ResultEntity>>();
 
     for (Entry<ResultMention, List<ResultEntity>> e : solutions.entrySet()) {
@@ -160,9 +175,8 @@ public class ChunkDisambiguator implements Callable<ChunkDisambiguationResults> 
         nmeCleanedResults.put(e.getKey(), e.getValue());
       }
     }
-    solutions = nmeCleanedResults;
   }
-  
+
 
   @Override
   public ChunkDisambiguationResults call() throws Exception {

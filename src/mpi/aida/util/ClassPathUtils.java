@@ -4,10 +4,11 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+
+import mpi.tools.javatools.util.FileUtils;
 
 public class ClassPathUtils {
 
@@ -41,9 +42,10 @@ public class ClassPathUtils {
       throw new FileNotFoundException("property file '" + fileName
           + "' not found in the classpath");
     }
+    
+    
 
-    BufferedReader bufReader = new BufferedReader(new InputStreamReader(
-        inputStream));
+    BufferedReader bufReader = FileUtils.getBufferedUTF8Reader(inputStream);
 
     String line;
     while (true) {

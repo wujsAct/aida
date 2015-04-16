@@ -23,7 +23,7 @@ public class CocktailPartyDisambiguationSettings extends DisambiguationSettings 
     
   private static final long serialVersionUID = 5867674989478781057L;
   
-  public CocktailPartyDisambiguationSettings() throws MissingSettingException {
+  public CocktailPartyDisambiguationSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException {
     getGraphSettings().setAlpha(0.6);
     setTracingTarget(TracingTarget.WEB_INTERFACE);
      
@@ -41,10 +41,11 @@ public class CocktailPartyDisambiguationSettings extends DisambiguationSettings 
 
     SimilaritySettings switchedKPsettings = 
         new SimilaritySettings(
-            LocalDisambiguationSettings.getSimConfigs(), 
-            cohConfigs, LocalDisambiguationSettings.priorWeight);
+            LocalKeyphraseBasedDisambiguationSettings.getKeyphraseSimConfigsWithPrior(),
+            cohConfigs, LocalKeyphraseBasedDisambiguationSettings.getKeyphraseSimPriorWeight());
     switchedKPsettings.setIdentifier("SwitchedKP");
     switchedKPsettings.setPriorThreshold(0.9);
+    switchedKPsettings.setMentionEntitySimilaritiesNoPrior(LocalKeyphraseBasedDisambiguationSettings.getKeyphraseSimConfigsNoPrior());
     setSimilaritySettings(switchedKPsettings);
         
     SimilaritySettings unnormalizedKPsettings = new SimilaritySettings(getCoherenceRobustnessSimConfigs(), null, 0.0);
@@ -52,10 +53,9 @@ public class CocktailPartyDisambiguationSettings extends DisambiguationSettings 
     getGraphSettings().setCoherenceSimilaritySetting(unnormalizedKPsettings);
   }
   
-  public static List<String[]> getCoherenceRobustnessSimConfigs() { 
-      return Arrays.asList(new String[][] {
-          new String[] { "UnnormalizedKeyphrasesBasedMISimilarity", "KeyphrasesContext", "0.8360808680254525" },
-          new String[] { "UnnormalizedKeyphrasesBasedIDFSimilarity", "KeyphrasesContext", "0.16391913197454755" }          
-      });
+  public static List<SimilaritySettings.MentionEntitySimilarityRaw> getCoherenceRobustnessSimConfigs() 
+    throws NoSuchMethodException, ClassNotFoundException { 
+      return Arrays.asList(new SimilaritySettings.MentionEntitySimilarityRaw("UnnormalizedKeyphrasesBasedMISimilarity", "KeyphrasesContext", 0.8360808680254525, false),
+          new SimilaritySettings.MentionEntitySimilarityRaw("UnnormalizedKeyphrasesBasedIDFSimilarity", "KeyphrasesContext", 0.16391913197454755, false));
   }
 }

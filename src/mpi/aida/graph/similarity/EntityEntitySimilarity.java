@@ -2,22 +2,8 @@ package mpi.aida.graph.similarity;
 
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
-import mpi.aida.graph.similarity.context.EmptyEntitiesContext;
-import mpi.aida.graph.similarity.context.EntitiesContext;
-import mpi.aida.graph.similarity.context.EntitiesContextSettings;
-import mpi.aida.graph.similarity.context.FastWeightedKeyphrasesContext;
-import mpi.aida.graph.similarity.context.WeightedKeyphrasesContext;
-import mpi.aida.graph.similarity.measure.EntityEntitySimilarityMeasure;
-import mpi.aida.graph.similarity.measure.InlinkOverlapEntityEntitySimilarity;
-import mpi.aida.graph.similarity.measure.JaccardEntityEntitySimilarityMeasure;
-import mpi.aida.graph.similarity.measure.KOREEntityEntitySimilarityMeasure;
-import mpi.aida.graph.similarity.measure.KeyphraseCosineSimilarityMeasure;
-import mpi.aida.graph.similarity.measure.KeywordCosineSimilarityMeasure;
-import mpi.aida.graph.similarity.measure.MilneWittenEntityEntitySimilarity;
-import mpi.aida.graph.similarity.measure.NGDSimilarityMeasure;
-import mpi.aida.graph.similarity.measure.NullEntityEntitySimilarityMeasure;
-import mpi.aida.graph.similarity.measure.WeightedJaccardEntityEntitySimilarityMeasure;
-import mpi.aida.graph.similarity.measure.WeightedNGDSimilarityMeasure;
+import mpi.aida.graph.similarity.context.*;
+import mpi.aida.graph.similarity.measure.*;
 import mpi.experiment.trace.Tracer;
 
 /**

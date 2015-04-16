@@ -7,3 +7,6 @@ aida-word_expansions.cache
 /bin
 /reports
 /target
+
+.idea
+aida.iml

@@ -1,22 +1,11 @@
 package mpi.aida.graph.similarity.util;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.Serializable;
-import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-
 import mpi.aida.access.DataAccessSQL;
 import mpi.aida.data.Entities;
+import mpi.aida.data.ExternalEntitiesContext;
 import mpi.aida.graph.similarity.EntityEntitySimilarity;
 import mpi.aida.graph.similarity.MentionEntitySimilarity;
+import mpi.aida.graph.similarity.UnitType;
 import mpi.aida.graph.similarity.context.EntitiesContext;
 import mpi.aida.graph.similarity.context.EntitiesContextSettings;
 import mpi.aida.graph.similarity.context.EntitiesContextSettings.EntitiesContextType;
@@ -25,10 +14,15 @@ import mpi.aida.graph.similarity.importance.EntityImportance;
 import mpi.aida.graph.similarity.measure.MentionEntitySimilarityMeasure;
 import mpi.aida.util.CollectionUtils;
 import mpi.experiment.trace.Tracer;
-
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Settings for computing the weights of the disambiguation graph.
@@ -77,24 +71,32 @@ public class SimilaritySettings implements Serializable {
    * SimilarityMeasure, the second one the EntitiesContext, the third one the
    * weight.
    */
-  private List<String[]> mentionEntitySimilarities = new LinkedList<String[]>();
+  private List<MentionEntitySimilarityRaw> mentionEntitySimilaritiesNoPrior = new LinkedList<>();
+  private List<MentionEntitySimilarityRaw> mentionEntitySimilaritiesWithPrior = new LinkedList<>();
 
   /** Entity importance-weight pairs. */
-  private List<String[]> entityImportancesSettings = new LinkedList<String[]>();
+  private List<EntityImportancesRaw> entityImportancesNoPrior = new LinkedList<>();
+  private List<EntityImportancesRaw> entityImportancesWithPrior = new LinkedList<>();
 
   /** 
    * Entity-Entity-Similarity tuples. First entry is the EESim id, second the
    * weight.
    */
-  private List<String[]> entityEntitySimilarities = new LinkedList<String[]>();
+  private List<String[]> entityEntitySimilarities = new LinkedList<>();
 
-  private List<String[]> mentionEntityKeyphraseSourceWeights = new LinkedList<String[]>();
+  private List<String[]> mentionEntityKeyphraseSourceWeights = new LinkedList<>();
   
-  private List<String[]> entityEntityKeyphraseSourceWeights = new LinkedList<String[]>();
+  private List<String[]> entityEntityKeyphraseSourceWeights = new LinkedList<>();
   
   /** Weight of the prior probability. */ 
   private double priorWeight;
 
+  /** Take the log of the prior */
+  private boolean priorTakeLog;
+  
+  /** Prior damping factor */
+  private double priorDampingFactor;
+  
   /** Threshold above which the prior should be considered. */
   private double priorThreshold = -1;
   
@@ -112,6 +114,10 @@ public class SimilaritySettings implements Serializable {
   private int lshBandSize;
   private int lshBandCount;
   private String lshDatabaseTable;
+
+  // LanguageModel
+  private double[] unitSmoothingParameter;
+  private boolean[] unitIgnoreMention;
   
   private int nGramLength;
       
@@ -142,7 +148,8 @@ public class SimilaritySettings implements Serializable {
         fr.close();
 
         priorWeight = Double.parseDouble(prop.getProperty("priorWeight", "0.0"));
-
+        priorTakeLog = Boolean.parseBoolean(prop.getProperty("priorTakeLog", "false"));
+        priorDampingFactor = Double.parseDouble(prop.getProperty("priorDampingFactor", "1.0"));
         priorThreshold = Double.parseDouble(prop.getProperty("priorThreshold", "-1.0"));
         
         numberOfEntityKeyphrase = Integer.parseInt(prop.getProperty("numberOfEntityKeyphrase", String.valueOf(Integer.MAX_VALUE)));
@@ -164,24 +171,55 @@ public class SimilaritySettings implements Serializable {
         lshBandSize = Integer.parseInt(prop.getProperty("lshBandSize", "2"));
         lshBandCount = Integer.parseInt(prop.getProperty("lshBandCount", "100"));
         lshDatabaseTable = prop.getProperty("lshDatabaseTable", DataAccessSQL.ENTITY_LSH_SIGNATURES);
-        
+
+        // LanguageModel
+        unitSmoothingParameter = new double[UnitType.values().length];
+        for (UnitType unitType : UnitType.values()) {
+          unitSmoothingParameter[unitType.ordinal()] = Double.parseDouble(
+            prop.getProperty("unitSmoothingParameter." + unitType.getUnitName(), 
+              prop.getProperty("unitSmoothingParameter", "1.0")));
+        }
+        unitIgnoreMention = new boolean[UnitType.values().length];
+        for (UnitType unitType : UnitType.values()) {
+          unitIgnoreMention[unitType.ordinal()] = Boolean.parseBoolean(
+            prop.getProperty("unitIgnoreMention." + unitType.getUnitName(), 
+              prop.getProperty("unitIgnoreMention", "false")));
+        }
         
                 
-        String mentionEntitySimilarityString = prop.getProperty("mentionEntitySimilarities");
+        String mentionEntitySimilarityString = prop.getProperty("mentionEntitySimilaritiesNoPrior");
 
         if (mentionEntitySimilarityString != null) {
           for (String sim : mentionEntitySimilarityString.split(" ")) {
-            mentionEntitySimilarities.add(sim.split(":"));
+            mentionEntitySimilaritiesNoPrior.add(MentionEntitySimilarityRaw.parseFrom(sim));
+          }
+        } else if (priorThreshold > 0.0) {
+          System.err.println("No mention-entity similarity setting for no prior given in the settings file file but priorThreshold set - this almost always needed!");
+        }
+        
+        String mentionEntitySimilarityWithPriorString = prop.getProperty("mentionEntitySimilaritiesWithPrior");
+
+        if (mentionEntitySimilarityWithPriorString != null) {
+          for (String sim : mentionEntitySimilarityWithPriorString.split(" ")) {
+            mentionEntitySimilaritiesWithPrior.add(MentionEntitySimilarityRaw.parseFrom(sim));
           }
         } else {
-          System.err.println("No mention-entity similarity setting given in the settings file - this almost always needed!");
+          System.err.println("No mention-entity similarity setting for prior given in the settings - this almost always needed!");
         }
 
-        String entityImportanceString = prop.getProperty("entityImportanceWeights");
+        String entityImportanceNoPriorString = prop.getProperty("entityImportanceWeightsNoPrior");
 
-        if (entityImportanceString != null) {
-          for (String imp : entityImportanceString.split(" ")) {
-            entityImportancesSettings.add(imp.split(":"));
+        if (entityImportanceNoPriorString != null) {
+          for (String imp : entityImportanceNoPriorString.split(" ")) {
+            entityImportancesNoPrior.add(EntityImportancesRaw.parseFrom(imp));
+          }
+        }
+
+        String entityImportanceWithPriorString = prop.getProperty("entityImportanceWeightsWithPrior");
+
+        if (entityImportanceWithPriorString != null) {
+          for (String imp : entityImportanceWithPriorString.split(" ")) {
+            entityImportancesWithPrior.add(EntityImportancesRaw.parseFrom(imp));
           }
         }
 
@@ -194,10 +232,9 @@ public class SimilaritySettings implements Serializable {
         }
         
         if (prop.containsKey("entityEntityKeyphraseSourceWeights")) {
-          String entityEntityKeyphraseSourceWeightsString = prop.getProperty("entityEntityKeyphraseSourceWeights");
-          for (String src : entityEntityKeyphraseSourceWeightsString.split(" ")) {
-            entityEntityKeyphraseSourceWeights.add(src.split(":"));
-          }
+          entityEntityKeyphraseSourceWeights = 
+            Arrays.stream(prop.getProperty("entityEntityKeyphraseSourceWeights").split(" "))
+              .map(src -> src.split(":")).collect(Collectors.toList());
         }
         if (prop.containsKey("mentionEntityKeyphraseSourceWeights")) {
           String mentionEntityKeyphraseSourceWeightsString = prop.getProperty("mentionEntityKeyphraseSourceWeights");
@@ -225,14 +262,16 @@ public class SimilaritySettings implements Serializable {
    * @param priorWeight
    * @throws MissingSettingException 
    */
-  public SimilaritySettings(List<String[]> similarities, List<String[]> eeSimilarities, double priorWeight) throws MissingSettingException {
+  public SimilaritySettings(List<MentionEntitySimilarityRaw> similarities, List<String[]> eeSimilarities, double priorWeight) throws MissingSettingException {
     this(similarities, eeSimilarities, null, priorWeight);
   }
   
-  public SimilaritySettings(List<String[]> similarities, List<String[]> eeSimilarities, List<String[]> entityImportances, double priorWeight) throws MissingSettingException {
-    this.mentionEntitySimilarities = similarities;
+  public SimilaritySettings(List<MentionEntitySimilarityRaw> similarities, List<String[]> eeSimilarities, List<EntityImportancesRaw> entityImportances, double priorWeight) throws MissingSettingException {
+    if (similarities != null)
+      this.mentionEntitySimilaritiesWithPrior = similarities;
     this.entityEntitySimilarities = eeSimilarities;
-    this.entityImportancesSettings = entityImportances;
+    if (entityImportances != null)
+      this.entityImportancesWithPrior = entityImportances;
     this.priorWeight = priorWeight;
   }
 
@@ -249,54 +288,60 @@ public class SimilaritySettings implements Serializable {
     return priorThreshold;
   }
 
-  public List<MentionEntitySimilarity> getMentionEntitySimilarities(
-      Entities entities, Tracer tracer) throws Exception {
-    List<MentionEntitySimilarity> sims = new LinkedList<MentionEntitySimilarity>();
-    Map<String, MentionEntitySimilarityMeasure> measures = new HashMap<String, MentionEntitySimilarityMeasure>();
-    Map<String, EntitiesContext> contexts = new HashMap<String, EntitiesContext>();
+  public boolean shouldPriorTakeLog() {
+    return priorTakeLog;
+  }
+  
+  public void setPriorTakeLog(boolean priorTakeLog) {
+    this.priorTakeLog = priorTakeLog;
+  }
 
-    if (mentionEntitySimilarities != null) {
-      for (String[] s : mentionEntitySimilarities) {
-        boolean useDistanceDiscount = false;
-  
-        String[] simConfig = s[0].split(",");
-        String simClassName = "mpi.aida.graph.similarity.measure." + simConfig[0];
-  
-        // get flags
-        for (int i = 1; i < simConfig.length; i++) {
-          if (simConfig[i].equals("i")) {
-            useDistanceDiscount = true;
-          }
-        }
-  
-        String contextClassName = "mpi.aida.graph.similarity.context." + s[1];
-        double weight = Double.parseDouble(s[2]);
-  
-        MentionEntitySimilarityMeasure sim = measures.get(simClassName);
-        if (sim == null) {
-          sim = (MentionEntitySimilarityMeasure) Class.forName(simClassName).getDeclaredConstructor(Tracer.class).newInstance(tracer);
-          sim.setUseDistanceDiscount(useDistanceDiscount);
-          measures.put(simClassName, sim);
-        }
+  public double getPriorDampingFactor() {
+    return priorDampingFactor;
+  }
+
+  public void setPriorDampingFactor(double priorDampingFactor) {
+    this.priorDampingFactor = priorDampingFactor;
+  }
+
+  public List<MentionEntitySimilarity> getMentionEntitySimilarities(
+      Entities entities, ExternalEntitiesContext externalContext, Tracer tracer, boolean withPrior) throws IllegalAccessException, InvocationTargetException, InstantiationException {
+    List<MentionEntitySimilarity> sims = new LinkedList<>();
+    Map<Constructor<?>, Object> createdObjects = new HashMap<>();
+
+    List<MentionEntitySimilarityRaw> curMentionEntitySimilarities
+      = withPrior ? mentionEntitySimilaritiesWithPrior : mentionEntitySimilaritiesNoPrior;
+    
+    if (curMentionEntitySimilarities != null) {
+      for (MentionEntitySimilarityRaw mesr : curMentionEntitySimilarities) {
+        Object simObj = createdObjects.get(mesr.simConstructor);
+        if (simObj == null)
+          createdObjects.put(mesr.simConstructor, 
+            simObj = mesr.simConstructor.newInstance(tracer));
         
-        EntitiesContext context = contexts.get(contextClassName);      
-        if (context == null) {
-            EntitiesContextSettings entitiesContextSettings = 
-                getEntitiesContextSettings(false);
-            context = (EntitiesContext) 
-                Class.forName(contextClassName).
-                getDeclaredConstructor(
-                    Entities.class, EntitiesContextSettings.class).newInstance(
-                        entities, entitiesContextSettings);     
-            contexts.put(contextClassName, context);
-        }
+        Object contextObj = createdObjects.get(mesr.contextConstructor);
+        if (contextObj == null)
+          createdObjects.put(mesr.contextConstructor, 
+            contextObj = mesr.contextConstructor.newInstance(entities, externalContext, getEntitiesContextSettings(false)));
         
-        MentionEntitySimilarity mes = new MentionEntitySimilarity(sim, context, weight);
-        sims.add(mes);
+        sims.add(new MentionEntitySimilarity(
+          (MentionEntitySimilarityMeasure) simObj,
+          (EntitiesContext) contextObj,
+          mesr.weight));
       }
     }
 
     return sims;
+  }
+
+  public List<MentionEntitySimilarity> getAllMentionEntitySimilarities(
+    Entities entities, ExternalEntitiesContext externalContext, Tracer tracer) throws IllegalAccessException, InstantiationException, InvocationTargetException {
+    
+    List<MentionEntitySimilarity> allMentionEntitySimilarities = new LinkedList<>();
+    allMentionEntitySimilarities.addAll(getMentionEntitySimilarities(entities, externalContext, tracer, false));
+    allMentionEntitySimilarities.addAll(getMentionEntitySimilarities(entities, externalContext, tracer, true));
+    
+    return allMentionEntitySimilarities;
   }
 
   public EntityEntitySimilarity getEntityEntitySimilarity(String eeIdentifier, Entities entities, Tracer tracer) throws Exception {
@@ -335,17 +380,36 @@ public class SimilaritySettings implements Serializable {
       return EntityEntitySimilarity.getKeyphraseBasedEntityEntitySimilarity(entities, settings, tracer);
     } else if (eeIdentifier.equals("KOREEntityEntitySimilarity")) {
       return EntityEntitySimilarity.getKOREEntityEntitySimilarity(entities, settings, tracer);
-//    } else if (eeIdentifier.equals("KORELSHEntityEntitySimilarity")) {
-//      return EntityEntitySimilarity.getKORELSHEntityEntitySimilarity(entities, settings, tracer);
     } else if (eeIdentifier.equals("TopKeyphraseBasedEntityEntitySimilarity")) {
       return EntityEntitySimilarity.getTopKeyphraseBasedEntityEntitySimilarity(entities, numberOfEntityKeyphrase, tracer);
     } else {
       logger.error("EESimilarity '" + eeIdentifier + "' undefined");
       return eeSim;
     }
-  }  
+  }
+  
+  public List<EntityImportance> getEntityImportances(Entities entities, boolean withPrior) throws IllegalAccessException, InvocationTargetException, InstantiationException {
+    List<EntityImportance> result = new ArrayList<>();
+    for (EntityImportancesRaw entityImportancesRaw : 
+      (withPrior ? entityImportancesWithPrior : entityImportancesNoPrior)) {
+      EntityImportance entityImportance = (EntityImportance) entityImportancesRaw.getImpConstructor().newInstance(entities);
+      entityImportance.setWeight(entityImportancesRaw.getWeight());
+      result.add(entityImportance);
+    }
+    return result;
+  }
+
+
+  public List<EntityImportance> getAllEntityImportances(Entities entities) throws IllegalAccessException, InstantiationException, InvocationTargetException {
+
+    List<EntityImportance> allEntityImportances = new LinkedList<>();
+    allEntityImportances.addAll(getEntityImportances(entities, false));
+    allEntityImportances.addAll(getEntityImportances(entities, true));
+
+    return allEntityImportances;
+  }
    
-  private EntitiesContextSettings getEntitiesContextSettings(boolean isEntitiesContext) {
+  public EntitiesContextSettings getEntitiesContextSettings(boolean isEntitiesContext) {
     EntitiesContextSettings settings = new EntitiesContextSettings();
     settings.setEntityCoherenceKeyphraseAlpha(entityCohKeyphraseAlpha);
     settings.setEntityCoherenceKeywordAlpha(entityCohKeywordAlpha);
@@ -357,6 +421,8 @@ public class SimilaritySettings implements Serializable {
     settings.setLshDatabaseTable(lshDatabaseTable);
     settings.setMinimumEntityKeyphraseWeight(minimumEntityKeyphraseWeight);
     settings.setMaxEntityKeyphraseCount(maxEntityKeyphraseCount);
+    settings.setUnitSmoothingParameter(unitSmoothingParameter);
+    settings.setIgnoreMention(unitIgnoreMention);
     // Some settings only apply to EntityEntityContexts.
     if (isEntitiesContext) {
       settings.setEntitiesContextType(EntitiesContextType.ENTITY_ENTITY);
@@ -369,6 +435,14 @@ public class SimilaritySettings implements Serializable {
           CollectionUtils.getWeightStringsAsMap(mentionEntityKeyphraseSourceWeights));
     }
     return settings;
+  }
+  
+  /**
+   * Can only be called BEFORE the first getEntityEntitySimilarities, otherwise
+   * there will be no effect.
+   */
+  public void setEntityEntitySimilarities(List<String[]> eeSims) {
+    entityEntitySimilarities = eeSims;
   }
   
   public List<EntityEntitySimilarity> getEntityEntitySimilarities(Entities entities, Tracer tracer) throws Exception {
@@ -411,26 +485,48 @@ public class SimilaritySettings implements Serializable {
     this.entityCohKeywordAlpha = entityCohKeywordAlpha;
   }
 
-  public List<EntityImportance> getEntityImportances(Entities entities) throws IllegalArgumentException, SecurityException, InstantiationException, IllegalAccessException, InvocationTargetException, NoSuchMethodException, ClassNotFoundException {
-    List<EntityImportance> eis = new LinkedList<EntityImportance>();
-
-    if (entityImportancesSettings != null) {
-      for (String[] eiSetting : entityImportancesSettings) {
-        String eiClassName = "mpi.aida.graph.similarity.importance." + eiSetting[0];
-        EntityImportance ei = (EntityImportance) Class.forName(eiClassName).getDeclaredConstructor(Entities.class).newInstance(entities);
-        ei.setWeight(Double.parseDouble(eiSetting[1]));
-        eis.add(ei);
-      }
-    }
-    return eis;
+  public List<MentionEntitySimilarityRaw> getMentionEntitySimilaritiesNoPrior() {
+    return mentionEntitySimilaritiesNoPrior;
   }
 
-  public List<String[]> getMentionEntitySimilarities() {
-    return mentionEntitySimilarities;
+  public void setMentionEntitySimilaritiesNoPrior(List<MentionEntitySimilarityRaw> mentionEntitySimilaritiesNoPrior) {
+    if (mentionEntitySimilaritiesNoPrior == null)
+      this.mentionEntitySimilaritiesNoPrior = new LinkedList<>();
+    else
+      this.mentionEntitySimilaritiesNoPrior = mentionEntitySimilaritiesNoPrior;
+  }
+  
+  public List<MentionEntitySimilarityRaw> getMentionEntitySimilaritiesWithPrior() {
+    return mentionEntitySimilaritiesWithPrior;
   }
 
-  public void setMentionEntitySimilarities(List<String[]> mentionEntitySimilarities) {
-    this.mentionEntitySimilarities = mentionEntitySimilarities;
+  public void setMentionEntitySimilaritiesWithPrior(List<MentionEntitySimilarityRaw> mentionEntitySimilaritiesWithPrior) {
+    if (mentionEntitySimilaritiesWithPrior == null)
+      this.mentionEntitySimilaritiesWithPrior = new LinkedList<>();
+    else
+      this.mentionEntitySimilaritiesWithPrior = mentionEntitySimilaritiesWithPrior;
+  }
+
+  public List<EntityImportancesRaw> getEntityImportancesNoPrior() {
+    return entityImportancesNoPrior;
+  }
+
+  public void setEntityImportancesNoPrior(List<EntityImportancesRaw> entityImportancesNoPrior) {
+    if (entityImportancesNoPrior == null)
+      this.entityImportancesNoPrior = new LinkedList<>();
+    else 
+      this.entityImportancesNoPrior = entityImportancesNoPrior;
+  }
+
+  public List<EntityImportancesRaw> getEntityImportancesWithPrior() {
+    return entityImportancesWithPrior;
+  }
+
+  public void setEntityImportancesWithPrior(List<EntityImportancesRaw> entityImportancesWithPrior) {
+    if (entityImportancesWithPrior == null)
+      this.entityImportancesWithPrior = new LinkedList<>();
+    else
+      this.entityImportancesWithPrior = entityImportancesWithPrior;
   }
 
   public void setPriorWeight(double priorWeight) {
@@ -545,34 +641,28 @@ public class SimilaritySettings implements Serializable {
 
   public Map<String, Object> getAsMap() {
     Map<String, Object> s = new HashMap<String, Object>();
-    if (mentionEntitySimilarities != null) {
-      List<String> expanded = 
-          new ArrayList<String>(mentionEntitySimilarities.size());
-      for (String[] sim : mentionEntitySimilarities) {
-        expanded.add(StringUtils.join(sim, ":"));
-      }
-      String sims = StringUtils.join(expanded, " ");
-      s.put("mentionEntitySimilarities", sims);
+    if (!mentionEntitySimilaritiesNoPrior.isEmpty()) {
+      s.put("mentionEntitySimilaritiesNoPrior",
+        mentionEntitySimilaritiesNoPrior.stream().map(MentionEntitySimilarityRaw::toString).collect(Collectors.joining(" ")));
     }
-    if (entityImportancesSettings != null) {
-      List<String> expanded = 
-          new ArrayList<String>(entityImportancesSettings.size());
-      for (String[] sim : entityImportancesSettings) {
-        expanded.add(StringUtils.join(sim, ":"));
-      }
-      String sims = StringUtils.join(expanded, " ");
-      s.put("entityImportancesSettings", sims);
+    if (!mentionEntitySimilaritiesNoPrior.isEmpty()) {
+      s.put("mentionEntitySimilaritiesWithPrior",
+        mentionEntitySimilaritiesWithPrior.stream().map(MentionEntitySimilarityRaw::toString).collect(Collectors.joining(" ")));
+    }
+    if (!entityImportancesNoPrior.isEmpty()) {
+      s.put("entityImportanceWeightsNoPrior",
+        entityImportancesNoPrior.stream().map(EntityImportancesRaw::toString).collect(Collectors.joining(" ")));
+    }
+    if (!entityImportancesWithPrior.isEmpty()) {
+      s.put("entityImportanceWeightsWithPrior",
+        entityImportancesWithPrior.stream().map(EntityImportancesRaw::toString).collect(Collectors.joining(" ")));
     }
     if (entityEntitySimilarities != null) {
-      List<String> expanded = 
-          new ArrayList<String>(entityEntitySimilarities.size());
-      for (String[] sim : entityEntitySimilarities) {
-        expanded.add(StringUtils.join(sim, ":"));
-      }
-      String sims = StringUtils.join(expanded, " ");
-      s.put("entityEntitySimilarities", sims);
+      s.put("entityEntitySimilarities",
+        entityEntitySimilarities.stream().map(sim -> StringUtils.join(sim, ":")).collect(Collectors.joining(" ")));
     }
     s.put("maxEntityRank", String.valueOf(priorWeight));
+    s.put("priorTakeLog", String.valueOf(priorTakeLog));
     s.put("nullMappingThreshold", String.valueOf(priorThreshold));
     s.put("includeNullAsEntityCandidate", String.valueOf(numberOfEntityKeyphrase));
     s.put("includeContextMentions", String.valueOf(entityCohKeyphraseAlpha));
@@ -586,37 +676,17 @@ public class SimilaritySettings implements Serializable {
     s.put("nGramLength", String.valueOf(nGramLength));
     s.put("minimumEntityKeyphraseWeight", String.valueOf(minimumEntityKeyphraseWeight));
     if (mentionEntityKeyphraseSourceWeights != null) {
-      List<String> expanded = 
-          new ArrayList<String>(mentionEntityKeyphraseSourceWeights.size());
-      for (String[] sim : mentionEntityKeyphraseSourceWeights) {
-        expanded.add(StringUtils.join(sim, ":"));
-      }
-      String sims = StringUtils.join(expanded, " ");
-      s.put("mentionEntityKeyphraseSourceWeights", sims);
+      s.put("mentionEntityKeyphraseSourceWeights",
+        mentionEntityKeyphraseSourceWeights.stream().map(sim -> StringUtils.join(sim, ":")).collect(Collectors.joining()));
     }
     if (entityEntityKeyphraseSourceWeights != null) {
-      List<String> expanded = 
-          new ArrayList<String>(entityEntityKeyphraseSourceWeights.size());
-      for (String[] sim : entityEntityKeyphraseSourceWeights) {
-        expanded.add(StringUtils.join(sim, ":"));
-      }
-      String sims = StringUtils.join(expanded, " ");
-      s.put("entityEntityKeyphraseSourceWeights", sims);
+      s.put("entityEntityKeyphraseSourceWeights",
+        entityEntityKeyphraseSourceWeights.stream().map(sim -> StringUtils.join(sim, ":")).collect(Collectors.joining()));
     }
     if (identifier != null) {
       s.put("identifier", identifier);
     }
     return s;
-  }
-
-  
-  public List<String[]> getEntityImportancesSettings() {
-    return entityImportancesSettings;
-  }
-
-  
-  public void setEntityImportancesSettings(List<String[]> entityImportancesSettings) {
-    this.entityImportancesSettings = entityImportancesSettings;
   }
 
   public ImportanceAggregationStrategy getImportanceAggregationStrategy() {
@@ -628,4 +698,109 @@ public class SimilaritySettings implements Serializable {
     this.importanceAggregationStrategy = importanceAggregationStrategy;
   }
 
+  public static class MentionEntitySimilarityRaw {
+    private Constructor<?> simConstructor;
+    private Constructor<?> contextConstructor;
+    private double weight;
+    private boolean useDistanceDiscount;
+
+    public MentionEntitySimilarityRaw(String simClassName, String contextClassName, double weight,
+                                      boolean useDistanceDiscount) throws ClassNotFoundException, NoSuchMethodException {
+      String fullSimClassName = "mpi.aida.graph.similarity.measure." + simClassName;
+      String fullContextClassName = "mpi.aida.graph.similarity.context." + contextClassName;
+      this.simConstructor = Class.forName(fullSimClassName).getConstructor(Tracer.class);
+      this.contextConstructor = Class.forName(fullContextClassName).getConstructor(
+        Entities.class, ExternalEntitiesContext.class, EntitiesContextSettings.class);
+      this.weight = weight;
+      this.useDistanceDiscount = useDistanceDiscount;
+    }
+
+    public Constructor<?> getSimConstructor() {
+      return simConstructor;
+    }
+
+    public Constructor<?> getContextConstructor() {
+      return contextConstructor;
+    }
+
+    public boolean isUseDistanceDiscount() {
+      return useDistanceDiscount;
+    }
+
+    public double getWeight() {
+      return weight;
+    }
+
+    public void setWeight(double weight) {
+      this.weight = weight;
+    }
+    
+    public static MentionEntitySimilarityRaw parseFrom(String input) throws NoSuchMethodException, ClassNotFoundException {
+      String[] s = input.split(":");
+
+      String[] simConfig = s[0].split(",");
+      // get flags
+      boolean useDistanceDiscount = false;
+      for (int i = 1; i < simConfig.length; i++) {
+        if (simConfig[i].equals("i")) {
+          useDistanceDiscount = true;
+        }
+      }
+
+      // to support settings files with no weights for training.
+      double weight;
+      if (s.length < 3) weight = 0d;
+      else weight = Double.parseDouble(s[2]);
+
+      return new MentionEntitySimilarityRaw(
+        simConfig[0], s[1], weight, useDistanceDiscount);
+    } 
+
+    @Override
+    public String toString() {
+      return simConstructor.getDeclaringClass().getSimpleName() +
+        (useDistanceDiscount ? ",i:" : ":") + 
+        contextConstructor.getDeclaringClass().getSimpleName() + ":" +
+        Double.toString(weight);
+    }
+  }
+
+  public static class EntityImportancesRaw {
+    private Constructor<?> impConstructor;
+    private double weight;
+
+    public EntityImportancesRaw(String simClassName, double weight) throws ClassNotFoundException, NoSuchMethodException {
+      String fullImpClassName = "mpi.aida.graph.similarity.importance." + simClassName;
+      this.impConstructor = Class.forName(fullImpClassName).getConstructor(Entities.class);
+      this.weight = weight;
+    }
+
+    public Constructor<?> getImpConstructor() {
+      return impConstructor;
+    }
+
+    public double getWeight() {
+      return weight;
+    }
+
+    public void setWeight(double weight) {
+      this.weight = weight;
+    }
+
+    public static EntityImportancesRaw parseFrom(String input) throws NoSuchMethodException, ClassNotFoundException {
+      String[] s = input.split(":");
+      
+      // to support settings files with no weights for training.
+      double weight;
+      if (s.length < 2) weight = 0d;
+      else weight = Double.parseDouble(s[1]);
+      
+      return new EntityImportancesRaw(s[0], weight);
+    }
+
+    @Override
+    public String toString() {
+      return impConstructor.getDeclaringClass().getSimpleName() + ":" + Double.toString(weight);
+    }
+  }
 }

@@ -12,7 +12,7 @@ import mpi.tokenizer.data.Tokens;
 public class PageBasedDocumentChunker extends DocumentChunker {
 
   @Override
-  public PreparedInput process(String docId, Tokens tokens, Mentions mentions) {         
+  public PreparedInput process(String docId, String text, Tokens tokens, Mentions mentions) {
     List<PreparedInputChunk> chunks = new ArrayList<PreparedInputChunk>(1);
     Tokens pageTokens = null;
     Mentions pageMentions = null;
@@ -47,7 +47,7 @@ public class PageBasedDocumentChunker extends DocumentChunker {
         new PreparedInputChunk(chunkId, pageTokens, pageMentions);
       chunks.add(singleChunk);
     
-    PreparedInput preparedInput = new PreparedInput(docId, chunks);
+    PreparedInput preparedInput = new PreparedInput(docId, text, chunks);
     return preparedInput;
   }
 }

@@ -1,7 +1,10 @@
 package mpi.ner;
 
+import mpi.aida.util.nlp.ProperNounManager;
+
 public class PosToken {
 	private String token;
+	private String originalEnd;
 	private int start;
 	private int length;
 	private String posTag;
@@ -19,6 +22,14 @@ public class PosToken {
 
 	public void setToken(String token) {
 		this.token = token;
+	}
+
+	public String getOriginalEnd() {
+		return originalEnd;
+	}
+
+	public void setOriginalEnd(String originalEnd) {
+		this.originalEnd = originalEnd;
 	}
 
 	public int getStart() {
@@ -59,6 +70,10 @@ public class PosToken {
 
 	public void setScore(double score) {
 		this.score = score;
+	}
+
+	public boolean isProperNoun() {
+		return ProperNounManager.singleton().isProperNounTag(getPosTag());
 	}
 	
 	@Override

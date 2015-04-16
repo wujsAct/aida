@@ -26,6 +26,7 @@ import mpi.aida.config.settings.DisambiguationSettings;
 import mpi.aida.config.settings.GraphSettings;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
+import mpi.aida.data.ExternalEntitiesContext;
 import mpi.aida.data.Mention;
 import mpi.aida.data.PreparedInputChunk;
 import mpi.aida.data.ResultEntity;
@@ -35,11 +36,13 @@ import mpi.aida.graph.GraphGenerator;
 import mpi.aida.graph.GraphNode;
 import mpi.aida.graph.GraphNodeTypes;
 import mpi.aida.graph.extraction.DegreeComparator;
+import mpi.aida.util.CollectionUtils;
 import mpi.aida.util.timing.RunningTimer;
 import mpi.experiment.trace.GraphTracer;
 import mpi.experiment.trace.NullGraphTracer;
 import mpi.experiment.trace.Tracer;
 
+import org.apache.commons.math3.util.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,10 +63,10 @@ public class CocktailParty extends DisambiguationAlgorithm {
 
 	protected Map<Integer, Double> entityWeightedDegrees = new HashMap<Integer, Double>();
 
-	private Map<Integer, Double> notRemovableEntities = new HashMap<Integer, Double>();
+	private Map<Integer, Double> notRemovableEntityWeightedDegrees = new HashMap<Integer, Double>();
 	private PriorityQueue<String> entitySortedDegrees = new PriorityQueue<String>(
 			2000, new DegreeComparator());
-	private PriorityQueue<String> notRemovableSorted = new PriorityQueue<String>(
+	private PriorityQueue<String> notRemovableEntitySortedDegrees = new PriorityQueue<String>(
 			2000, new DegreeComparator());
 	protected Map<Integer, Integer> mentionDegrees = new HashMap<Integer, Integer>();
 	private Map<Integer, Integer> bestMentionDegrees = new HashMap<Integer, Integer>();
@@ -84,7 +87,7 @@ public class CocktailParty extends DisambiguationAlgorithm {
 	
 	public CocktailParty(PreparedInputChunk input, DisambiguationSettings settings,                       
                       Tracer tracer) throws Exception {
-	  super(input, settings, tracer);
+	  super(input, new ExternalEntitiesContext(), settings, tracer);
     if (!(GraphTracer.gTracer instanceof NullGraphTracer))
       isTracing = true;
 
@@ -133,7 +136,7 @@ public class CocktailParty extends DisambiguationAlgorithm {
 			traceIntitialGraphStructure(g);
 		}
 
-		Set<Integer> bestNotRemovable = notRemovableEntities.keySet();
+		Set<Integer> bestNotRemovable = notRemovableEntityWeightedDegrees.keySet();
 		Set<Integer> bestRemovable = entityWeightedDegrees.keySet();
 		double bestValue = initialObjective;
 		boolean noMinRemoved = false;
@@ -193,8 +196,8 @@ public class CocktailParty extends DisambiguationAlgorithm {
 				break;
 			}
 
-			if (!notRemovableSorted.isEmpty()) {
-				notRemovableMin = Double.parseDouble(notRemovableSorted.peek()
+			if (!notRemovableEntitySortedDegrees.isEmpty()) {
+				notRemovableMin = Double.parseDouble(notRemovableEntitySortedDegrees.peek()
 						.split(":::")[1]);
 			}
 
@@ -209,7 +212,7 @@ public class CocktailParty extends DisambiguationAlgorithm {
 				bestRemovable = new HashSet<Integer>(
 						entityWeightedDegrees.keySet());
 				bestNotRemovable = new HashSet<Integer>(
-						notRemovableEntities.keySet());
+						notRemovableEntityWeightedDegrees.keySet());
 
 				bestMentionDegrees = new HashMap<Integer, Integer>();
 				for (int men : mentionDegrees.keySet()) {
@@ -239,8 +242,8 @@ public class CocktailParty extends DisambiguationAlgorithm {
 			if (!entitySortedDegrees.isEmpty())
 				removableMin = Double.parseDouble(entitySortedDegrees.peek()
 						.split(":::")[1]);
-			if (!notRemovableSorted.isEmpty())
-				notRemovableMin = Double.parseDouble(notRemovableSorted.peek()
+			if (!notRemovableEntitySortedDegrees.isEmpty())
+				notRemovableMin = Double.parseDouble(notRemovableEntitySortedDegrees.peek()
 						.split(":::")[1]);
 			double absoluteMinimumWeightedDegree = Math.min(removableMin,
 					notRemovableMin);
@@ -253,7 +256,7 @@ public class CocktailParty extends DisambiguationAlgorithm {
 				bestRemovable = new HashSet<Integer>(
 						entityWeightedDegrees.keySet());
 				bestNotRemovable = new HashSet<Integer>(
-						notRemovableEntities.keySet());
+						notRemovableEntityWeightedDegrees.keySet());
 
 				bestMentionDegrees = new HashMap<Integer, Integer>();
 				for (int men : mentionDegrees.keySet()) {
@@ -421,10 +424,12 @@ public class CocktailParty extends DisambiguationAlgorithm {
         GraphTracer.gTracer.addMentionToDangling(
             g.getName(), mention.getMention(), mention.getCharOffset());
         // Set solution to best local candidate.
-        int bestEntity = getBestLocalCandidate(entityCandidates);
-        updateSolution(solution, g, mention, bestEntity, 
-                       entityCandidates.get(bestEntity));
+        Pair<Integer, Double> bestEntityScore = getBestLocalCandidateAndScore(entityCandidates);
+        int bestEntity = bestEntityScore.getKey();
+        double score = bestEntityScore.getValue();
+        updateSolution(solution, g, mention, bestEntity, score);
       }
+      
     }
     TIntSet entitiesToRemove = new TIntHashSet();
     // Remove entities that are only connected to removed mentions.
@@ -453,26 +458,33 @@ public class CocktailParty extends DisambiguationAlgorithm {
   }
 
   /**
-   * Get the best candidate from the given entity-score map.
+   * Get the best candidate and (normalized) score from the given entity-score map.
    * 
    */
-  private int getBestLocalCandidate(TIntDoubleHashMap entityCandidates) {
+  private Pair<Integer, Double> getBestLocalCandidateAndScore(TIntDoubleHashMap entityCandidates) {
     if (entityCandidates.size() == 0) {
-      return -100;
+      return new Pair<Integer, Double>(-100, 0.0);
     }
-    double bestWeight = -1.0;
+    double bestScore = -1.0;
     int bestCandidate = -10;
     for (TIntDoubleIterator itr = entityCandidates.iterator(); 
         itr.hasNext(); ) {
       itr.advance();
       int entityId = itr.key();
-      double weight = itr.value();
-      if (weight > bestWeight) {
-        bestWeight = weight;
+      double score = itr.value();
+      if (score > bestScore) {
+        bestScore = score;
         bestCandidate = entityId;
       }     
     }
-    return bestCandidate;
+    
+    if (computeConfidence) {
+      TIntDoubleHashMap normalizedScores =
+          CollectionUtils.normalizeValuesToSum(entityCandidates);
+      bestScore = normalizedScores.get(bestCandidate);
+    }
+    
+    return new Pair<Integer, Double>(new Integer(bestCandidate), new Double(bestScore));
   }
     
   private void updateSolution(
@@ -765,9 +777,9 @@ public class CocktailParty extends DisambiguationAlgorithm {
 								entitySortedDegrees.remove(candidateNodeId
 										+ ":::" + weightedDegree);
 
-								notRemovableEntities.put(candidateNodeId,
+								notRemovableEntityWeightedDegrees.put(candidateNodeId,
 										weightedDegree);
-								notRemovableSorted.add(candidateNodeId + ":::"
+								notRemovableEntitySortedDegrees.add(candidateNodeId + ":::"
 										+ weightedDegree);
 							}
 							break;
@@ -787,12 +799,12 @@ public class CocktailParty extends DisambiguationAlgorithm {
 							+ oldWeightedDegree);
 					entitySortedDegrees.add(successorId + ":::"
 							+ newWeightedDegree);
-				} else if (notRemovableEntities.get(successorId) != null) {
+				} else if (notRemovableEntityWeightedDegrees.get(successorId) != null) {
 
-					double oldWeightedDegree = notRemovableEntities
+					double oldWeightedDegree = notRemovableEntityWeightedDegrees
 							.get(successorId);
 					double newWeightedDegree = oldWeightedDegree - edgeWeight;
-					notRemovableEntities.put(successorId, newWeightedDegree);
+					notRemovableEntityWeightedDegrees.put(successorId, newWeightedDegree);
 				}
 			}
 		} // end updating all the neighbor nodes
@@ -813,8 +825,8 @@ public class CocktailParty extends DisambiguationAlgorithm {
 				entityWeightedDegrees.remove(minimumEntity);
 				entitySortedDegrees.remove(minimumEntity + ":::"
 						+ minimumWeightedDegree);
-				notRemovableEntities.put(minimumEntity, minimumWeightedDegree);
-				notRemovableSorted.add(minimumEntity + ":::"
+				notRemovableEntityWeightedDegrees.put(minimumEntity, minimumWeightedDegree);
+				notRemovableEntitySortedDegrees.add(minimumEntity + ":::"
 						+ minimumWeightedDegree);
 			} else {
 				// Mark the entity as removable
@@ -941,8 +953,8 @@ public class CocktailParty extends DisambiguationAlgorithm {
 				entitySortedDegrees.remove(maxEntity + ":::"
 						+ maxWeightedDegree);
 
-				notRemovableEntities.put(maxEntity, maxWeightedDegree);
-				notRemovableSorted.add(maxEntity + ":::" + maxWeightedDegree);
+				notRemovableEntityWeightedDegrees.put(maxEntity, maxWeightedDegree);
+				notRemovableEntitySortedDegrees.add(maxEntity + ":::" + maxWeightedDegree);
 			}
 		}
 
@@ -974,16 +986,16 @@ public class CocktailParty extends DisambiguationAlgorithm {
 								+ newWeightedDegree);
 					}
 
-					else if (notRemovableEntities.get(successorId) != null) {
-						double oldWeightedDegree = notRemovableEntities
+					else if (notRemovableEntityWeightedDegrees.get(successorId) != null) {
+						double oldWeightedDegree = notRemovableEntityWeightedDegrees
 								.get(successorId);
 						double newWeightedDegree = oldWeightedDegree
 								- edgeWeight;
-						notRemovableEntities
+						notRemovableEntityWeightedDegrees
 								.put(successorId, newWeightedDegree);
-						notRemovableSorted.remove(successorId + ":::"
+						notRemovableEntitySortedDegrees.remove(successorId + ":::"
 								+ oldWeightedDegree);
-						notRemovableSorted.add(successorId + ":::"
+						notRemovableEntitySortedDegrees.add(successorId + ":::"
 								+ newWeightedDegree);
 					}
 				}
@@ -1053,8 +1065,8 @@ public class CocktailParty extends DisambiguationAlgorithm {
 				}
 
 				if (notRemovable) {
-					notRemovableEntities.put(nodeId, weightedDegree);
-					notRemovableSorted.add(nodeId + ":::" + weightedDegree);
+					notRemovableEntityWeightedDegrees.put(nodeId, weightedDegree);
+					notRemovableEntitySortedDegrees.add(nodeId + ":::" + weightedDegree);
 				} else {
 					entitySortedDegrees.add(nodeId + ":::" + weightedDegree);
 					entityWeightedDegrees.put(nodeId, weightedDegree);
@@ -1113,7 +1125,7 @@ public class CocktailParty extends DisambiguationAlgorithm {
 				if (entityWeightedDegrees.containsKey(successorNodeId)) {
 					weight = entityWeightedDegrees.get(successorNodeId);
 				} else {
-					weight = notRemovableEntities.get(successorNodeId);
+					weight = notRemovableEntityWeightedDegrees.get(successorNodeId);
 				}
 
 				GraphNode entityNode = graph.getNode(successorNodeId);
@@ -1176,7 +1188,7 @@ public class CocktailParty extends DisambiguationAlgorithm {
 					if (entityWeightedDegrees.containsKey(successorNodeId)) {
 						weight = entityWeightedDegrees.get(successorNodeId);
 					} else {
-						weight = notRemovableEntities.get(successorNodeId);
+						weight = notRemovableEntityWeightedDegrees.get(successorNodeId);
 					}
 
 					GraphNode entityNode = graph.getNode(successorNodeId);
@@ -1230,9 +1242,9 @@ public class CocktailParty extends DisambiguationAlgorithm {
 
 					if (bestWeightedDegrees.containsKey(successorNodeId)) {
 						weight = bestWeightedDegrees.get(successorNodeId);
-					} else if (notRemovableEntities
+					} else if (notRemovableEntityWeightedDegrees
 							.containsKey(successorNodeId)) {
-						weight = notRemovableEntities.get(successorNodeId);
+						weight = notRemovableEntityWeightedDegrees.get(successorNodeId);
 					} else {
 						weight = GraphTracer.gTracer.getRemovedEntityDegree(graph.getName(), (int) graph.getNode(successorNodeId).getNodeData());
 					}

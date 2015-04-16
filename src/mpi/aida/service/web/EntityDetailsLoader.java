@@ -23,14 +23,16 @@ public class EntityDetailsLoader {
   public static JSONArray loadKeyphrases(int entityId) {
 		Map<String, JSONObject> keyphrases = new LinkedHashMap<String, JSONObject>();
 		int totalCollectionSize = DataAccess.getCollectionSize();
-		String sql = "select u.word keyphrase, u.source source, wi.word keyword, kc.count "
+		String sql = "select u.word keyphrase, kps.source source, wi.word keyword, kc.count "
 				+ "from ( "
-				+ "select w.word word, kp.source source, unnest(kp.keyphrase_tokens) token_id, kp.weight weight "
-				+ "from entity_keyphrases as kp, word_ids as w "
+				+ "select w.word word, kp.source source, kt.token token_id, kp.weight weight "
+				+ "from entity_keyphrases as kp, word_ids as w, keyphrase_tokens as kt "
 				+ "where kp.entity = "
 				+ entityId
-				+ " and w.id = kp.keyphrase order by source "
-				+ ") as u, word_ids as wi, keyword_counts as kc where u.token_id = wi.id and u.token_id = kc.keyword";
+				+ " and w.id = kp.keyphrase "
+				+ " and kp.keyphrase = kt.keyphrase"
+				+ " order by source "
+				+ ") as u, word_ids as wi, keyword_counts as kc, keyphrase_sources as kps where u.token_id = wi.id and u.token_id = kc.keyword and u.source = kps.source_id";
 
 		Connection con = null;
 		Statement statement = null;

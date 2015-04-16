@@ -11,41 +11,40 @@ import mpi.tokenizer.data.Tokens;
 
 /**
  * Holds the input document as context representation.
- * 
- *
  */
 public class Context {
 
-  private List<String> tokenStrings;
-  private int[] tokenIds;
-  
+  private List<String> tokenStrings_;
+  private int[] tokenIds_;
+
   public Context(Tokens tokens) {
-    List<String> ts = new ArrayList<String>(tokens.size());
+    List<String> ts = new ArrayList<>(tokens.size());
     for (Token token : tokens) {
       ts.add(token.getOriginal());
     }
-    init(ts);
-  }
-  
-  public Context(List<String> tokens) {
-    init(tokens);
-  }
-
-  public void init(List<String> tokens) {
-    tokenStrings = new ArrayList<String>(tokens);
+    tokenStrings_ = new ArrayList<>(ts);
     TObjectIntHashMap<String> token2ids = 
-        DataAccess.getIdsForWords(tokenStrings);
-    tokenIds = new int[tokens.size()];
+        DataAccess.getIdsForWords(tokenStrings_);
+    tokenIds_ = new int[tokens.size()];
     for (int i = 0; i < tokens.size(); ++i) {
-      tokenIds[i] = token2ids.get(tokenStrings.get(i));
+      String token = tokenStrings_.get(i);
+      int tokenId = token2ids.get(token);
+      if (tokenId == token2ids.getNoEntryValue()) {
+        tokenId = tokens.getIdForTransientToken(token);
+      }
+      tokenIds_[i] = tokenId;
     }
   }
   
   public List<String> getTokens() {
-    return tokenStrings;
+    return tokenStrings_;
   }
   
   public int[] getTokenIds() {
-    return tokenIds;
+    return tokenIds_;
+  }
+  
+  public int getTokenCount() {
+    return tokenIds_.length;
   }
 }

@@ -12,15 +12,12 @@ public class NERUtil {
 			// System.out.println(tagging.token(i) + "\t" + tagging.tag(i) +
 			// " ");
 
-			String posTag = tokens.get(i).getPosTag();
-			if (posTag.equals("np") || posTag.equals("NNP") ) {
+			if (tokens.get(i).isProperNoun()) {
 
 				Name n = new Name(tokens.get(i));
 				if (previousWasAName) {
 					Name previous = names.get(names.size() - 1);
-					previous.setName(previous.getName() + " " + n.getName());
-					//
-					previous.setLength(previous.getLength() + n.getLength() + 1);
+					previous.setName(previous.getName() + tokens.get(i - 1).getOriginalEnd() + n.getName());
 				} else {
 					names.add(n);
 				}

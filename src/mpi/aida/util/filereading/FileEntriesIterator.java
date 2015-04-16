@@ -48,31 +48,29 @@ public class FileEntriesIterator implements Iterator<String> {
   
   @Override
   public boolean hasNext() {
-    synchronized(reader_) {
-      if (done) { return false; }
-      try {
-        reader_.mark(maxLineLengthForMark_);
-        lastReadLineInHasNext = reader_.readLine();
-        boolean hasNext = (lastReadLineInHasNext != null);
-        if (hasNext) {
-          reader_.reset();
-        } else {
-          // Close the reader, not used anymore.
-          reader_.close();
-          done = true;
-        }
-        return hasNext;
-      } catch (IOException e) {
-        logger.error("IOException: " + e.getLocalizedMessage() + ". " +
-        		"This might happen when lines are too long, exceeding " + 
-            maxLineLengthForMark_ +	" characters. Try increasing it.");
-        try {
-          reader_.close();
-        } catch (IOException e2) {
-          logger.error("Failed to close reader: " + e2.getLocalizedMessage());
-        }
-        return false;
+    if (done) { return false; }
+    try {
+      reader_.mark(maxLineLengthForMark_);
+      lastReadLineInHasNext = reader_.readLine();
+      boolean hasNext = (lastReadLineInHasNext != null);
+      if (hasNext) {
+        reader_.reset();
+      } else {
+        // Close the reader, not used anymore.
+        reader_.close();
+        done = true;
       }
+      return hasNext;
+    } catch (IOException e) {
+      logger.error("IOException: " + e.getLocalizedMessage() + ". " +
+          "This might happen when lines are too long, exceeding " +
+          maxLineLengthForMark_ +	" characters. Try increasing it.");
+      try {
+        reader_.close();
+      } catch (IOException e2) {
+        logger.error("Failed to close reader: " + e2.getLocalizedMessage());
+      }
+      return false;
     }
   }
 

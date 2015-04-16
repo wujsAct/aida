@@ -78,7 +78,9 @@ public class ExternalSort {
 	 * @param cmp string comparator 
 	 * @return a list of temporary flat files
 	 */
-	public static List<File> sortInBatch(File file, Comparator<String> cmp) throws IOException {		return sortInBatch(file, cmp,DEFAULTMAXTEMPFILES,Charset.defaultCharset(),null);	}
+	public static List<File> sortInBatch(File file, Comparator<String> cmp) throws IOException {
+		return sortInBatch(file, cmp,DEFAULTMAXTEMPFILES,Charset.defaultCharset(),null);
+	}
 	
 	
 

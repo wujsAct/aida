@@ -25,7 +25,7 @@ public class FixedLengthDocumentChunker extends DocumentChunker {
   }
   
   @Override
-  public PreparedInput process(String docId, Tokens tokens, Mentions mentions) {
+  public PreparedInput process(String docId, String content, Tokens tokens, Mentions mentions) {
     
     Integer runId = RunningTimer.recordStartTime("FixedLengthChunker");
     List<PreparedInputChunk> chunks = new ArrayList<PreparedInputChunk>(1);
@@ -62,7 +62,7 @@ public class FixedLengthDocumentChunker extends DocumentChunker {
         new PreparedInputChunk(chunkId, currentChunkTokens, currentChunkMentions);
       chunks.add(singleChunk);
     
-    PreparedInput preparedInput = new PreparedInput(docId, chunks);
+    PreparedInput preparedInput = new PreparedInput(docId, content, chunks);
     RunningTimer.recordEndTime("FixedLengthChunker", runId);
     return preparedInput;
   }

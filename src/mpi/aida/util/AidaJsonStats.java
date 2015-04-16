@@ -6,8 +6,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import mpi.aida.AidaManager;
 import mpi.tokenizer.data.Token;
+import mpi.tokenizer.data.TokenizerManager;
 import mpi.tools.javatools.util.FileUtils;
 
 import org.apache.commons.cli.CommandLine;
@@ -68,7 +68,7 @@ public class AidaJsonStats {
       String jsonStr = FileUtils.getFileContent(f);
       JSONObject json = (JSONObject) JSONValue.parse(jsonStr);
       String originalText = (String) json.get("originalText");
-      for (Token token : AidaManager.tokenize(originalText)) {
+      for (Token token : TokenizerManager.tokenize(originalText)) {
         String word = token.getOriginal();
         if (!StopWord.isStopwordOrSymbol(word) && word.length() > 2) {
           Integer count = tokenCounts.get(word);

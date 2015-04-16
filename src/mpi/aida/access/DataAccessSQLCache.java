@@ -101,7 +101,7 @@ class DataAccessSQLCache {
 
     public CachingHashMap(int maxEntities) {
       // Initialize with half the maximum capacity.
-      super(maxEntities / 2);
+      super(maxEntities / 2, 0.75f, true);
       maxEntities_ = maxEntities;
       if (maxEntities > 0) {
         logger_.info("Caching up to " + maxEntities + " entities per query type");
@@ -144,8 +144,6 @@ class DataAccessSQLCache {
         for (EntityKeyphraseData ekd : ekds) {
           kpc.add(eId, ekd);
         }
-        // Move element to the front so that CachingHashMap can keep track.        
-        queryCache.put(eId, ekds);
         ++entityKeyphrasesCacheHits;
       }
     }

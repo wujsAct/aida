@@ -63,87 +63,112 @@ public class CollectionUtils {
    * Normalizes scores by summing up. First shifts so that the min is 0 if
    * it was negative.
    * 
-   * @param scores
+   * @param values
    * @return
    */
-  public static <T> Map<T, Double> shiftAndNormalizeScores(Map<T, Double> scores) {
+  public static <T> Map<T, Double> shiftAndNormalizeValuesToSum(Map<T, Double> values) {
     Double min = Double.MAX_VALUE;
-    for (Double s : scores.values()) {
+    for (Double s : values.values()) {
       if (s < min) {
         min = s;
       }
     }
-    Map<T, Double> shiftScores = new HashMap<T, Double>(scores);
+    Map<T, Double> shiftScores = new HashMap<T, Double>(values);
     if (min < 0) {
-      for (T key : scores.keySet()) {
-        Double prevScore = scores.get(key);
+      for (T key : values.keySet()) {
+        Double prevScore = values.get(key);
         Double shiftScore = prevScore - min;
         shiftScores.put(key, shiftScore);
       }
     }    
-    return normalizeScores(shiftScores);
+    return normalizeValuesToSum(shiftScores);
   }
-  
-  public static <T> Map<T, Double> normalizeScores(Map<T, Double> scores) {
+
+
+  /**
+   * Normalizes values so that they sum up to 1.
+   *
+   * @param values
+   * @param <T>
+   * @return  Normalized values.
+   */
+  public static <T> Map<T, Double> normalizeValuesToSum(Map<T, Double> values) {
     Map<T, Double> normalizedScores = new HashMap<T, Double>();
     double total = 0;
-    for (Double d : scores.values()) {
+    for (Double d : values.values()) {
       total += d;
     }
     if (total == 0) {
-      return scores;
+      return values;
     }
-    for (Entry<T, Double> entry : scores.entrySet()) {
+    for (Entry<T, Double> entry : values.entrySet()) {
       Double normalizedScore = entry.getValue() / total;
       normalizedScores.put(entry.getKey(), normalizedScore);
     }
     return normalizedScores;
   }
-  
-  public static TIntDoubleHashMap normalizeScores(TIntDoubleHashMap scores) {
+
+  /**
+   * Normalizes values so that they sum up to 1.
+   *
+   * @param values
+   * @return  Normalized values.
+   */
+  public static TIntDoubleHashMap normalizeValuesToSum(TIntDoubleHashMap values) {
     TIntDoubleHashMap normalizedScores = new TIntDoubleHashMap();
     double total = 0;
-    for (TIntDoubleIterator itr = scores.iterator(); itr.hasNext(); ) {
+    for (TIntDoubleIterator itr = values.iterator(); itr.hasNext(); ) {
       itr.advance();
       total += itr.value();
     }
     if (total == 0) {
-      return scores;
+      return values;
     }
-    for (TIntDoubleIterator itr = scores.iterator(); itr.hasNext(); ) {
+    for (TIntDoubleIterator itr = values.iterator(); itr.hasNext(); ) {
       itr.advance();
       Double normalizedScore = itr.value() / total;
       normalizedScores.put(itr.key(), normalizedScore);
     }
     return normalizedScores;
   }
-  
+
+  /**
+   * Normalizes values so that they sum up to 1.
+   *
+   * @param values
+   * @param <T>
+   * @return  Normalized values.
+   */
+  public static <T> TObjectDoubleHashMap<T> normalizeValuesToSum(TObjectDoubleHashMap<T> values) {
+    TObjectDoubleHashMap<T> normalizedScores = new TObjectDoubleHashMap<T>();
+    double total = 0;
+    for (TObjectDoubleIterator<T> itr = values.iterator(); itr.hasNext(); ) {
+      itr.advance();
+      total += itr.value();
+    }
+    if (total == 0) {
+      return values;
+    }
+    for (TObjectDoubleIterator<T> itr = values.iterator(); itr.hasNext(); ) {
+      itr.advance();
+      Double normalizedScore = itr.value() / total;
+      normalizedScores.put(itr.key(), normalizedScore);
+    }
+    return normalizedScores;
+  }
+
   public static double getMaxValue(TIntDoubleHashMap map) {
+    if (map.isEmpty()) {
+      return 0.0;
+    }
+
     double max = -Double.MAX_VALUE;
     for (TIntDoubleIterator itr = map.iterator();
-        itr.hasNext(); ) {
+         itr.hasNext(); ) {
       itr.advance();
       max = Math.max(itr.value(), max);
     }
     return max;
-  }
-  
-  public static <T> TObjectDoubleHashMap<T> normalizeScores(TObjectDoubleHashMap<T> scores) {
-    TObjectDoubleHashMap<T> normalizedScores = new TObjectDoubleHashMap<T>();
-    double total = 0;
-    for (TObjectDoubleIterator<T> itr = scores.iterator(); itr.hasNext(); ) {
-      itr.advance();
-      total += itr.value();
-    }
-    if (total == 0) {
-      return scores;
-    }
-    for (TObjectDoubleIterator<T> itr = scores.iterator(); itr.hasNext(); ) {
-      itr.advance();
-      Double normalizedScore = itr.value() / total;
-      normalizedScores.put(itr.key(), normalizedScore);
-    }
-    return normalizedScores;
   }
   
   /**
@@ -182,7 +207,7 @@ public class CollectionUtils {
     }    
     return grouped;
   }
-  
+
   static class StringArrayComparator implements Comparator<String[]> {
     private int[] groupingRange_;
     
@@ -283,7 +308,7 @@ public class CollectionUtils {
     }
     return topKeys;
   }
-    
+
   /**
    * Generates all combinations of items in the input of the given length.
    * 

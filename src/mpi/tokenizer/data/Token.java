@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Iterator;
 
+import mpi.aida.util.nlp.ProperNounManager;
 import mpi.tools.javatools.datatypes.Pair;
 import mpi.tools.javatools.parsers.Char;
 
@@ -123,6 +124,10 @@ public class Token implements Serializable {
 
   public String getPOS() {
     return ptag;
+  }
+
+  public boolean isProperNoun() {
+    return ProperNounManager.singleton().isProperNounTag(getPOS());
   }
 
   public void setLemma(String lemma) {

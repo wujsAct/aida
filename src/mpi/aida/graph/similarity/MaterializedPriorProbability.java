@@ -56,7 +56,7 @@ public class MaterializedPriorProbability extends PriorProbability {
             it.advance();
             int e = it.key();
             double prior = it.value();
-            if (priors.containsKey(e)) {
+            if (allMentionPriors.containsKey(e)) {
               allMentionPriors.put(e, Math.max(allMentionPriors.get(e), prior));
             } else {
               allMentionPriors.put(e, prior);

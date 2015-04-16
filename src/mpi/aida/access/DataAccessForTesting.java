@@ -22,6 +22,7 @@ import mpi.aida.data.EntityMetaData;
 import mpi.aida.data.KBIdentifiedEntity;
 import mpi.aida.data.Keyphrases;
 import mpi.aida.data.Type;
+import mpi.aida.graph.similarity.UnitType;
 import mpi.aida.graph.similarity.measure.WeightComputation;
 import mpi.aida.util.YagoUtil.Gender;
 import mpi.tools.javatools.datatypes.Pair;
@@ -36,8 +37,8 @@ public class DataAccessForTesting implements DataAccessInterface {
   
   private TIntIntHashMap wordExpansions = new TIntIntHashMap();
   
-  private int entityId = 0;
-  private int wordId = 0;
+  private int entityId = 1;
+  private int wordId = 1;
   
   private final int TOTAL_ENTITY_COUNT = 2651987;
       
@@ -69,7 +70,7 @@ public class DataAccessForTesting implements DataAccessInterface {
       new String[] { "Stopword_Page", "2" },
       new String[] { "Kashmir", "15" },
       new String[] { "Kashmir_(song)", "5" },
-      new String[] { "Knebworth_Festival", "2" },
+      new String[] { "Knebworth_Festival", "2" }
   };
   
   private String[] orderedEntities = new String[] {
@@ -228,7 +229,7 @@ public class DataAccessForTesting implements DataAccessInterface {
   }
 
   @Override
-  public Map<String, Entities> getEntitiesForMentions(Collection<String> mentions, double maxEntityRank) {
+  public Map<String, Entities> getEntitiesForMentions(Collection<String> mentions, double maxEntityRank, int topByPrior) {
     Map<String, Entities> allCandidates = new HashMap<String, Entities>();
     Entities pageEntities = new Entities();
     Entity e1 = getTestEntity("Jimmy_Page");
@@ -250,7 +251,11 @@ public class DataAccessForTesting implements DataAccessInterface {
     
     Map<String, Entities> candidates = new HashMap<>();
     for (String m : mentions) {
-      candidates.put(m, allCandidates.get(m));
+      Entities entities = allCandidates.get(m);
+      if (entities == null) {
+        entities = new Entities();
+      }
+      candidates.put(m, entities);
     }
     
     return candidates;
@@ -396,8 +401,7 @@ public class DataAccessForTesting implements DataAccessInterface {
   public TObjectIntHashMap<String> getIdsForWords(Collection<String> words) {
     TObjectIntHashMap<String> ids = new TObjectIntHashMap<String>(words.size());
     for (String word : words) {
-      // The default id for an unknown word is -1
-      int id = -1; 
+      int id = ids.getNoEntryValue();
       if (word2id.containsKey(word)) {
         id = word2id.get(word);
       }
@@ -434,7 +438,7 @@ public class DataAccessForTesting implements DataAccessInterface {
     } else if (mention.equals("LES PAUL")) {
       return new TIntDoubleHashMap();
     } else {
-      throw new IllegalArgumentException(mention + " is not part of Testing");
+      return new TIntDoubleHashMap();
     }
   }
 
@@ -504,6 +508,13 @@ public class DataAccessForTesting implements DataAccessInterface {
     return isec;
   }
 
+  @Override
+  public TIntObjectHashMap<TIntIntHashMap> getEntityUnitIntersectionCount(Entities entities, UnitType unitType) {
+    if (unitType == UnitType.KEYWORD)
+      return getEntityKeywordIntersectionCount(entities);
+    return null;
+  }
+
   private static String getMethodName()
   {
     StackTraceElement[] stacktrace = Thread.currentThread().getStackTrace();
@@ -561,6 +572,22 @@ public class DataAccessForTesting implements DataAccessInterface {
       expansions[i] = wordExpansions.get(i);
     }
     return expansions;
+  }
+
+  @Override
+  public int[] getAllWordContractions() {
+    int max = -1;
+    for (int i : wordExpansions.values()) {
+      if (i > max) {
+        max = i;
+      }
+    }
+
+    int[] contractions = new int[max + 1];
+    for (int i : wordExpansions.keys()) {
+      contractions[wordExpansions.get(i)] = i;
+    }
+    return contractions;
   }
 
   @Override
@@ -623,6 +650,13 @@ public class DataAccessForTesting implements DataAccessInterface {
   }
 
   @Override
+  public int[] getAllUnitDocumentFrequencies(UnitType unitType) {
+    if (unitType == UnitType.KEYWORD)
+      return getAllKeywordDocumentFrequencies();
+    return null;
+  }
+
+  @Override
   public TObjectIntHashMap<String> getIdsForTypeNames(Collection<String> typeNames) {
     // TODO Auto-generated method stub
     return null;
@@ -660,8 +694,17 @@ public class DataAccessForTesting implements DataAccessInterface {
 
   @Override
   public TIntObjectHashMap<EntityMetaData> getEntitiesMetaData(int[] entitiesIds) {
-    // TODO Auto-generated method stub
-    return null;
+    TIntObjectHashMap<EntityMetaData> md = new TIntObjectHashMap<>();
+    
+    Entities entities = getAllEntities();
+    for (Entity e : entities) {
+      EntityMetaData emd = 
+          new EntityMetaData(e.getId(), e.getIdentifierInKb(),
+              "http://" + e.getIdentifierInKb(), e.getKnowledgebase(), "");
+      md.put(e.getId(), emd);
+    }
+    
+    return md;
   }
 
   @Override
@@ -678,6 +721,24 @@ public class DataAccessForTesting implements DataAccessInterface {
 
   @Override
   public TIntObjectHashMap<int[]> getEntityLSHSignatures(Entities entities) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TIntIntHashMap getGNDTripleCount(Entities entities) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TIntIntHashMap getGNDTitleCount(Entities entities) {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public TIntIntHashMap getYagoOutlinkCount(Entities entities) {
     // TODO Auto-generated method stub
     return null;
   }
@@ -735,5 +796,33 @@ public class DataAccessForTesting implements DataAccessInterface {
   public TIntObjectHashMap<int[]> getTaxonomy() {
     // TODO Auto-generated method stub
     return null;
+  }
+
+  @Override
+  public Map<String, int[]> getDictionary() {
+    // TODO Auto-generated method stub
+    return null;
+  }
+
+  @Override
+  public int getMaximumEntityId() {
+    int maxId = 0;
+    for (Integer i : id2entity.keySet()) {
+      if (i > maxId) {
+        maxId = i;
+      }
+    }
+    return maxId;
+  }
+
+  @Override
+  public int getMaximumWordId() {
+    int maxId = 0;
+    for (Integer i : id2word.keySet()) {
+      if (i > maxId) {
+        maxId = i;
+      }
+    }
+    return maxId;
   }
 }

@@ -79,7 +79,7 @@ public class ResultEntity implements Comparable<ResultEntity>, Serializable {
     // natural ordering for ResultEntities is descending
     return new Double(new Double(re.getDisambiguationScore())).compareTo(disambiguationScore);
   }
-
+  
   public String toString() {
     NumberFormat df = NumberFormat.getInstance(Locale.ENGLISH);
     df.setMaximumFractionDigits(5);

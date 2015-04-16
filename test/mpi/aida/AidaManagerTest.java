@@ -3,8 +3,9 @@ package mpi.aida;
 import static org.junit.Assert.assertEquals;
 import mpi.aida.config.AidaConfig;
 import mpi.aida.config.settings.PreparationSettings;
-import mpi.aida.config.settings.preparation.StanfordManualPreparationSettings;
+import mpi.aida.config.settings.preparation.ManualPreparationSettings;
 import mpi.aida.data.PreparedInput;
+import mpi.aida.preparator.Preparator;
 
 import org.junit.Test;
 
@@ -17,9 +18,9 @@ public class AidaManagerTest {
   }
   
   @Test
-  public void dropMentionsBelowOccurrenceCount() {
+  public void dropMentionsBelowOccurrenceCount() throws Exception {
     String text = "[[one]] and [[two]] and [[two]] and [[three]] and [[three]] and [[three]]";
-    PreparationSettings settings = new StanfordManualPreparationSettings();
+    PreparationSettings settings = new ManualPreparationSettings();
     Preparator p = new Preparator();
     PreparedInput in = p.prepare(text, settings);
     assertEquals(6, in.getMentionSize());

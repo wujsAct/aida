@@ -1,5 +1,6 @@
 package mpi.aida.access;
 
+import gnu.trove.impl.Constants;
 import gnu.trove.iterator.TIntObjectIterator;
 import gnu.trove.map.hash.TIntObjectHashMap;
 
@@ -40,7 +41,7 @@ public class DataAccessKeyphraseTokensCacheTarget extends DataAccessCacheTarget 
     File cacheFile = getCacheFile();
     DataInputStream in = new DataInputStream(new BufferedInputStream(new GZIPInputStream(new FileInputStream(cacheFile))));
     int keyphraseCount = in.readInt();
-    data_ = new TIntObjectHashMap<int[]>(keyphraseCount);
+    data_ = new TIntObjectHashMap<>((int) (keyphraseCount/Constants.DEFAULT_LOAD_FACTOR));
     for (int i = 0; i < keyphraseCount; ++i) {
       int wordId = in.readInt();
       int arrLen = in.readInt();

@@ -1,5 +1,8 @@
 package mpi.aida.graph.similarity.context;
 
+import edu.emory.mathcs.backport.java.util.Arrays;
+import mpi.aida.graph.similarity.UnitType;
+
 import java.util.Map;
 
 
@@ -35,6 +38,12 @@ public class EntitiesContextSettings {
   private int lshBandCount;
   private String lshDatabaseTable;
     
+  // LanguageModel
+  private static final double[] DEFAULT_UNIT_SMOOTHING_PARAMETER = new double[] {100, 100};
+  private double[] unitSmoothingParameter = Arrays.copyOf(DEFAULT_UNIT_SMOOTHING_PARAMETER, UnitType.values().length);
+  public static final boolean[] DEFAULT_UNIT_IGNORE_MENTION = new boolean[] {false, false};
+  private boolean[] unitIgnoreMention = Arrays.copyOf(DEFAULT_UNIT_IGNORE_MENTION, UnitType.values().length);
+
   /**
    * 
    * @return Balance between Keyphrase MI/IDF. Use alpha*mi, (1-alpha)*idf 
@@ -162,5 +171,21 @@ public class EntitiesContextSettings {
 
   public void setMaxEntityKeyphraseCount(int maxEntityKeyphraseCount) {
     this.maxEntityKeyphraseCount = maxEntityKeyphraseCount;
+  }
+  
+  public double getSmoothingParameter(UnitType unitType) {
+    return unitSmoothingParameter[unitType.ordinal()];
+  }
+
+  public void setUnitSmoothingParameter(double[] unitSmoothingParameter) {
+    this.unitSmoothingParameter = unitSmoothingParameter;
+  }
+  
+  public boolean shouldIgnoreMention(UnitType unitType) {
+    return unitIgnoreMention[unitType.ordinal()];
+  }
+  
+  public void setIgnoreMention(boolean[] unitIgnoreMention) {
+    this.unitIgnoreMention = unitIgnoreMention;
   }
 } 

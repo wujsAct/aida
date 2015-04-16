@@ -2,8 +2,13 @@ package mpi.aida.data;
 
 import java.io.Serializable;
 
-public class EntityMetaData implements Serializable{
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+public class EntityMetaData implements Serializable {
+  
+  private static Logger logger = LoggerFactory.getLogger(EntityMetaData.class);
+  
   private static final long serialVersionUID = -5254220574529910760L;
 
   private int id;
@@ -16,17 +21,14 @@ public class EntityMetaData implements Serializable{
   
   private String depictionurl;
   
-  private String depictionthumbnailurl;
-
   public EntityMetaData(int id, String humanReadableRepresentation, String url, 
-      String knowledgebase, String depictionurl, String depictionthumbnailurl) {
+      String knowledgebase, String depictionurl) {
     super();
     this.id = id;
     this.humanReadableRepresentation = humanReadableRepresentation;
     this.url = url;
     this.knowledgebase = knowledgebase;
     this.depictionurl = depictionurl;
-    this.depictionthumbnailurl = depictionthumbnailurl;
   }
 
   public int getId() {
@@ -73,14 +75,37 @@ public class EntityMetaData implements Serializable{
     this.depictionurl = depictionurl;
   }
 
-  
   public String getDepictionthumbnailurl() {
-    return depictionthumbnailurl;
+    return getDepictionthumbnailurl(200);
   }
-
   
-  public void setDepictionthumbnailurl(String depictionthumbnailurl) {
-    this.depictionthumbnailurl = depictionthumbnailurl;
+  public String getDepictionthumbnailurl(int widthInPixels) {
+    if (depictionurl == null) {
+      return null;
+    }
+    String thumbnailUrl = depictionurl;
+    
+    int insertIndex = -1; 
+    if (thumbnailUrl.contains("/commons")) {
+      insertIndex = depictionurl.indexOf("/commons") + "/commons".length();
+    } else if (thumbnailUrl.contains("/en")) {
+      insertIndex = depictionurl.indexOf("/en") + "/en".length();
+    }
+    
+    if (insertIndex != -1) {
+      thumbnailUrl = depictionurl.substring(0, insertIndex);
+      thumbnailUrl += "/thumb";
+      thumbnailUrl += depictionurl.substring(insertIndex + "/thumb".length());
+      
+      // Add the last part twice
+      String imageName = depictionurl.substring(depictionurl.lastIndexOf('/') + 1);
+      thumbnailUrl += "/" + widthInPixels + "px-" + imageName;
+      return thumbnailUrl;
+    } else {
+      // URL does not conform to expected schema.
+      logger.warn("DepictionUrl does not conform to expected schema: '" + 
+          depictionurl + "'.");
+      return null;
+    }
   }
-
 }

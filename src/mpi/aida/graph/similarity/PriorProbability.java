@@ -5,10 +5,10 @@ import gnu.trove.map.hash.TIntDoubleHashMap;
 import gnu.trove.map.hash.TObjectDoubleHashMap;
 
 import java.sql.SQLException;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import mpi.aida.AidaManager;
 import mpi.aida.data.Entity;
 import mpi.aida.data.Mention;
 import mpi.aida.util.timing.RunningTimer;
@@ -90,11 +90,6 @@ public abstract class PriorProbability {
   }
   
   public static String conflateMention(String mention) {
-    // conflate cases for mentions of length >= 4
-    if (mention.length() >= 4) {
-      mention = mention.toUpperCase(Locale.ENGLISH);
-    }
-    
-    return mention;
+    return AidaManager.conflateToken(mention);
   }
 } 

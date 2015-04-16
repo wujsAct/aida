@@ -1,13 +1,11 @@
 package mpi.aida.graph.similarity.measure;
 
-import gnu.trove.list.array.TIntArrayList;
+import gnu.trove.iterator.TIntObjectIterator;
 import gnu.trove.map.hash.TIntObjectHashMap;
-import gnu.trove.set.hash.TIntHashSet;
 
 import java.sql.Connection;
-import java.util.BitSet;
 
-import mpi.aida.AidaManager;
+import javaewah.EWAHCompressedBitmap;
 import mpi.aida.access.DataAccess;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
@@ -26,8 +24,7 @@ public class InlinkOverlapEntityEntitySimilarity extends EntityEntitySimilarity 
   private static final Logger logger = 
       LoggerFactory.getLogger(InlinkOverlapEntityEntitySimilarity.class);
 
-  private TIntObjectHashMap<int[]> entity2inlink;
-  private TIntObjectHashMap<BitSet> entity2vector;
+  private TIntObjectHashMap<EWAHCompressedBitmap> entity2vector;
 
   Connection con;
 
@@ -40,75 +37,47 @@ public class InlinkOverlapEntityEntitySimilarity extends EntityEntitySimilarity 
 
   private void setupEntities(Entities entities) throws Exception {
     if (entities.size() == 0) {
-      logger.info("Skipping initialization of InlinkEntityEntitySimilarity for " + entities.size() + " entities");
+      logger.debug("Skipping initialization of InlinkEntityEntitySimilarity for " + entities.size() + " entities");
       return;
     }
 
-    logger.info("Initializing InlinkEntityEntitySimilarity for " + entities.size() + " entities");
+    logger.debug("Initializing InlinkEntityEntitySimilarity for " + entities.size() + " entities");
 
-    con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
+    entity2vector = new TIntObjectHashMap<EWAHCompressedBitmap>();
 
-    entity2inlink = DataAccess.getInlinkNeighbors(entities);
-
-    // get all inlinks for all entities
-    // get all inlinks for all entities
-    TIntHashSet allInlinks = new TIntHashSet();
-
-    for (int[] neighbors : entity2inlink.valueCollection()) {
-      allInlinks.addAll(neighbors);
-    }
-
-    TIntArrayList allInlinksList = new TIntArrayList(allInlinks.size());
-    for (int entry : allInlinksList.toArray()) {
-      allInlinksList.add(entry);
-    }
-    allInlinksList.sort();
+    TIntObjectHashMap<int[]> entityInlinks = 
+        DataAccess.getInlinkNeighbors(entities);
     
-    // now create the bitvectors for each entity
-    logger.info("Creating bitvectors for entities");
-
-    entity2vector = new TIntObjectHashMap<BitSet>();
-
-    for (int entity : entities.getUniqueIds()) {
-      int[] inlinks = entity2inlink.get(entity);
-
-      BitSet bs = new BitSet(allInlinksList.size());
-
-      int current = 0;
-
-      for (int inlink : inlinks) {
-        // move to position of inlink in allInlinks
-        while (allInlinksList.get(current) != inlink) {
-          current++;
-        }
-        bs.set(current);
+    for (TIntObjectIterator<int[]> itr = entityInlinks.iterator();
+        itr.hasNext(); ) {
+      itr.advance();
+      int entity = itr.key();
+      int[] inLinks = itr.value();
+          
+      EWAHCompressedBitmap bs = new EWAHCompressedBitmap();
+      for (int l : inLinks) {
+        bs.set(l);
       }
-
       entity2vector.put(entity, bs);
     }
 
-    AidaManager.releaseConnection(con);
-
-    logger.info("Done initializing InlinkEntityEntitySimilarity");
+    logger.debug("Done initializing InlinkEntityEntitySimilarity");
   }
 
   @Override
   public double calcSimilarity(Entity a, Entity b) throws Exception {
-    BitSet bsA = entity2vector.get(a.getId());
-    BitSet bsB = entity2vector.get(b.getId());
+    EWAHCompressedBitmap bsA = entity2vector.get(a.getId());
+    EWAHCompressedBitmap bsB = entity2vector.get(b.getId());
+    
+    int isecCount = bsA.andCardinality(bsB);
+    int unionCount = bsA.orCardinality(bsB);
 
-    BitSet intersection = (BitSet) bsA.clone();
-    intersection.and(bsB);
-
-    BitSet union = (BitSet) bsA.clone();
-    union.or(bsB);
-
-    if (intersection.cardinality() == 0 || union.cardinality() == 0) {
+    if (isecCount == 0 || unionCount == 0) {
       return 0.0; // cannot calc
     }
 
-    double sim = (double) intersection.cardinality() 
-                 / (double) union.cardinality();
+    double sim = (double) isecCount
+                 / (double) unionCount;
     
     return sim;
   }

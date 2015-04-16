@@ -104,5 +104,5 @@ public class Entity implements Serializable, Comparable<Entity>, Cloneable {
   
   public KBIdentifiedEntity getKbIdentifiedEntity() {
     return kbEntity;
-  }    
+  }
 }

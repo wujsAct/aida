@@ -16,12 +16,14 @@ public class ImportanceOnlyDisambiguationSettings extends DisambiguationSettings
 
   private static final long serialVersionUID = -6391627336407534940L;
 
-  public ImportanceOnlyDisambiguationSettings() throws MissingSettingException {
+  public ImportanceOnlyDisambiguationSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException {
     setDisambiguationTechnique(TECHNIQUE.LOCAL);
 
-    List<String[]> eisConfigs = new LinkedList<String[]>();
-    eisConfigs.add(new String[] { "AidaEntityImportance","0.5" });
-    
+
+    List<SimilaritySettings.EntityImportancesRaw> eisConfigs = new LinkedList<>();
+    eisConfigs.add(new SimilaritySettings.EntityImportancesRaw("AidaEntityImportance", 0.5));
+
+
     SimilaritySettings localIDFPsettings = new SimilaritySettings(null, null, eisConfigs, 0);
     localIDFPsettings.setIdentifier("importance");
     setSimilaritySettings(localIDFPsettings);

@@ -1,16 +1,9 @@
 package mpi.tools.javatools.administrative;
 
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.io.Writer;
-import java.util.Set;
-import java.util.Vector;
-
-import mpi.tools.javatools.datatypes.FinalSet;
 import mpi.tools.javatools.parsers.NumberFormatter;
+
+import java.io.*;
+import java.util.Vector;
 
 /**
  * This class is part of the Java Tools (see
@@ -738,15 +731,6 @@ public class Announce {
 	/** Retrieves the time */
 	public static void printTime() {
 		message("Time:", NumberFormatter.formatMS(getTime()));
-	}
-
-	/** Command line arguments that ask for help */
-	protected static final Set<String> helpCommands = new FinalSet<String>(
-			"-help", "--help", "-h", "--h", "-?", "/?", "/help");
-
-	/** Says whether a command line argument asks for help */
-	public static boolean isHelp(String arg) {
-		return (arg == null ? false : helpCommands.contains(arg.toLowerCase()));
 	}
 
 	/** Test routine */

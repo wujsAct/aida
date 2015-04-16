@@ -12,6 +12,7 @@ import java.util.Map.Entry;
 import java.util.StringTokenizer;
 
 import mpi.aida.util.CollectionUtils;
+import mpi.aida.util.NiceTime;
 
 public class DocumentRunTimeStats {
   
@@ -142,18 +143,20 @@ public class DocumentRunTimeStats {
     }
     
     int tmpCnt = 0;
+    double overallTime = 0;
     NumberFormat nf = NumberFormat.getNumberInstance(Locale.ENGLISH);
     nf.setMaximumFractionDigits(2);
     for(Entry<String, Double> e : documentsCompletionTime.entrySet()) {
       tmpCnt++;
-      completeInfo.append(e.getKey()).append("\t").append(nf.format(e.getValue()) + "s").append("\n");
+      overallTime += e.getValue();
+      completeInfo.append(e.getKey()).append("\t").append(nf.format(e.getValue()) + "ms").append("\n");
       if(medianPos != -1 && tmpCnt == medianPos) {
-        specificInfo.append("Median : ").append(nf.format(e.getValue()) + "s")
+        specificInfo.append("Median : ").append(nf.format(e.getValue()) + "ms")
         .append(" ( Document : ").append(e.getKey()).append(")").append("\n");
       }
       
       if(percentilPos != -1 && tmpCnt == percentilPos) {
-        specificInfo.append(percentile * 100).append(" Percentile : ").append(nf.format(e.getValue()) + "s")
+        specificInfo.append(percentile * 100).append(" Percentile : ").append(nf.format(e.getValue()) + "ms")
         .append(" ( Document : ").append(e.getKey()).append(")").append("\n");
       }      
     }
@@ -162,6 +165,7 @@ public class DocumentRunTimeStats {
       specificInfo.append("\n").append(completeInfo.toString());
     }
     
+    specificInfo.append("\nOverall Execution Time : ").append(NiceTime.convert(overallTime)).append("\n");
     return specificInfo.toString();
   }
   

@@ -16,6 +16,7 @@ import mpi.aida.graph.similarity.context.KeyphrasesContext;
 import mpi.experiment.trace.NullTracer;
 import mpi.experiment.trace.Tracer;
 
+import mpi.tokenizer.data.Tokens;
 import org.junit.Test;
 
 public class KeyphrasesBasedSimilarityTest {
@@ -32,7 +33,7 @@ public class KeyphrasesBasedSimilarityTest {
     String text = 
         "When Page played at Knebworth , his Les Paul was uniquely tuned .";
     
-    Context context = new Context(Arrays.asList(text.split(" ")));
+    Context context = new Context(new Tokens(Arrays.asList(text.split(" "))));
     
     String n1 = "Kashmir";
     String n2 = "Kashmir_(song)";
@@ -71,7 +72,7 @@ public class KeyphrasesBasedSimilarityTest {
     String text = 
         "WHEN Page PLAYED AT Knebworth , HIS Les Paul WAS UNIQUELY TUNED .";
     
-    Context context = new Context(Arrays.asList(text.split(" ")));
+    Context context = new Context(new Tokens(Arrays.asList(text.split(" "))));
     
     String n1 = "Kashmir";
     String n2 = "Kashmir_(song)";
@@ -105,6 +106,7 @@ public class KeyphrasesBasedSimilarityTest {
   }
   
   // TODO(jhoffart): Test seems to be working in eclipse but not in mvn.
+  // TODO(fkeller): why not using the @Ignore annotation?
 //  @Test
 //  public void testSimilarityNoMentionMatch() throws Exception {
 //    String text = 
@@ -137,7 +139,7 @@ public class KeyphrasesBasedSimilarityTest {
     String text = 
         "Page played and the crowd went wild .";
     
-    Context context = new Context(Arrays.asList(text.split(" ")));
+    Context context = new Context(new Tokens(Arrays.asList(text.split(" "))));
     
     String n1 = "Stopword_Page";
     Entity e1 = DataAccessForTesting.getTestEntity(n1);

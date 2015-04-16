@@ -1,8 +1,6 @@
 package mpi.aida.config.settings;
 
 import java.io.Serializable;
-import java.util.HashMap;
-import java.util.Map;
 
 import mpi.aida.config.AidaConfig;
 import mpi.aida.data.Type;
@@ -10,7 +8,8 @@ import mpi.aida.preparation.documentchunking.DocumentChunker;
 import mpi.aida.preparation.documentchunking.FixedLengthDocumentChunker;
 import mpi.aida.preparation.documentchunking.PageBasedDocumentChunker;
 import mpi.aida.preparation.documentchunking.SingleChunkDocumentChunker;
-import mpi.aida.preparation.mentionrecognition.FilterMentions.FilterType;
+import mpi.aida.preparation.mentionrecognition.MentionsDetector;
+import mpi.tokenizer.data.Tokenizer;
 
 /**
  * Settings for the preparator. Predefined settings are available in
@@ -20,10 +19,10 @@ public class PreparationSettings implements Serializable {
 
   private static final long serialVersionUID = -2825720730925914648L;
 
-  private FilterType mentionsFilter = FilterType.STANFORD_NER;
+  private MentionsDetector.type mentionsDetectionType = MentionsDetector.type.AUTOMATIC_AND_MANUAL;
   
-  private boolean useHybridMentionDetection = true;
-  
+  private Tokenizer.type tokenizerType = Tokenizer.type.ENGLISH_TOKENS;
+
   /** 
    * Minimum number of mention occurrence to be considered in disambiguation.
    * Default is to consider all mentions.
@@ -37,20 +36,39 @@ public class PreparationSettings implements Serializable {
   
   private DOCUMENT_CHUNK_STRATEGY docChunkStrategy = AidaConfig.getDocumentChunkStrategy();
   
+  // default input format is PLAIN
+  private DOCUMENT_INPUT_FORMAT documentInputFormat = DOCUMENT_INPUT_FORMAT.PLAIN;
+
+  private String encoding = "UTF-8";
+  
   public static enum DOCUMENT_CHUNK_STRATEGY {
     SINGLE, PAGEBASED, MULTIPLE_FIXEDLENGTH
   }
   
+  public static enum DOCUMENT_INPUT_FORMAT {
+    PLAIN, NYT, ALTO, TEI, SPIEGEL, ROBUST04
+  }
+  
   public static enum LANGUAGE {
-    en, de, ar
+    en, de, ar, multi
+  }
+  
+  public MentionsDetector.type getMentionsDetectionType() {
+    return mentionsDetectionType;
   }
 
-  public FilterType getMentionsFilter() {
-    return mentionsFilter;
+  public void setMentionsDetectionType(MentionsDetector.type mentionsDetectionType) {
+    this.mentionsDetectionType = mentionsDetectionType;
   }
 
-  public void setMentionsFilter(FilterType mentionsFilter) {
-    this.mentionsFilter = mentionsFilter;
+  
+  public Tokenizer.type getTokenizerType() {
+    return tokenizerType;
+  }
+
+  
+  public void setTokenizerType(Tokenizer.type tokenizerType) {
+    this.tokenizerType = tokenizerType;
   }
 
   public Type[] getFilteringTypes() {
@@ -68,14 +86,7 @@ public class PreparationSettings implements Serializable {
   public void setLanguage(LANGUAGE language) {
     this.language = language;
   }
-  
-  public boolean isUseHybridMentionDetection() {
-    return useHybridMentionDetection;
-  }
-  
-  public void setUseHybridMentionDetection(boolean useHybridMentionDetection) {
-    this.useHybridMentionDetection = useHybridMentionDetection;
-  }
+
 
   public int getMinMentionOccurrenceCount() {
     return minMentionOccurrenceCount;
@@ -85,15 +96,24 @@ public class PreparationSettings implements Serializable {
     this.minMentionOccurrenceCount = minMentionOccurrenceCount;
   }
 
-  public Map<String, Object> getAsMap() {
-    Map<String, Object> s = new HashMap<String, Object>();
-    s.put("mentionsFilter", mentionsFilter.toString());
-    s.put("language", language.toString());
-    s.put("minMentionOccurrenceCounts", String.valueOf(minMentionOccurrenceCount));
-    s.put("useHybridMentionDetection", String.valueOf(useHybridMentionDetection));
-    s.put("docChunkStrategy", docChunkStrategy.toString());
-    return s;
+  public void setDocumentInputFormat(DOCUMENT_INPUT_FORMAT docInpFormat) {
+    this.documentInputFormat = docInpFormat;
   }
+
+  public DOCUMENT_INPUT_FORMAT getDocumentInputFormat() {
+    return this.documentInputFormat;
+  }
+
+//  public Map<String, Object> getAsMap() {
+//    Map<String, Object> s = new HashMap<String, Object>();
+//    s.put("mentionsFilter", mentionsFilter.toString());
+//    s.put("language", language.toString());
+//    s.put("minMentionOccurrenceCounts", String.valueOf(minMentionOccurrenceCount));
+//    s.put("useHybridMentionDetection", String.valueOf(useHybridMentionDetection));
+//    s.put("docChunkStrategy", docChunkStrategy.toString());
+//    s.put("docInputFormat", documentInputFormat.toString());
+//    return s;
+//  }
   
   public DocumentChunker getDocumentChunker() {
     DocumentChunker chunker = null;
@@ -109,5 +129,13 @@ public class PreparationSettings implements Serializable {
         break;
     }
     return chunker;
+  }
+
+  public String getEncoding() {
+    return encoding;
+  }
+
+  public void setEncoding(String encoding) {
+    this.encoding = encoding;
   }
 }

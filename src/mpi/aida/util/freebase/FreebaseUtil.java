@@ -4,11 +4,12 @@ import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
+import mpi.tools.basics2.Normalize;
+import mpi.tools.basics3.FactComponent;
 import mpi.tools.javatools.util.FileUtils;
 
 /**
@@ -21,15 +22,23 @@ public class FreebaseUtil {
   
   private static final String freebaseFileName = "/GW/aida/work/data/freebase-rdf-2013-03-24-00-00.gz";
   
-  public static Map<String, String> loadFreebaseToYagoIdMap() throws IOException {
+  private enum YAGO {YAGO2, YAGO3};
+  
+  public static Map<String, String> loadFreebaseToYago2IdMap() throws IOException {
+    return loadFreebaseToYagoIdMap(YAGO.YAGO2);
+  }
+  
+  public static Map<String, String> loadFreebaseToYago3IdMap() throws IOException {
+   return loadFreebaseToYagoIdMap(YAGO.YAGO3); 
+  }
+  
+  private static Map<String, String> loadFreebaseToYagoIdMap(YAGO yagoVersion) throws IOException {
     Map<String, String> curIdToYagoIdMap = loadCurIdToYagoIdMap();
 
     Map<String, String> map = new HashMap<String, String>();
     InputStream in = new GZIPInputStream(new FileInputStream(freebaseFileName));
 
-    InputStreamReader streamReader = new InputStreamReader(in);
-
-    BufferedReader bReader = new BufferedReader(streamReader);
+    BufferedReader bReader = FileUtils.getBufferedUTF8Reader(in);
 
     String line;
 
@@ -47,7 +56,13 @@ public class FreebaseUtil {
           int idEnd = wikipediaUrl.indexOf(">");
           String curId = wikipediaUrl.substring(idStart + 1, idEnd);
           String yagoId = curIdToYagoIdMap.get(curId);
-          map.put(freebaseId, yagoId);
+          if (yagoId == null) {
+            continue;
+          }
+          if(yagoVersion == YAGO.YAGO3) {
+            yagoId = mapYago2ToYago3(yagoId);
+          }
+          map.put(freebaseId, yagoId);              
         }
       }
     }
@@ -55,10 +70,16 @@ public class FreebaseUtil {
     bReader.close();
     return map;
   }
+  
+
+  private static String mapYago2ToYago3(String yagoId) {
+    return FactComponent.forYagoEntity(Normalize.unEntity(yagoId));
+  }
 
   public static String getFreebaseFileName() {
     return freebaseFileName;
   }
+  
   
   private static Map<String, String> loadCurIdToYagoIdMap() throws IOException {
     Map<String, String> map = new HashMap<String, String>();

@@ -55,10 +55,13 @@ public class StopWord {
     pathStopWords = new HashMap<PreparationSettings.LANGUAGE, String>();
     pathStopWords.put(LANGUAGE.en, "tokens/stopwords6.txt");
     pathStopWords.put(LANGUAGE.de, "tokens/stopwords-german.txt");
+    pathStopWords.put(LANGUAGE.multi, "tokens/stopwords-multi.txt");
     
     pathSymbols = new HashMap<PreparationSettings.LANGUAGE, String>();
     pathSymbols.put(LANGUAGE.en, "tokens/symbols.txt");
     pathSymbols.put(LANGUAGE.de, "tokens/symbols.txt");
+    pathSymbols.put(LANGUAGE.multi, "tokens/symbols.txt");
+    
     
     
   }
@@ -66,19 +69,23 @@ public class StopWord {
   private void load(LANGUAGE language) {
     
     try{
-      List<String> stopwords = ClassPathUtils.getContent(pathStopWords.get(language));
-      for(String stopword: stopwords){
-        words.add(stopword.trim());
+      if(pathStopWords.containsKey(language)) {
+        List<String> stopwords = ClassPathUtils.getContent(pathStopWords.get(language));
+        for(String stopword: stopwords){
+          words.add(stopword.trim());
+        }
       }
     } catch (IOException e){
       logger.error(e.getMessage());
     }
     try{
-      List<String> str = ClassPathUtils.getContent(pathSymbols.get(language));
-      for(String word: str){
-        word = word.trim();
-        words.add(word);
-        symbols.add(word);
+      if (pathSymbols.containsKey(language)) {
+        List<String> str = ClassPathUtils.getContent(pathSymbols.get(language));
+        for (String word : str) {
+          word = word.trim();
+          words.add(word);
+          symbols.add(word);
+        }
       }
     } catch (IOException e){
       logger.error(e.getMessage());

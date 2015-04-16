@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import mpi.aida.AidaManager;
-import mpi.aida.Preparator;
 import mpi.aida.access.DataAccessForTesting;
 import mpi.aida.config.AidaConfig;
 import mpi.aida.config.settings.DisambiguationSettings;
@@ -21,6 +20,8 @@ import mpi.aida.data.PreparedInput;
 import mpi.aida.data.PreparedInputChunk;
 import mpi.aida.data.ResultEntity;
 import mpi.aida.data.ResultMention;
+import mpi.aida.preparation.lookup.EntityLookupManager;
+import mpi.aida.preparator.Preparator;
 import mpi.experiment.trace.NullTracer;
 import mpi.experiment.trace.Tracer;
 
@@ -52,17 +53,19 @@ public class CocktailPartyTest {
 
     Tracer tracer = new NullTracer();
 
+    EntityLookupManager entityLookup = EntityLookupManager.singleton();
+
     Preparator p = new Preparator();
     PreparedInput input = p.prepare("test", text, prepSettings);
     PreparedInputChunk chunk = input.iterator().next();
 
     DisambiguationSettings disSettings = new CocktailPartyDisambiguationSettings();
     disSettings.setComputeConfidence(false);
-    
-    AidaManager.fillInCandidateEntities(chunk.getMentions(),
-        disSettings.isIncludeNullAsEntityCandidate(), 
+
+    entityLookup.fillInCandidateEntities(chunk.getMentions(),
+        disSettings.isIncludeNullAsEntityCandidate(),
         disSettings.isIncludeContextMentions(), disSettings.getMaxEntityRank());
-    
+
     DisambiguationAlgorithm da = new CocktailParty(chunk, disSettings, tracer);
     Map<ResultMention, List<ResultEntity>> results = da.disambiguate();
     Map<String, ResultEntity> mappings = repackageMappings(results);
@@ -87,7 +90,7 @@ public class CocktailPartyTest {
     assertEquals(Entity.OOKBE, mapped);
     assertEquals(0.0, score, 0.00001);
   }
-  
+
   @Test
   public void testCocktailPartyConfidence() throws Exception {
 
@@ -106,6 +109,8 @@ public class CocktailPartyTest {
 
     Tracer tracer = new NullTracer();
 
+    EntityLookupManager entityLookup = EntityLookupManager.singleton();
+
     Preparator p = new Preparator();
     PreparedInput input = p.prepare("test", text, prepSettings);
     PreparedInputChunk chunk = input.iterator().next();
@@ -114,10 +119,10 @@ public class CocktailPartyTest {
     disSettings.setComputeConfidence(true);
     disSettings.getConfidenceSettings().setConfidenceBalance(1.0f);
 
-    AidaManager.fillInCandidateEntities(chunk.getMentions(),
-        disSettings.isIncludeNullAsEntityCandidate(), 
+    entityLookup.fillInCandidateEntities(chunk.getMentions(),
+        disSettings.isIncludeNullAsEntityCandidate(),
         disSettings.isIncludeContextMentions(), disSettings.getMaxEntityRank());
-    
+
 
     DisambiguationAlgorithm da = null;
     da = new CocktailParty(chunk, disSettings, tracer);
@@ -144,7 +149,7 @@ public class CocktailPartyTest {
     assertEquals(Entity.OOKBE, mapped);
     assertEquals(0.95, score, 0.00001);
   }
-  
+
   private Map<String, ResultEntity> repackageMappings(
       Map<ResultMention, List<ResultEntity>> results) {
     Map<String, ResultEntity> repack = new HashMap<String, ResultEntity>();

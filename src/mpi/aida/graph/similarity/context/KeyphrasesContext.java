@@ -1,10 +1,14 @@
 package mpi.aida.graph.similarity.context;
 
+import gnu.trove.iterator.TIntIterator;
+import gnu.trove.iterator.TIntObjectIterator;
 import gnu.trove.list.linked.TIntLinkedList;
+import gnu.trove.map.TIntIntMap;
 import gnu.trove.map.hash.TIntDoubleHashMap;
 import gnu.trove.map.hash.TIntIntHashMap;
 import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
+import gnu.trove.set.TIntSet;
 import gnu.trove.set.hash.TIntHashSet;
 
 import java.sql.Connection;
@@ -15,6 +19,7 @@ import java.util.Map.Entry;
 import mpi.aida.access.DataAccess;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
+import mpi.aida.data.ExternalEntitiesContext;
 import mpi.aida.data.Keyphrases;
 import mpi.aida.graph.similarity.context.EntitiesContextSettings.EntitiesContextType;
 import mpi.aida.graph.similarity.measure.WeightComputation;
@@ -48,6 +53,8 @@ public class KeyphrasesContext extends EntitiesContext {
   private TIntDoubleHashMap keyphraseSourceId2dweights;
   private TObjectIntHashMap<String> keyphraseSource2id;
 
+  private TIntIntMap transientExpansions_;
+
   protected Entities realEntities;
     
   private int collectionSize_;
@@ -56,11 +63,16 @@ public class KeyphrasesContext extends EntitiesContext {
 
 
   public KeyphrasesContext(Entities entities) throws Exception {
-    super(entities, null);
+    super(entities, new ExternalEntitiesContext(), null);
   }
-  
+
   public KeyphrasesContext(Entities entities, EntitiesContextSettings settings) throws Exception {
-    super(entities, settings);
+    super(entities, new ExternalEntitiesContext(), settings);
+  }
+
+  public KeyphrasesContext(Entities entities, ExternalEntitiesContext externalContext,
+                           EntitiesContextSettings settings) throws Exception {
+    super(entities, externalContext, settings);
   }
 
   @Override
@@ -135,12 +147,21 @@ public class KeyphrasesContext extends EntitiesContext {
             entities, keyphraseSourceWeights, 
             minEntityKeyphraseWeight,
             maxEntityKeyphraseCount);
+
     eKps = keyphrases.getEntityKeyphrases();
     kpTokens = keyphrases.getKeyphraseTokens();
     entity2keyword2mi = keyphrases.getEntityKeywordWeights();
     entity2keyphrase2mi = keyphrases.getEntityKeyphraseWeights();
+
+    // Merge entities/context passed from the outside with the
+    // data retrieved from the entity repository.
+    mergeExternalEntitiesContext(keyphrases, externalContext);
+
+    // Keep word expansions for transient word ids.
+    transientExpansions_ = externalContext.getTransientWordExpansions();
+
     RunningTimer.recordEndTime("EntityKeyphrasesTokensMI", childModId);
-    
+        
     // Store all keywords and keywords without stopwords.
     allKeyphrases = new TIntHashSet();
     allKeywords = new TIntHashSet();
@@ -162,8 +183,8 @@ public class KeyphrasesContext extends EntitiesContext {
     }
     
     logger.debug("Retrieving counts for " + allKeywords.size() + " keywords.");
-    TIntIntHashMap keywordDF = DataAccess.getKeywordDocumentFrequencies(allKeywords);
-    
+    TIntIntHashMap keywordDF = getKeywordDocumentFrequencies(allKeywords, externalContext);
+
     logger.debug("Computing all keyword IDF weights");        
     computeIDFweights(keywordDF); 
     
@@ -185,7 +206,55 @@ public class KeyphrasesContext extends EntitiesContext {
         entities.size() + " entities, " +
         allKeywords.size() + " keywords");
   }
- 
+
+  private TIntIntHashMap getKeywordDocumentFrequencies(
+          TIntHashSet allKeywords, ExternalEntitiesContext externalContext) {
+    // Remove all transient keywords - the counts will not be in the database.
+    TIntSet existingKeywords = new TIntHashSet(allKeywords);
+    existingKeywords.removeAll(externalContext.getTransientWordIds());
+
+    TIntIntHashMap keywordDF =
+            DataAccess.getKeywordDocumentFrequencies(existingKeywords);
+
+    // Add 1 as placeholder for the transiently assigned keywords.
+    for (TIntIterator itr = externalContext.getTransientWordIds().iterator();
+            itr.hasNext(); ) {
+      int transientKeyword = itr.next();
+      keywordDF.put(transientKeyword, 1);
+    }
+
+    return keywordDF;
+  }
+
+  private void mergeExternalEntitiesContext(
+      Keyphrases keyphrases, ExternalEntitiesContext externalContext) {
+
+    keyphrases.getEntityKeyphrases().putAll(externalContext.getEntityKeyphrases());
+    keyphrases.getKeyphraseTokens().putAll(externalContext.getKeyphraseTokens());
+
+    // TODO(jhoffart) MI weights are 0.0 - compute properly from actual counts.
+    for (TIntObjectIterator<int[]> eItr = externalContext.getEntityKeyphrases().iterator();
+         eItr.hasNext(); ) {
+      eItr.advance();
+      int eId = eItr.key();
+      TIntDoubleHashMap kp2mi = new TIntDoubleHashMap();
+      entity2keyphrase2mi.put(eId, kp2mi);
+      TIntDoubleHashMap kw2mi = new TIntDoubleHashMap();
+      entity2keyword2mi.put(eId, kw2mi);
+      int[] kpIds = eItr.value();
+      for (int i = 0; i < kpIds.length; i++) {
+        int kpId = kpIds[i];
+        // Set MI to 0.0
+        kp2mi.put(kpId, 0.0);
+        for (int kwId : externalContext.getKeyphraseTokens().get(kpId)) {
+          kw2mi.put(kwId, 0.0);
+        }
+      }
+    }
+  }
+
+
+
   @SuppressWarnings("unused")
   private void computeMIweights(
       Collection<Integer> collection, TIntIntHashMap keywordDF, TIntIntHashMap entitySDS,
@@ -271,17 +340,19 @@ public class KeyphrasesContext extends EntitiesContext {
       return 1.0;
     }
   }
-  
-  protected double calculateMI(
-      int aOcc, int bOcc, int abOcc, int totalOcc)
-  {
-        return WeightComputation.computeMI(
-            aOcc, bOcc, abOcc, totalOcc, false);
-  }
-  
+
   protected double calculateMI(
       int aOcc, int bOcc, int abOcc, int totalOcc, boolean normalize) {
     return WeightComputation.computeMI(
         aOcc, bOcc, abOcc, totalOcc, normalize);
+  }
+
+  public int expandTerm(int keywordId) {
+    // Check externally passed keywords first.
+    int expandedId = transientExpansions_.get(keywordId);
+    if (expandedId == transientExpansions_.getNoEntryValue()) {
+      expandedId = DataAccess.expandTerm(keywordId);
+    }
+    return expandedId;
   }
 }

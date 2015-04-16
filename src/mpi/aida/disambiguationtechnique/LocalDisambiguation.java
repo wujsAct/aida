@@ -9,9 +9,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import mpi.aida.AidaManager;
 import mpi.aida.config.settings.DisambiguationSettings;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Entity;
+import mpi.aida.data.ExternalEntitiesContext;
 import mpi.aida.data.KBIdentifiedEntity;
 import mpi.aida.data.Mention;
 import mpi.aida.data.PreparedInputChunk;
@@ -22,8 +24,6 @@ import mpi.aida.graph.similarity.EnsembleMentionEntitySimilarity;
 import mpi.aida.graph.similarity.util.SimilaritySettings;
 import mpi.aida.util.CollectionUtils;
 import mpi.experiment.trace.Tracer;
-import mpi.experiment.trace.data.EntityTracer;
-import mpi.experiment.trace.data.MentionTracer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,9 +42,9 @@ public class LocalDisambiguation extends DisambiguationAlgorithm {
 
 	private NumberFormat nf;
 	
-  public LocalDisambiguation(PreparedInputChunk input, 
-      DisambiguationSettings settings, Tracer tracer) {
-    super(input, settings, tracer);
+  public LocalDisambiguation(PreparedInputChunk input, ExternalEntitiesContext externalContext,
+                             DisambiguationSettings settings, Tracer tracer) {
+    super(input, externalContext, settings, tracer);
     nf = NumberFormat.getNumberInstance(Locale.ENGLISH);
     nf.setMaximumFractionDigits(2);
     logger.debug("Preparing '" + input.getChunkId() + "' (" + 
@@ -68,16 +68,7 @@ public class LocalDisambiguation extends DisambiguationAlgorithm {
 	}
 	
 	private EnsembleMentionEntitySimilarity prepapreMES() {
-		Entities entities = new Entities();
-		for (Mention mention : input_.getMentions().getMentions()) {
-			MentionTracer mt = new MentionTracer(mention);
-			tracer_.addMention(mention, mt);
-			for (Entity entity : mention.getCandidateEntities()) {
-				EntityTracer et = new EntityTracer(entity.getId());
-				tracer_.addEntityForMention(mention, entity.getId(), et);
-			}
-			entities.addAll(mention.getCandidateEntities());
-		}
+    Entities entities = AidaManager.getAllEntities(input_.getMentions(), externalContext_, tracer_);
 		
 		if (includeNullAsEntityCandidate) {
 			entities.setIncludesOokbeEntities(true);
@@ -86,7 +77,7 @@ public class LocalDisambiguation extends DisambiguationAlgorithm {
 		EnsembleMentionEntitySimilarity mes = null;
 		try {
 			mes = new EnsembleMentionEntitySimilarity(input_.getMentions(), entities, 
-			    input_.getContext(), ss, tracer_);
+			    input_.getContext(), externalContext_, ss, tracer_);
 			return mes;
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -110,7 +101,7 @@ public class LocalDisambiguation extends DisambiguationAlgorithm {
   	    // Normalize similarities so that they sum up to one. The mass of the
         // score that the best entity accumulates will also be a measure of the
         // confidence that the mapping is correct.
-			  entityScores = CollectionUtils.normalizeScores(entityScores);
+			  entityScores = CollectionUtils.normalizeValuesToSum(entityScores);
 			}
 			
 			// Create ResultEntities.

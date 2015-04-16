@@ -10,6 +10,7 @@ import java.util.Iterator;
 import java.util.Set;
 
 import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang.StringUtils;
 
 public class Entities implements Serializable, Iterable<Entity> {
 
@@ -127,5 +128,9 @@ public class Entities implements Serializable, Iterable<Entity> {
 
   public Entity getEntityById(int id) {
     return id2entity.get(id);
+  }
+
+  public String toString() {
+    return entities.size() + " entities: " + StringUtils.join(entities, ", ");
   }
 }

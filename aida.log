@@ -1,0 +1,132 @@
+2015-04-16 15:47:12,774 [main] ERROR AidaConfig:95  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 15:49:36,061 [qtp2097725168-22] INFO  TokenizerManager:84  - Loading tokenizer of type: ENGLISH_TOKENS
+2015-04-16 15:49:36,130 [qtp2097725168-22] INFO  StanfordNER:45  - Initilaizing Stanford NER
+2015-04-16 15:49:45,631 [qtp2097725168-22] ERROR AidaConfig:162  - Missing key in properties file with no default value: dataAccess
+2015-04-16 15:49:45,631 [qtp2097725168-22] ERROR AidaConfig:162  - Missing key in properties file with no default value: dataAccess
+2015-04-16 15:49:45,631 [qtp2097725168-22] ERROR AidaConfig:162  - Missing key in properties file with no default value: dataAccess
+2015-04-16 15:49:45,632 [qtp2097725168-22] INFO  DataAccess:56  - No dataAccess given in 'settings/aida.properties', using 'sql' as default.
+2015-04-16 15:49:45,635 [qtp2097725168-22] INFO  AidaManager:152  - Connecting to database yago@agloolik.mpi-inf.mpg.de:5432/aida_20140102v10
+2015-04-16 15:49:45,837 [qtp2097725168-22] INFO  HikariDataSource:77  - HikariCP pool HikariPool-0 is starting.
+2015-04-16 15:49:45,966 [pool-2-thread-1] INFO  DataAccessCache:66  - Loading word caches.
+2015-04-16 15:49:45,967 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:47  - WORD_EXPANSION cache file doesn't exist.
+2015-04-16 15:49:45,967 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:52  - Loading WORD_EXPANSION from DB.
+2015-04-16 15:49:45,967 [pool-2-thread-1] INFO  DataAccessSQL:1124  - Reading word expansions.
+2015-04-16 15:50:06,770 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:54  - Caching WORD_EXPANSION to disk.
+2015-04-16 15:50:16,025 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:47  - WORD_CONTRACTION cache file doesn't exist.
+2015-04-16 15:50:16,025 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:52  - Loading WORD_CONTRACTION from DB.
+2015-04-16 15:50:16,026 [pool-2-thread-1] INFO  DataAccessSQL:1168  - Reading word expansions.
+2015-04-16 15:50:33,103 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:54  - Caching WORD_CONTRACTION to disk.
+2015-04-16 15:50:41,383 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:47  - KEYWORD_COUNT cache file doesn't exist.
+2015-04-16 15:50:41,384 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:52  - Loading KEYWORD_COUNT from DB.
+2015-04-16 15:50:41,384 [pool-2-thread-1] INFO  DataAccessSQL:1763  - Reading keyword counts.
+2015-04-16 15:50:43,462 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:54  - Caching KEYWORD_COUNT to disk.
+2015-04-16 15:50:46,352 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:47  - BIGRAM_COUNT cache file doesn't exist.
+2015-04-16 15:50:46,352 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:52  - Loading BIGRAM_COUNT from DB.
+2015-04-16 15:50:46,352 [pool-2-thread-1] INFO  DataAccessSQL:1763  - Reading bigram counts.
+2015-04-16 15:50:52,946 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:54  - Caching BIGRAM_COUNT to disk.
+2015-04-16 15:51:00,694 [pool-2-thread-1] INFO  DataAccessCacheTarget:32  - KEYPHRASE_TOKENS cache file doesn't exist.
+2015-04-16 15:51:00,695 [pool-2-thread-1] INFO  DataAccessCacheTarget:37  - Loading KEYPHRASE_TOKENS from DB.
+2015-04-16 15:53:35,802 [pool-2-thread-1] INFO  DataAccessCacheTarget:39  - Caching KEYPHRASE_TOKENS to disk.
+2015-04-16 15:54:35,969 [pool-2-thread-1] INFO  DataAccessCacheTarget:32  - KEYPHRASE_SOURCES cache file doesn't exist.
+2015-04-16 15:54:35,970 [pool-2-thread-1] INFO  DataAccessCacheTarget:37  - Loading KEYPHRASE_SOURCES from DB.
+2015-04-16 15:54:35,972 [pool-2-thread-1] INFO  DataAccessCacheTarget:39  - Caching KEYPHRASE_SOURCES to disk.
+2015-04-16 15:54:35,977 [pool-2-thread-1] INFO  DataAccessCache:115  - Done loading caches.
+2015-04-16 15:54:35,979 [pool-2-thread-1] INFO  DataAccessSQLCache$CachingHashMap:107  - Caching up to 20000 entities per query type
+2015-04-16 15:54:36,059 [pool-2-thread-1] INFO  DataAccessSQLCache$CachingHashMap:107  - Caching up to 20000 entities per query type
+2015-04-16 15:54:36,336 [qtp2097725168-22] INFO  Disambiguator:101  - Document '-445662188_1429192176051' done in 290408.0ms (1 chunks, 2 mentions).
+2015-04-16 15:54:36,350 [qtp2097725168-22] INFO  RequestLogger:32  - DISAMBIGUATE 127.0.0.1 -445662188_1429192176051 1 6 2 mpi.aida.config.settings.preparation.StanfordHybridPreparationSettings TECHNIQUE:GRAPH ALGORITHM:COCKTAIL_PARTY_SIZE_CONSTRAINED 300301ms 
+2015-04-16 15:54:36,354 [qtp2097725168-22] ERROR WebCallLogger:41  - java.io.FileNotFoundException: property file 'databaseWsLogger.properties' not found in the classpath
+2015-04-16 15:59:43,851 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 15:59:55,937 [qtp979953307-17] INFO  TokenizerManager:84  - Loading tokenizer of type: ENGLISH_TOKENS
+2015-04-16 15:59:56,014 [qtp979953307-17] INFO  StanfordNER:45  - Initilaizing Stanford NER
+2015-04-16 16:00:04,816 [qtp979953307-17] ERROR AidaConfig:166  - Missing key in properties file with no default value: dataAccess
+2015-04-16 16:00:04,817 [qtp979953307-17] ERROR AidaConfig:166  - Missing key in properties file with no default value: dataAccess
+2015-04-16 16:00:04,817 [qtp979953307-17] ERROR AidaConfig:166  - Missing key in properties file with no default value: dataAccess
+2015-04-16 16:00:04,817 [qtp979953307-17] INFO  DataAccess:56  - No dataAccess given in 'settings/aida.properties', using 'sql' as default.
+2015-04-16 16:00:04,822 [qtp979953307-17] INFO  AidaManager:152  - Connecting to database yago@agloolik.mpi-inf.mpg.de:5432/aida_20140102v10
+2015-04-16 16:00:05,010 [qtp979953307-17] INFO  HikariDataSource:77  - HikariCP pool HikariPool-0 is starting.
+2015-04-16 16:00:05,124 [pool-2-thread-1] INFO  DataAccessCache:66  - Loading word caches.
+2015-04-16 16:00:05,125 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:40  - Loading WORD_EXPANSION from cache.
+2015-04-16 16:00:06,994 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:40  - Loading WORD_CONTRACTION from cache.
+2015-04-16 16:00:09,715 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:40  - Loading KEYWORD_COUNT from cache.
+2015-04-16 16:00:10,747 [pool-2-thread-1] INFO  DataAccessIntIntCacheTarget:40  - Loading BIGRAM_COUNT from cache.
+2015-04-16 16:00:13,485 [pool-2-thread-1] INFO  DataAccessCacheTarget:25  - Loading KEYPHRASE_TOKENS from cache.
+2015-04-16 16:00:25,539 [pool-2-thread-1] INFO  DataAccessCacheTarget:32  - KEYPHRASE_SOURCES cache file doesn't exist.
+2015-04-16 16:00:25,540 [pool-2-thread-1] INFO  DataAccessCacheTarget:37  - Loading KEYPHRASE_SOURCES from DB.
+2015-04-16 16:00:25,543 [pool-2-thread-1] INFO  DataAccessCacheTarget:39  - Caching KEYPHRASE_SOURCES to disk.
+2015-04-16 16:00:25,543 [pool-2-thread-1] INFO  DataAccessCache:115  - Done loading caches.
+2015-04-16 16:00:25,545 [pool-2-thread-1] INFO  DataAccessSQLCache$CachingHashMap:107  - Caching up to 20000 entities per query type
+2015-04-16 16:00:25,603 [pool-2-thread-1] INFO  DataAccessSQLCache$CachingHashMap:107  - Caching up to 20000 entities per query type
+2015-04-16 16:00:25,838 [qtp979953307-17] INFO  Disambiguator:101  - Document '-445662188_1429192795927' done in 20749.0ms (1 chunks, 2 mentions).
+2015-04-16 16:00:25,849 [qtp979953307-17] INFO  RequestLogger:32  - DISAMBIGUATE 127.0.0.1 -445662188_1429192795927 1 6 2 mpi.aida.config.settings.preparation.StanfordHybridPreparationSettings TECHNIQUE:GRAPH ALGORITHM:COCKTAIL_PARTY_SIZE_CONSTRAINED 29925ms 
+2015-04-16 16:02:17,165 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:17,190 [main] INFO  TokenizerManager:84  - Loading tokenizer of type: ENGLISH_TOKENS
+2015-04-16 16:02:17,647 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:17,673 [main] INFO  TokenizerManager:84  - Loading tokenizer of type: ENGLISH_TOKENS
+2015-04-16 16:02:18,150 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:18,172 [main] INFO  TokenizerManager:84  - Loading tokenizer of type: ENGLISH_TOKENS
+2015-04-16 16:02:18,612 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:18,987 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:19,013 [main] INFO  TokenizerManager:84  - Loading tokenizer of type: ENGLISH_TOKENS
+2015-04-16 16:02:19,205 [pool-1-thread-1] INFO  DataAccessCache:66  - Loading word caches.
+2015-04-16 16:02:19,205 [pool-1-thread-1] INFO  DataAccessCache:110  - Loading data from DB.
+2015-04-16 16:02:19,206 [pool-1-thread-1] INFO  DataAccessUnitCountCacheTarget:38  - Could not load BIGRAM_COUNT from DB.
+2015-04-16 16:02:19,207 [pool-1-thread-1] INFO  DataAccessCache:115  - Done loading caches.
+2015-04-16 16:02:19,248 [main] INFO  Disambiguator:101  - Document 'testPageKashmir1' done in 88.0ms (1 chunks, 3 mentions).
+2015-04-16 16:02:19,542 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:19,568 [main] INFO  TokenizerManager:84  - Loading tokenizer of type: ENGLISH_TOKENS
+2015-04-16 16:02:19,711 [main] INFO  StanfordNER:45  - Initilaizing Stanford NER
+2015-04-16 16:02:29,435 [pool-1-thread-1] INFO  DataAccessCache:66  - Loading word caches.
+2015-04-16 16:02:29,435 [pool-1-thread-1] INFO  DataAccessCache:110  - Loading data from DB.
+2015-04-16 16:02:29,436 [pool-1-thread-1] INFO  DataAccessUnitCountCacheTarget:38  - Could not load BIGRAM_COUNT from DB.
+2015-04-16 16:02:29,436 [pool-1-thread-1] INFO  DataAccessCache:115  - Done loading caches.
+2015-04-16 16:02:29,461 [main] INFO  Disambiguator:101  - Document 'testPageKashmir4' done in 62.0ms (1 chunks, 4 mentions).
+2015-04-16 16:02:29,652 [main] INFO  Disambiguator:101  - Document 'testPageKashmir2' done in 22.0ms (1 chunks, 4 mentions).
+2015-04-16 16:02:29,683 [main] INFO  Disambiguator:101  - Document 'testPageKashmir3' done in 12.0ms (1 chunks, 4 mentions).
+2015-04-16 16:02:29,710 [main] INFO  Disambiguator:101  - Document 'testPageKashmir5' done in 1.0ms (1 chunks, 2 mentions).
+2015-04-16 16:02:29,738 [main] INFO  Disambiguator:101  - Document 'testPageKashmir1' done in 9.0ms (1 chunks, 4 mentions).
+2015-04-16 16:02:30,112 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:30,145 [main] INFO  TokenizerManager:84  - Loading tokenizer of type: ENGLISH_TOKENS
+2015-04-16 16:02:30,300 [main] INFO  StanfordNER:45  - Initilaizing Stanford NER
+2015-04-16 16:02:40,145 [main] INFO  DataAccessCache:66  - Loading word caches.
+2015-04-16 16:02:40,145 [main] INFO  DataAccessCache:110  - Loading data from DB.
+2015-04-16 16:02:40,146 [main] INFO  DataAccessUnitCountCacheTarget:38  - Could not load BIGRAM_COUNT from DB.
+2015-04-16 16:02:40,146 [main] INFO  DataAccessCache:115  - Done loading caches.
+2015-04-16 16:02:40,661 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:40,695 [main] INFO  TokenizerManager:84  - Loading tokenizer of type: ENGLISH_TOKENS
+2015-04-16 16:02:40,836 [main] INFO  StanfordNER:45  - Initilaizing Stanford NER
+2015-04-16 16:02:50,566 [main] INFO  DataAccessCache:66  - Loading word caches.
+2015-04-16 16:02:50,566 [main] INFO  DataAccessCache:110  - Loading data from DB.
+2015-04-16 16:02:50,567 [main] INFO  DataAccessUnitCountCacheTarget:38  - Could not load BIGRAM_COUNT from DB.
+2015-04-16 16:02:50,567 [main] INFO  DataAccessCache:115  - Done loading caches.
+2015-04-16 16:02:51,152 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:51,219 [main] INFO  DataAccessCache:66  - Loading word caches.
+2015-04-16 16:02:51,220 [main] INFO  DataAccessCache:110  - Loading data from DB.
+2015-04-16 16:02:51,220 [main] INFO  DataAccessUnitCountCacheTarget:38  - Could not load BIGRAM_COUNT from DB.
+2015-04-16 16:02:51,221 [main] INFO  DataAccessCache:115  - Done loading caches.
+2015-04-16 16:02:51,541 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:51,591 [main] INFO  DataAccessCache:66  - Loading word caches.
+2015-04-16 16:02:51,591 [main] INFO  DataAccessCache:110  - Loading data from DB.
+2015-04-16 16:02:51,592 [main] INFO  DataAccessUnitCountCacheTarget:38  - Could not load BIGRAM_COUNT from DB.
+2015-04-16 16:02:51,592 [main] INFO  DataAccessCache:115  - Done loading caches.
+2015-04-16 16:02:51,901 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:51,961 [main] INFO  DataAccessCache:66  - Loading word caches.
+2015-04-16 16:02:51,961 [main] INFO  DataAccessCache:110  - Loading data from DB.
+2015-04-16 16:02:51,962 [main] INFO  DataAccessUnitCountCacheTarget:38  - Could not load BIGRAM_COUNT from DB.
+2015-04-16 16:02:51,963 [main] INFO  DataAccessCache:115  - Done loading caches.
+2015-04-16 16:02:52,252 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:52,312 [main] INFO  DataAccessCache:66  - Loading word caches.
+2015-04-16 16:02:52,312 [main] INFO  DataAccessCache:110  - Loading data from DB.
+2015-04-16 16:02:52,313 [main] INFO  DataAccessUnitCountCacheTarget:38  - Could not load BIGRAM_COUNT from DB.
+2015-04-16 16:02:52,314 [main] INFO  DataAccessCache:115  - Done loading caches.
+2015-04-16 16:02:52,611 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:53,227 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:53,546 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:02:53,571 [main] INFO  TokenizerManager:84  - Loading tokenizer of type: ENGLISH_TOKENS
+2015-04-16 16:02:53,720 [main] INFO  StanfordNER:45  - Initilaizing Stanford NER
+2015-04-16 16:03:06,733 [main] INFO  TokenizerManager:94  - Loading tokenizer of type: ENGLISH_POS
+2015-04-16 16:03:07,936 [main] INFO  StanfordNER:45  - Initilaizing Stanford NER
+2015-04-16 16:03:07,941 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:03:17,430 [main] INFO  TokenizerManager:84  - Loading tokenizer of type: ENGLISH_TOKENS
+2015-04-16 16:03:17,833 [main] ERROR AidaConfig:97  - Main settings file missing. Copy 'sample_settings/aida.properties' to the 'settings/' directory and adjust it.
+2015-04-16 16:03:17,858 [main] INFO  TokenizerManager:84  - Loading tokenizer of type: ENGLISH_TOKENS

@@ -70,7 +70,7 @@ public class ExtractGraph {
 
   private void addGraphNodes() {
     // add mention nodes to the graph
-    Integer id = RunningTimer.recordStartTime("AddGraphNodes");
+    Integer id = RunningTimer.recordStartTime("AddGraphNode");
     for (int i = 0; i < this.mentions.getMentions().size(); i++) {
       graph.addMentionNode(mentions.getMentions().get(i));
     }
@@ -81,7 +81,7 @@ public class ExtractGraph {
   }
 
   private void addGraphEdges() {
-    Integer id = RunningTimer.recordStartTime("AddGraphEdges");
+    Integer id = RunningTimer.recordStartTime("AddGraphEdge");
     // add mention-entity edges
     for (int i = 0; i < mentions.getMentions().size(); i++) {
       Mention mention = mentions.getMentions().get(i);

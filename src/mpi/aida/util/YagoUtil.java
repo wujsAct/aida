@@ -2,6 +2,8 @@ package mpi.aida.util;
 
 import gnu.trove.set.hash.TIntHashSet;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.HashSet;
@@ -52,7 +54,7 @@ public class YagoUtil {
    * @return        Mention in YAGO2/Postgres format
    */
   public static String getYagoMentionStringPostgresEscaped(String mention) {
-    return getPostgresEscapedString(Normalize.string(mention));
+    return getPostgresEscapedString(mention);
   }
   
   public static String getPostgresEscapedString(String input) {
@@ -91,6 +93,11 @@ public class YagoUtil {
     return AidaManager.getEntity(new KBIdentifiedEntity(targetEntity, "YAGO"));
   }
   
+  public static Entity getEntityForYago3Id(String targetEntity) {
+    return AidaManager.getEntity(new KBIdentifiedEntity(targetEntity, "YAGO3"));
+  }
+  
+  
   public static Entities getEntityForYagoId(Set<String> targetEntities) {
     Set<KBIdentifiedEntity> kbEntities = new HashSet<KBIdentifiedEntity>();
     for(String e: targetEntities) {
@@ -106,6 +113,15 @@ public class YagoUtil {
     } else {
       return false;
     }
+  }
+
+  /**
+   * Creates a url-encoded part from the entity id (without KB-prefix)
+   * @param entity  Entity ID without KB prefix in YAGO2 format.
+   * @return  entity id as url-encoded part.
+   */
+  public static String getEntityAsUrlPart(String entity) throws UnsupportedEncodingException {
+    return URLEncoder.encode(Normalize.unEntity(entity), "UTF-8").replace("+", "%20");
   }
 
   public static final String YAGO2_HAS_CITATIONS_TITLE_RELATION = "hasCitationTitle";

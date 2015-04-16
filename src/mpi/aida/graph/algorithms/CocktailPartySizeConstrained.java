@@ -46,13 +46,9 @@ public class CocktailPartySizeConstrained extends
 
 		Map<Integer, Double> entityDistances = new HashMap<Integer, Double>();
 
-		for (int q = 0; q < nodesCount; q++) {
+		for (int q : entityWeightedDegrees.keySet()) {
 			if (graph.isRemoved(q))
 				continue;
-			// If the node is a mention, skip.
-			if (!graph.isEntityNode(q)) {
-				continue;
-			}
 
 			double entityDistance = calcEntityDistance(allDistances[q]);
 			entityDistances.put(q, entityDistance);

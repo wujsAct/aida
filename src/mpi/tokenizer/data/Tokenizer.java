@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
+import mpi.aida.config.AidaConfig;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,9 +29,14 @@ public class Tokenizer {
 
   /** type of tokenizer */
   public static enum type {
-    TOKENS, POS, NER, PARSE, 
-    GERMAN_TOKENS, GERMAN_POS, GERMAN_NER, 
-    ENGLISH_CASELESS_POS, ENGLISH_CASELESS_NER, ENGLISH_CASELESS_PARSE
+    //Types without language prefix, read the system configuration 
+    //to decide the language
+    TOKEN, POS, PARSE,
+    ENGLISH_TOKENS, ENGLISH_POS, ENGLISH_PARSE, 
+    GERMAN_TOKENS, GERMAN_POS, 
+    ENGLISH_CASELESS_POS,ENGLISH_CASELESS_PARSE, 
+    ARABIC_TOKENS, ARABIC_POS, ENGLISH_CASELESS_TOKENS,
+    MULTILINGUAL, ENGLISH_WHITESPACE_TOKENIZER
   };
 
   public static final String TEXT = "TEXT";
@@ -54,25 +61,63 @@ public class Tokenizer {
   private final String GERMAN_POS_HGC = 
       "resources/corenlp/germanmodels/pos/german-hgc.tagger";
   
+  private final String ARABIC_MODELS = "resources/corenlp/arabicmodels/arabicFactored.ser.gz";
+  
   //CASESLESS English Models (e.g. for tweets)
   private final String ENGLISH_CASELESS_POS_MODEL = "resources/corenlp/stanford-corenlp-caseless-2013-11-12-models/edu/stanford/nlp/models/pos-tagger/english-caseless-left3words-distsim.tagger";
-  private final String ENGLISH_CASELESS_NER_MODEL = "resources/corenlp/stanford-corenlp-caseless-2013-11-12-models/edu/stanford/nlp/models/ner/english.all.3class.caseless.distsim.crf.ser.gz,resources/corenlp/stanford-corenlp-caseless-2013-11-12-models/edu/stanford/nlp/models/ner/english.conll.4class.caseless.distsim.crf.ser.gz,resources/corenlp/stanford-corenlp-caseless-2013-11-12-models/edu/stanford/nlp/models/ner/english.muc.7class.caseless.distsim.crf.ser.gz,resources/corenlp/stanford-corenlp-caseless-2013-11-12-models/edu/stanford/nlp/models/ner/english.nowiki.3class.caseless.distsim.crf.ser.gz";
   private final String ENGLISH_CASELESS_PARSE_MODEL = "resources/corenlp/stanford-corenlp-caseless-2013-11-12-models/edu/stanford/nlp/models/lexparser/englishPCFG.caseless.ser.gz";
   
   public Tokenizer(Tokenizer.type type) {
+    Properties props = buildProperties(type);
+    stanfordCoreNLP = new StanfordCoreNLP(props, true);
+    init();
+  }
+
+  
+  //Should be called only if type is (POS, TOKENS, PARSE) without language prefix
+  private Properties buildPropertiesUsingFrameworkLanguage(Tokenizer.type type) {
+    switch (AidaConfig.getLanguage()) {
+      case en:
+        switch (type) {
+          case TOKEN: return buildProperties(Tokenizer.type.ENGLISH_TOKENS);
+          case POS: return buildProperties(Tokenizer.type.ENGLISH_POS);
+          case PARSE: return buildProperties(Tokenizer.type.ENGLISH_PARSE);
+          default: return null;
+        }
+      case de:
+        switch (type) {
+          case TOKEN: return buildProperties(Tokenizer.type.GERMAN_TOKENS);
+          case POS: return buildProperties(Tokenizer.type.GERMAN_POS);
+          default: return null;
+        }
+      case ar:
+        switch (type) {
+          case TOKEN: return buildProperties(Tokenizer.type.ARABIC_TOKENS);
+          case POS: return buildProperties(Tokenizer.type.ARABIC_POS);
+          default: return null;
+        }
+      default:
+        return null;
+        
+    }
+  }
+  
+  private Properties buildProperties(Tokenizer.type type) {
     Properties props = new Properties();
     props.put("tokenize.options", "untokenizable=noneDelete");
     switch(type) {
-      case TOKENS:
+      case TOKEN:
+      case POS:
+      case PARSE:
+        props = buildPropertiesUsingFrameworkLanguage(type);
+        break;
+      case ENGLISH_TOKENS:
         props.put("annotators", "tokenize, ssplit");
         break;
-      case NER:
-        props.put("annotators", "tokenize, ssplit, pos, lemma, ner");
-        break;
-      case POS:
+      case ENGLISH_POS:
         props.put("annotators", "tokenize, ssplit, pos, lemma");
         break;
-      case PARSE:
+      case ENGLISH_PARSE:
         props.put("annotators", "tokenize, ssplit, parse, pos, lemma");
         break;
       case GERMAN_TOKENS:
@@ -85,34 +130,44 @@ public class Tokenizer {
         props.put("ner.useSUTime", "false"); //false not for english
         props.put("ner.applyNumericClassifiers", "false"); //false not for english
         break;
-      case GERMAN_NER:
-        props.put("annotators", "tokenize, ssplit, pos, lemma, ner");
-        props.put("pos.model", GERMAN_POS_HGC);
-        props.put("ner.model", GERMAN_NER_HGC);
-        props.put("ner.useSUTime", "false"); //false not for english
-        props.put("ner.applyNumericClassifiers", "false"); //false not for english
+      case ENGLISH_CASELESS_TOKENS:
+        props.put("annotators", "tokenize, ssplit");
         break;
       case ENGLISH_CASELESS_POS:
         props.put("annotators", "tokenize, ssplit, pos, lemma");
         props.put("pos.model", ENGLISH_CASELESS_POS_MODEL);
-        break;
-      case ENGLISH_CASELESS_NER:
-        props.put("annotators", "tokenize, ssplit, pos, lemma, ner");
-        props.put("pos.model", ENGLISH_CASELESS_POS_MODEL);
-        props.put("ner.model", ENGLISH_CASELESS_NER_MODEL);
         break;
       case ENGLISH_CASELESS_PARSE:
         props.put("annotators", "tokenize, ssplit, parse, pos, lemma");
         props.put("pos.model", ENGLISH_CASELESS_POS_MODEL);
         props.put("parse.model", ENGLISH_CASELESS_PARSE_MODEL);
         break;
+      case ARABIC_TOKENS:
+        props.put("annotators", "tokenize, ssplit");
+        props.put("pos.model", ARABIC_MODELS);
+        break;
+      case ARABIC_POS:
+        props.put("annotators", "tokenize, ssplit, pos");
+        props.put("pos.model", ARABIC_MODELS);
+        break;
+      case ENGLISH_WHITESPACE_TOKENIZER:
+        //does regular Stanford NER, but tokenizes the inputs on Whitespace only
+        //and breaks the sentences on newlines.
+        //useful for preprocessed input (e.g. tokenized input)
+        props.put("annotators", "tokenize, ssplit, pos, lemma, ner");
+        // separates words only when whitespace is encountered.
+        props.put("tokenize.whitespace", "true");
+        // split sentences on newlines. Works well in conjunction with 
+        // "-tokenize.whitespace true", in which case StanfordCoreNLP will treat 
+        // the input as one sentence per line, only separating words on whitespace.
+        props.put("ssplit.eolonly", "true");
+        break;
       default:
           break;
     }
-    stanfordCoreNLP = new StanfordCoreNLP(props, true);
-    init();
+    return props;
   }
-
+  
   public Tokens parse(String text, boolean lemmatize) {
     Tokens tokens = new Tokens();
     parse(tokens, text, lemmatize);

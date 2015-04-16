@@ -10,12 +10,12 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
 import mpi.aida.AidaManager;
 import mpi.aida.config.AidaConfig;
+import mpi.aida.config.DMapConfig;
+import mpi.aida.graph.similarity.UnitType;
 import mpi.aida.util.ClassPathUtils;
 
 import org.slf4j.Logger;
@@ -27,9 +27,11 @@ class DataAccessCache {
       LoggerFactory.getLogger(DataAccessCache.class);
   
   private static final String DATABASE_AIDA_CONFIG_CACHE = "database_aida.cache";
+  private static final String DMAP_AIDA_CONFIG_CACHE = "dmap_aida.cache";
 
   private DataAccessIntIntCacheTarget wordExpansion;  
-  private DataAccessIntIntCacheTarget keywordCount;
+  private DataAccessIntIntCacheTarget wordContraction;
+  private DataAccessIntIntCacheTarget[] unitCounts;
   private DataAccessKeyphraseTokensCacheTarget keyphraseTokens;
   private DataAccessKeyphraseSourcesCacheTarget keyphraseSources;
   
@@ -45,12 +47,21 @@ class DataAccessCache {
     List<DataAccessCacheTarget> cacheTargets = new ArrayList<>();
     wordExpansion = new DataAccessWordExpansionCacheTarget();
     cacheTargets.add(wordExpansion);
-    keywordCount = new DataAccessKeywordCountCacheTarget();
-    cacheTargets.add(keywordCount);
+    wordContraction = new DataAccessWordContractionCacheTarget();
+    cacheTargets.add(wordContraction);
+    unitCounts = new DataAccessUnitCountCacheTarget[UnitType.values().length];
+    for (UnitType unitType : UnitType.values()) {
+      DataAccessUnitCountCacheTarget target = new DataAccessUnitCountCacheTarget(unitType);
+      unitCounts[unitType.ordinal()] = target;
+      cacheTargets.add(target);
+    }
     keyphraseTokens = new DataAccessKeyphraseTokensCacheTarget();
-    cacheTargets.add(keyphraseTokens);
     keyphraseSources = new DataAccessKeyphraseSourcesCacheTarget();
-    cacheTargets.add(keyphraseSources);
+    // dmaps don't need these caches so we don't need to load them if we use dmaps
+    if (!DataAccess.getAccessType().equals(DataAccess.type.dmap)) {
+      cacheTargets.add(keyphraseTokens);
+      cacheTargets.add(keyphraseSources);
+    }
     
     logger.info("Loading word caches.");
         
@@ -76,9 +87,20 @@ class DataAccessCache {
       }
       if (needsCacheCreation) {
         try {
-          Properties currentAIDADBConfig = ClassPathUtils.getPropertiesFromClasspath(AidaManager.databaseAidaConfig);
-          File cachedDBConfigFile = new File(DATABASE_AIDA_CONFIG_CACHE);
-          currentAIDADBConfig.store(new BufferedOutputStream(new FileOutputStream(cachedDBConfigFile)), "cached aida DB config");
+          Properties currentConfig = null;
+          File cachedConfigFile = null;
+          switch (DataAccess.getAccessType()) {
+            case testing:
+            case sql:
+              currentConfig = ClassPathUtils.getPropertiesFromClasspath(AidaManager.databaseAidaConfig);
+              cachedConfigFile = new File(DATABASE_AIDA_CONFIG_CACHE);
+              break;
+            case dmap:
+              currentConfig = ClassPathUtils.getPropertiesFromClasspath(DMapConfig.PATH);
+              cachedConfigFile = new File(DMAP_AIDA_CONFIG_CACHE);
+              break;
+          }
+          currentConfig.store(new BufferedOutputStream(new FileOutputStream(cachedConfigFile)), "cached aida data config");
         } catch (IOException e ) {
           logger.error("Could not write config: " + e.getLocalizedMessage());
           e.printStackTrace();
@@ -93,31 +115,57 @@ class DataAccessCache {
     logger.info("Done loading caches.");
   }
 
-  private boolean determineCacheCreation() throws FileNotFoundException, IOException {
-    boolean needsCacheCreation = false;
+  private boolean determineCacheCreation() throws IOException {
     File cachedDBConfigFile = new File(DATABASE_AIDA_CONFIG_CACHE);
-    if (!cachedDBConfigFile.exists()) {
+    File cachedDMAPConfigFile = new File(DMAP_AIDA_CONFIG_CACHE);
+    if (!cachedDBConfigFile.exists() && (DataAccess.getAccessType() == DataAccess.type.sql 
+      || DataAccess.getAccessType() == DataAccess.type.testing)) {
+      cachedDMAPConfigFile.delete();
+      return true;
+    } else if (!cachedDMAPConfigFile.exists() && DataAccess.getAccessType() == DataAccess.type.dmap) {
+      cachedDBConfigFile.delete();
       return true;
     }
-    Properties currentAIDADBConfig = ClassPathUtils.getPropertiesFromClasspath(AidaManager.databaseAidaConfig);
-    Properties cachedAIDADBConfig = new Properties();
-    cachedAIDADBConfig.load(new BufferedInputStream(new FileInputStream(cachedDBConfigFile)));
-    if (!currentAIDADBConfig.equals(cachedAIDADBConfig)) {
-      logger.info("Cache files exist, but DB config has been changed since it was created; DB access is unavoidable!");
+    Properties currentConfig = null;
+    Properties cachedConfig = new Properties();
+    switch (DataAccess.getAccessType()) {
+      case testing:
+      case sql:
+        currentConfig = ClassPathUtils.getPropertiesFromClasspath(AidaManager.databaseAidaConfig);
+        cachedConfig.load(new BufferedInputStream(new FileInputStream(cachedDBConfigFile)));
+        break;
+      case dmap:
+        currentConfig = ClassPathUtils.getPropertiesFromClasspath(DMapConfig.PATH);
+        cachedConfig.load(new BufferedInputStream(new FileInputStream(cachedDMAPConfigFile)));
+        break;
+      default:
+        return true;
+    }
+    if (!currentConfig.equals(cachedConfig)) {
+      logger.info("Cache files exist, but config has been changed since it was created; data access is unavoidable!");
       //there is a change in the DB config
       // do a clean up and require a DB access
       cachedDBConfigFile.delete();
-      needsCacheCreation = true;
+      cachedDMAPConfigFile.delete();
+      return true;
     }
-    return needsCacheCreation;
+    return false;
   }
 
   public int expandTerm(int wordId) {
     return wordExpansion.getData(wordId);
   }
   
+  public int contractTerm(int wordId) {
+    return wordContraction.getData(wordId);
+  }
+  
   public int getKeywordCount(int wordId) {
-    return keywordCount.getData(wordId);
+    return unitCounts[UnitType.KEYWORD.ordinal()].getData(wordId);
+  }
+  
+  public int getUnitCount(int unitId, UnitType unitType) {
+    return unitCounts[unitType.ordinal()].getData(unitId);
   }
   
   public int[] getKeyphraseTokens(int wordId) {

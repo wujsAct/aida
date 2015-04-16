@@ -29,11 +29,6 @@ public class PreparedInputChunk {
     return tokens_;
   }
 
-  public void setTokens(Tokens tokens) {
-    this.tokens_ = tokens;
-    context_ = createContextFromTokens(tokens);
-  }
-
   public Mentions getMentions() {
     return mentions_;
   }

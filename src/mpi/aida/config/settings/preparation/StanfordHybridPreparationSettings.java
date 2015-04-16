@@ -1,7 +1,7 @@
 package mpi.aida.config.settings.preparation;
 
 import mpi.aida.config.settings.PreparationSettings;
-import mpi.aida.preparation.mentionrecognition.FilterMentions.FilterType;
+import mpi.aida.preparation.mentionrecognition.MentionsDetector.type;
 
 /**
  * Preparator setting that tokenizes the input text using the 
@@ -15,7 +15,6 @@ public class StanfordHybridPreparationSettings extends PreparationSettings {
   private static final long serialVersionUID = 3743560957961384100L;
 
   public StanfordHybridPreparationSettings() {
-    this.setMentionsFilter(FilterType.STANFORD_NER);
-    this.setUseHybridMentionDetection(true);
+    this.setMentionsDetectionType(type.AUTOMATIC_AND_MANUAL);
   }
 }

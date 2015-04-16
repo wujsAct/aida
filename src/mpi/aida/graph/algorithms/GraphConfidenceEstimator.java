@@ -140,12 +140,12 @@ public class GraphConfidenceEstimator {
                                SINGLE_CANDIDATE_CONFIDENCE);
         } else {
           normalizedScores = 
-              CollectionUtils.normalizeScores(scores);
+              CollectionUtils.normalizeValuesToSum(scores);
         }
         // No need to work on this mention anymore.
         solution_.remove(mentionId);
       } else {
-        normalizedScores = CollectionUtils.normalizeScores(scores);
+        normalizedScores = CollectionUtils.normalizeValuesToSum(scores);
       }
       cleanNegativeKeys(normalizedScores);        
       localConfidences.put(mentionId, normalizedScores);
@@ -285,7 +285,7 @@ public class GraphConfidenceEstimator {
      Integer flippedEntity = -1;     
      if (entityCandidates.size() > 0) {
        TIntDoubleHashMap entityCandidateProbabilities = 
-           CollectionUtils.normalizeScores(entityCandidates);
+           CollectionUtils.normalizeValuesToSum(entityCandidates);
        flippedEntity = 
            getRandomEntity(mentionId, entityCandidateProbabilities, random_);
      }

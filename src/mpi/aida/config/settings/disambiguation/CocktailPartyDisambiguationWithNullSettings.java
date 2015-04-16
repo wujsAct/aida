@@ -13,7 +13,7 @@ public class CocktailPartyDisambiguationWithNullSettings extends CocktailPartyDi
     
   private static final long serialVersionUID = 5867674989478781057L;
   
-  public CocktailPartyDisambiguationWithNullSettings() throws MissingSettingException {
+  public CocktailPartyDisambiguationWithNullSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException {
     super();
     setComputeConfidence(true);
     setNullMappingThreshold(0.05);
