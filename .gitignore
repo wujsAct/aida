@@ -3,6 +3,8 @@
 
 .project
 
+aida.log
+
 aida-word_expansions.cache
 /bin
 /reports
