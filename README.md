@@ -38,7 +38,7 @@ Note that AIDA does not annotate common words (like song, musician, idea, ... ).
 
 ## Requirements
 
- * Java 7
+ * Java 8
  * A [Postgres][Postgres] 9.2 database to run. Might work with previous version but is untested.
  * The machine AIDA runs on should have a reasonable amount of main memory. If you are using graph coherence (see the Section *Configuring AIDA*), the amount of memory grows quadratically with the number of entities and thus the length of the document. Anything above 10,000 candidates will be too much for a regular desktop machine (at the time of writing) to handle and should run on a machine with more than 20GB of main memory. AIDA does the most intensive computations in parallel and thus benefits from multi-core machine.
 
