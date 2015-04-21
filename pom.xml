@@ -9,7 +9,7 @@
 		<java.version>1.8</java.version>
 		<jetty.groupId>org.eclipse.jetty</jetty.groupId>
 		<jetty.artifactId>jetty-maven-plugin</jetty.artifactId>
-		<jetty.version>9.3.0.M1</jetty.version>
+		<jetty.version>9.2.10.v20150310</jetty.version>
 	</properties>
 	<build>
 		<sourceDirectory>src</sourceDirectory>
