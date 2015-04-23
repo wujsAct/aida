@@ -179,7 +179,9 @@ public class Tokens implements Iterable<Token>, Serializable {
    * Returns list of sentences.
    * 
    * @return
+   * @deprecated Buggy, use getSentenceTokens instead!
    */
+  @Deprecated  
   public List<Tokens> getSentences() {
     List<Tokens> sentences = new LinkedList<Tokens>();
 

@@ -1,12 +1,15 @@
 package mpi.aida.config.settings.disambiguation;
 
+import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Properties;
 
 import mpi.aida.access.DataAccess;
 import mpi.aida.graph.similarity.exception.MissingSettingException;
 import mpi.aida.graph.similarity.util.SimilaritySettings;
 import mpi.aida.graph.similarity.util.SimilaritySettings.ImportanceAggregationStrategy;
+import mpi.aida.util.ClassPathUtils;
 
 /**
  * Preconfigured settings for the {@see Disambiguator} using the mention-entity
@@ -17,31 +20,19 @@ public class CocktailPartyKOREIDFDisambiguationSettings extends CocktailPartyDis
     
   private static final long serialVersionUID = 5867674989478781057L;
  
-  public CocktailPartyKOREIDFDisambiguationSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException {
+  public CocktailPartyKOREIDFDisambiguationSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException, IOException {
     super();
     getGraphSettings().setUseCoherenceRobustnessTest(false);
     
-    List<SimilaritySettings.MentionEntitySimilarityRaw> simConfigs = new LinkedList<>();
-    simConfigs.add(new SimilaritySettings.MentionEntitySimilarityRaw("UnnormalizedKeyphrasesBasedIDFSimilarity", "KeyphrasesContext", 0.5, false));  
     List<String[]> cohConfigs = new LinkedList<String[]>();
     cohConfigs.add(new String[] { "KOREEntityEntitySimilarity", "1.0" });
 
-    List<SimilaritySettings.EntityImportancesRaw> eisConfigs = new LinkedList<>();
-//    eisConfigs.add(new SimilaritySettings.EntityImportancesRaw("AidaEntityImportance", 0.5));
-    eisConfigs.add(new SimilaritySettings.EntityImportancesRaw("GNDTitleDataCountBasedImportance", 0.16));
-    eisConfigs.add(new SimilaritySettings.EntityImportancesRaw("GNDTripleCountBasedImportance", 0.17));
-    eisConfigs.add(new SimilaritySettings.EntityImportancesRaw("YagoOutlinkCountBasedImportance", 0.17));
-
-
-    SimilaritySettings settings = new SimilaritySettings(simConfigs, cohConfigs, eisConfigs, 0.0);
-    settings.setIdentifier("idf-sims");
+    Properties switchedKpProp = ClassPathUtils.getPropertiesFromClasspath("similarity/conll/KeyphraseIDF.properties");
+    SimilaritySettings settings = new SimilaritySettings(switchedKpProp, "KeyphraseIDF");
+    settings.setEntityEntitySimilarities(cohConfigs);
     settings.setEntityCohKeyphraseAlpha(0.0);
     settings.setEntityCohKeywordAlpha(0.0);
     settings.setShouldNormalizeCoherenceWeights(true);
-    settings.setImportanceAggregationStrategy(ImportanceAggregationStrategy.AVERGAE);
-    List<String[]> sourceWeightConfigs = new LinkedList<String[]>();
-    sourceWeightConfigs.add(new String[] { DataAccess.KPSOURCE_INLINKTITLE, "0.0" });
-    settings.setEntityEntityKeyphraseSourceWeights(sourceWeightConfigs);
     setSimilaritySettings(settings);
   }
 }

@@ -1,8 +1,8 @@
 package mpi.aida.graph.similarity.context;
 
-import edu.emory.mathcs.backport.java.util.Arrays;
 import mpi.aida.graph.similarity.UnitType;
 
+import java.util.Arrays;
 import java.util.Map;
 
 

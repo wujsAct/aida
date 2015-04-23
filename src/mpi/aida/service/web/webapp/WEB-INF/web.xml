@@ -34,7 +34,7 @@
 			<param-value>5</param-value>
 		</init-param>
 	</filter>
-	
+
 	<filter>
 		<filter-name>QoSFilter</filter-name>
 		<filter-class>org.eclipse.jetty.servlets.QoSFilter</filter-class>

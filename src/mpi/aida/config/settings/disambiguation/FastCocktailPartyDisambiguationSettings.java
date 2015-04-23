@@ -1,5 +1,7 @@
 package mpi.aida.config.settings.disambiguation;
 
+import java.io.IOException;
+
 import mpi.aida.graph.similarity.exception.MissingSettingException;
 
 /**
@@ -16,7 +18,7 @@ public class FastCocktailPartyDisambiguationSettings extends CocktailPartyDisamb
     
   private static final long serialVersionUID = 5867674989478781057L;
 
-  public FastCocktailPartyDisambiguationSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException {
+  public FastCocktailPartyDisambiguationSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException, IOException {
     super();
     getSimilaritySettings().setMaxEntityKeyphraseCount(1000);
     getSimilaritySettings().setMinimumEntityKeyphraseWeight(0.001);

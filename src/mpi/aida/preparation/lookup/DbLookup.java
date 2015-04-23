@@ -1,13 +1,13 @@
 package mpi.aida.preparation.lookup;
 
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+
 import mpi.aida.access.DataAccess;
 import mpi.aida.data.Entities;
 import mpi.aida.data.Mention;
 import mpi.aida.util.timing.RunningTimer;
-
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
 
 class DbLookup extends EntityLookup {
 

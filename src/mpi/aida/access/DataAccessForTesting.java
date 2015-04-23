@@ -700,7 +700,7 @@ public class DataAccessForTesting implements DataAccessInterface {
     for (Entity e : entities) {
       EntityMetaData emd = 
           new EntityMetaData(e.getId(), e.getIdentifierInKb(),
-              "http://" + e.getIdentifierInKb(), e.getKnowledgebase(), "");
+              "http://" + e.getIdentifierInKb(), e.getKnowledgebase(), "", "");
       md.put(e.getId(), emd);
     }
     

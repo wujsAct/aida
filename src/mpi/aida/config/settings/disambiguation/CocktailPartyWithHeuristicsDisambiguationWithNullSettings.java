@@ -1,15 +1,8 @@
 package mpi.aida.config.settings.disambiguation;
 
-import java.io.File;
 import java.io.IOException;
-import java.util.Properties;
 
 import mpi.aida.graph.similarity.exception.MissingSettingException;
-import mpi.aida.graph.similarity.util.SimilaritySettings;
-import mpi.aida.util.ClassPathUtils;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Preconfigured settings for the {@see Disambiguator} using the mention-entity
@@ -22,12 +15,10 @@ import org.slf4j.LoggerFactory;
  * Use this for running on "real world" documents to get the best results. 
  */
 public class CocktailPartyWithHeuristicsDisambiguationWithNullSettings extends CocktailPartyDisambiguationWithNullSettings {
-    
+
   private static final long serialVersionUID = 5867674989478781057L;
-  
-  private Logger logger_ = LoggerFactory.getLogger(CocktailPartyWithHeuristicsDisambiguationWithNullSettings.class);
-  
-  public CocktailPartyWithHeuristicsDisambiguationWithNullSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException {
+    
+  public CocktailPartyWithHeuristicsDisambiguationWithNullSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException, IOException {
     super();
     setComputeConfidence(true);
 

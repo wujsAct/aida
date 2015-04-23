@@ -1,5 +1,7 @@
 package mpi.aida.config.settings.disambiguation;
 
+import java.io.IOException;
+
 import mpi.aida.graph.similarity.exception.MissingSettingException;
 
 /**
@@ -14,7 +16,7 @@ public class FastLocalKeyphraseBasedDisambiguationSettings extends LocalKeyphras
     
   private static final long serialVersionUID = -1943862223862927646L;
 
-  public FastLocalKeyphraseBasedDisambiguationSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException {
+  public FastLocalKeyphraseBasedDisambiguationSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException, IOException {
     super();
     getSimilaritySettings().setMaxEntityKeyphraseCount(1000);
     getSimilaritySettings().setMinimumEntityKeyphraseWeight(0.001);

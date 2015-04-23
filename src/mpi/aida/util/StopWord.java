@@ -13,6 +13,10 @@ import mpi.aida.access.DataAccess;
 import mpi.aida.config.AidaConfig;
 import mpi.aida.config.settings.PreparationSettings;
 import mpi.aida.config.settings.PreparationSettings.LANGUAGE;
+import mpi.tokenizer.data.Token;
+import mpi.tokenizer.data.Tokenizer.type;
+import mpi.tokenizer.data.TokenizerManager;
+import mpi.tokenizer.data.Tokens;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,10 +64,7 @@ public class StopWord {
     pathSymbols = new HashMap<PreparationSettings.LANGUAGE, String>();
     pathSymbols.put(LANGUAGE.en, "tokens/symbols.txt");
     pathSymbols.put(LANGUAGE.de, "tokens/symbols.txt");
-    pathSymbols.put(LANGUAGE.multi, "tokens/symbols.txt");
-    
-    
-    
+    pathSymbols.put(LANGUAGE.multi, "tokens/symbols.txt"); 
   }
 
   private void load(LANGUAGE language) {
@@ -124,6 +125,27 @@ public class StopWord {
 
   public static boolean symbol(char word) {
     return StopWord.getInstance().isSymbol(word);
+  }
+  
+  /**
+   * Filter text from stop words and symbols
+   * @param text
+   * @return
+   */
+  public static String filterStopWordsAndSymbols(String text){
+    Tokens tokens = TokenizerManager.tokenize(text, type.TOKEN, false);
+    StringBuilder cleanText = new StringBuilder();
+    int i=0;
+    int end = tokens.size();
+    for(Token token : tokens){
+      if(!isStopwordOrSymbol(token.getOriginal())){
+        cleanText.append(token.getOriginal());
+        if (i < end - 1) {
+          cleanText.append(" ");
+        }
+      }
+    }
+    return cleanText.toString();
   }
 
   public static void main(String[] args) {

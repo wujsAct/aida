@@ -1,5 +1,7 @@
 package mpi.aida.config.settings.disambiguation;
 
+import java.io.IOException;
+
 import mpi.aida.graph.similarity.exception.MissingSettingException;
 
 /**
@@ -13,7 +15,7 @@ public class CocktailPartyDisambiguationWithNullSettings extends CocktailPartyDi
     
   private static final long serialVersionUID = 5867674989478781057L;
   
-  public CocktailPartyDisambiguationWithNullSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException {
+  public CocktailPartyDisambiguationWithNullSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException, IOException {
     super();
     setComputeConfidence(true);
     setNullMappingThreshold(0.05);

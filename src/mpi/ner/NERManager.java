@@ -1,16 +1,6 @@
 package mpi.ner;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-import java.util.stream.Collectors;
-
+import gnu.trove.map.hash.TIntObjectHashMap;
 import mpi.aida.data.Mention;
 import mpi.aida.data.Mentions;
 import mpi.aida.util.ClassPathUtils;
@@ -20,12 +10,12 @@ import mpi.ner.config.NERConfig;
 import mpi.tokenizer.data.Token;
 import mpi.tokenizer.data.Tokens;
 import mpi.tools.javatools.datatypes.Pair;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import edu.emory.mathcs.backport.java.util.Collections;
-import gnu.trove.map.hash.TIntObjectHashMap;
+import java.io.IOException;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class NERManager {
 

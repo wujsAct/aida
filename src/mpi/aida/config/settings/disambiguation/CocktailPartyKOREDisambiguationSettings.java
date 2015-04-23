@@ -1,5 +1,6 @@
 package mpi.aida.config.settings.disambiguation;
 
+import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -16,23 +17,18 @@ public class CocktailPartyKOREDisambiguationSettings extends CocktailPartyDisamb
     
   private static final long serialVersionUID = 5867674989478781057L;
 
-  public CocktailPartyKOREDisambiguationSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException {
+  public CocktailPartyKOREDisambiguationSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException, IOException {
     super();
     List<String[]> cohConfigs = new LinkedList<String[]>();
     cohConfigs.add(new String[] { "KOREEntityEntitySimilarity", "1.0" });
 
-    SimilaritySettings switchedKPsettings = new SimilaritySettings(
-        LocalKeyphraseBasedDisambiguationSettings.getKeyphraseSimConfigsWithPrior(), cohConfigs,
-        LocalKeyphraseBasedDisambiguationSettings.getKeyphraseSimPriorWeight());
-    switchedKPsettings.setIdentifier("SwitchedKP");
-    switchedKPsettings.setPriorThreshold(0.9);
-    switchedKPsettings.setMentionEntitySimilaritiesNoPrior(LocalKeyphraseBasedDisambiguationSettings.getKeyphraseSimConfigsNoPrior());
+    SimilaritySettings switchedKPsettings = getSimilaritySettings();
+    switchedKPsettings.setEntityEntitySimilarities(cohConfigs);
     switchedKPsettings.setEntityCohKeyphraseAlpha(1.0);
     switchedKPsettings.setEntityCohKeywordAlpha(0.0);
     switchedKPsettings.setShouldNormalizeCoherenceWeights(true);
     List<String[]> sourceWeightConfigs = new LinkedList<String[]>();
     sourceWeightConfigs.add(new String[] { DataAccess.KPSOURCE_INLINKTITLE, "0.0" });
     switchedKPsettings.setEntityEntityKeyphraseSourceWeights(sourceWeightConfigs);
-    setSimilaritySettings(switchedKPsettings);
   }
 }

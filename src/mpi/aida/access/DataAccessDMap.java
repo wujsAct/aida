@@ -465,7 +465,7 @@ public class DataAccessDMap implements DataAccessInterface {
               value.getHumanreadablererpresentation(), 
               value.getUrl(),
               value.getKnowledgebase(), 
-              value.hasDepictionurl() ? value.getDepictionurl() : null));
+              value.hasDepictionurl() ? value.getDepictionurl() : null, value.getDescription()));
           }
         }
       }

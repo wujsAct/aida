@@ -1,5 +1,24 @@
 package mpi.aida.service.web;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.FormParam;
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.MediaType;
+
 import mpi.aida.AidaManager;
 import mpi.aida.Disambiguator;
 import mpi.aida.access.DataAccess;
@@ -9,9 +28,26 @@ import mpi.aida.config.settings.JsonSettings.JSONTYPE;
 import mpi.aida.config.settings.PreparationSettings;
 import mpi.aida.config.settings.Settings.ALGORITHM;
 import mpi.aida.config.settings.Settings.TECHNIQUE;
-import mpi.aida.config.settings.disambiguation.*;
+import mpi.aida.config.settings.disambiguation.CocktailPartyDisambiguationSettings;
+import mpi.aida.config.settings.disambiguation.CocktailPartyJaccardDisambiguationSettings;
+import mpi.aida.config.settings.disambiguation.CocktailPartyKOREDisambiguationSettings;
+import mpi.aida.config.settings.disambiguation.CocktailPartyKOREIDFDisambiguationSettings;
+import mpi.aida.config.settings.disambiguation.CocktailPartyWithHeuristicsDisambiguationWithNullSettings;
+import mpi.aida.config.settings.disambiguation.FastCocktailPartyDisambiguationSettings;
+import mpi.aida.config.settings.disambiguation.FastLocalKeyphraseBasedDisambiguationSettings;
+import mpi.aida.config.settings.disambiguation.LocalKeyphraseBasedDisambiguationSettings;
+import mpi.aida.config.settings.disambiguation.LocalKeyphraseIDFBasedDisambiguationSettings;
+import mpi.aida.config.settings.disambiguation.PriorOnlyDisambiguationSettings;
 import mpi.aida.config.settings.preparation.StanfordHybridPreparationSettings;
-import mpi.aida.data.*;
+import mpi.aida.data.DisambiguationResults;
+import mpi.aida.data.Entities;
+import mpi.aida.data.Entity;
+import mpi.aida.data.EntityMetaData;
+import mpi.aida.data.ExternalEntitiesContext;
+import mpi.aida.data.KBIdentifiedEntity;
+import mpi.aida.data.PreparedInput;
+import mpi.aida.data.ResultProcessor;
+import mpi.aida.data.Type;
 import mpi.aida.graph.similarity.EntityEntitySimilarity;
 import mpi.aida.graph.similarity.util.SimilaritySettings;
 import mpi.aida.preparation.mentionrecognition.MentionsDetector.type;
@@ -23,19 +59,13 @@ import mpi.experiment.trace.NullTracer;
 import mpi.experiment.trace.Tracer;
 import mpi.keyphraseextraction.KeyphraseExtractor;
 import mpi.keyphraseextraction.NounPhrase;
+
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.ws.rs.*;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.MediaType;
-import java.util.*;
-import java.util.Map.Entry;
 
 /**
  * Class defining the HTTP interface to call the AIDA disambiugation. Call
@@ -500,35 +530,40 @@ public class RequestProcessor {
 		return jObj.toJSONString();
 	}
 
-	@SuppressWarnings("unchecked")
+	 @SuppressWarnings("unchecked")
 	@Path("/loadEntityMetaData")
 	@POST
-	@Produces(MediaType.TEXT_PLAIN)
-	public String loadEntityMetaData(@FormParam("entity") Integer entity) {
-		EntityMetaData entityMetaData = DataAccess.getEntityMetaData(entity);
-		double importance = DataAccess.getEntityImportance(entity);
-		JSONObject jObj = new JSONObject();
-		jObj.put("readableForm",
-				entityMetaData.getHumanReadableRepresentation());
-		jObj.put("url", entityMetaData.getUrl());
-		jObj.put("importance", importance);
-		jObj.put("knowledgebase", entityMetaData.getKnowledgebase());
-		jObj.put("depictionurl", entityMetaData.getDepictionurl());
-		jObj.put("depictionthumbnailurl",
-				entityMetaData.getDepictionthumbnailurl());
-		return jObj.toJSONString();
+	@Produces(MediaType.APPLICATION_JSON)
+	public JSONObject loadEntityMetaData(@FormParam("entity") Integer entity) {
+	  EntityMetaData entityMetaData = DataAccess.getEntityMetaData(entity);
+    double importance = DataAccess.getEntityImportance(entity);
+    JSONObject jObj = new JSONObject();
+    jObj.put("readableForm",
+        entityMetaData.getHumanReadableRepresentation());
+    jObj.put("url", entityMetaData.getUrl());
+    jObj.put("importance", importance);
+    jObj.put("knowledgebase", entityMetaData.getKnowledgebase());
+    jObj.put("depictionurl", entityMetaData.getDepictionurl());
+    jObj.put("description", entityMetaData.getDescription());
+    jObj.put("depictionthumbnailurl",
+        entityMetaData.getDepictionthumbnailurl());
+    
+    return jObj;
 	}
+	
 
 	// for the webaida entity.jsp page
 	@Path("/loadKeyphrases")
 	@POST
-	@Produces(MediaType.TEXT_PLAIN)
-	public String loadKeyphrases(@FormParam("entity") Integer entity) {
+	@Produces(MediaType.APPLICATION_JSON)
+	public JSONArray loadKeyphrases(@FormParam("entity") Integer entity) {
 		JSONArray keyphrasesJsonArray = EntityDetailsLoader.loadKeyphrases(entity);
 		// JSONArray entityTypesJsonArray =
 
-		return keyphrasesJsonArray.toJSONString();
+		return keyphrasesJsonArray;
 	}
+	
+	
    
 	/**
 	 * Extracts list of NounPhrases (keyphrases) from a given text
@@ -552,12 +587,24 @@ public class RequestProcessor {
 	// for the webaida keyphrases.jsp page
 	@Path("/loadTypes")
 	@POST
-	@Produces(MediaType.TEXT_PLAIN)
-	public String loadTypes(@FormParam("entity") int entity) {
+	@Produces(MediaType.APPLICATION_JSON)
+	public JSONArray loadTypes(@FormParam("entity") int entity) {
 		JSONArray typesJsonArray = EntityDetailsLoader.loadEntityTypes(entity);
-		return typesJsonArray.toJSONString();
+		return typesJsonArray;
 	}
 
+	
+	@Path("/entityKbId2Id")
+  @POST
+  @Produces(MediaType.TEXT_PLAIN)
+  public String entityKbId2Id(@FormParam("kbId") String kbId) {
+	  
+    KBIdentifiedEntity kbIdEntity = new KBIdentifiedEntity(kbId);
+    Entity e = AidaManager.getEntity(kbIdEntity);
+    
+    return String.valueOf(e.getId());
+  }
+	
 	@SuppressWarnings("unchecked")
 	@Path("/computeMilneWittenRelatedness")
 	@POST
@@ -811,7 +858,7 @@ public class RequestProcessor {
             disSettings = new LocalKeyphraseBasedDisambiguationSettings();
           }
         } else if (technique.equals("LOCAL-IDF")) {
-          disSettings = new LocalKeyphraseIDFBasedDisambiguationIDFSettings();
+          disSettings = new LocalKeyphraseIDFBasedDisambiguationSettings();
         } else if (technique.equals("GRAPH")) {
           if (fastMode != null && fastMode) {
 						disSettings = new FastCocktailPartyDisambiguationSettings();
@@ -846,7 +893,7 @@ public class RequestProcessor {
         String cohMeasureId;
         switch (coherenceMeasure) {
           case "MilneWitten":
-            cohMeasureId = "MilneWittenEntityEntitySimilarity";              
+            cohMeasureId = "MilneWittenEntityEntitySimilarity";
             break;
           case "Jaccard":
             cohMeasureId = "InlinkOverlapEntityEntitySimilarity";
@@ -968,9 +1015,9 @@ public class RequestProcessor {
 			}
       RequestLogger.logProcess(IP, preInput, prepSettings.getClass().getName(), disSettings.getDisambiguationTechnique(),
 					disSettings.getDisambiguationAlgorithm(), duration);
-		 if (AidaConfig.getBoolean(AidaConfig.LOG_WEB_CALLS)) {
-			 WebCallLogger.log(text, json.toJSONString(), prepSettings.getClass().getName(), technique, algorithm);
-		 }
-		 return json;
+		  if (AidaConfig.getBoolean(AidaConfig.LOG_WEB_CALLS)) {
+				WebCallLogger.log(text, json.toJSONString(), prepSettings.getClass().getName(), technique, algorithm);
+			}
+      return json;
    }
 }

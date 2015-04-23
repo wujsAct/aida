@@ -1,14 +1,16 @@
 package mpi.aida.config.settings.disambiguation;
 
-import java.util.Arrays;
+import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Properties;
 
 import mpi.aida.config.settings.DisambiguationSettings;
 import mpi.aida.config.settings.Settings.ALGORITHM;
 import mpi.aida.config.settings.Settings.TECHNIQUE;
 import mpi.aida.graph.similarity.exception.MissingSettingException;
 import mpi.aida.graph.similarity.util.SimilaritySettings;
+import mpi.aida.util.ClassPathUtils;
 import mpi.experiment.trace.GraphTracer.TracingTarget;
 
 /**
@@ -23,7 +25,7 @@ public class CocktailPartyDisambiguationSettings extends DisambiguationSettings 
     
   private static final long serialVersionUID = 5867674989478781057L;
   
-  public CocktailPartyDisambiguationSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException {
+  public CocktailPartyDisambiguationSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException, IOException {
     getGraphSettings().setAlpha(0.6);
     setTracingTarget(TracingTarget.WEB_INTERFACE);
      
@@ -35,27 +37,16 @@ public class CocktailPartyDisambiguationSettings extends DisambiguationSettings 
     getGraphSettings().setEntitiesPerMentionConstraint(5);
     getGraphSettings().setUseCoherenceRobustnessTest(true);
     getGraphSettings().setCohRobustnessThreshold(0.9);
-    
+
+    Properties switchedKpProp = ClassPathUtils.getPropertiesFromClasspath("similarity/conll/SwitchedKP.properties");
+    SimilaritySettings switchedKPsettings = new SimilaritySettings(switchedKpProp, "SwitchedKP");
     List<String[]> cohConfigs = new LinkedList<String[]>();
     cohConfigs.add(new String[] { "MilneWittenEntityEntitySimilarity", "1.0" });
-
-    SimilaritySettings switchedKPsettings = 
-        new SimilaritySettings(
-            LocalKeyphraseBasedDisambiguationSettings.getKeyphraseSimConfigsWithPrior(),
-            cohConfigs, LocalKeyphraseBasedDisambiguationSettings.getKeyphraseSimPriorWeight());
-    switchedKPsettings.setIdentifier("SwitchedKP");
-    switchedKPsettings.setPriorThreshold(0.9);
-    switchedKPsettings.setMentionEntitySimilaritiesNoPrior(LocalKeyphraseBasedDisambiguationSettings.getKeyphraseSimConfigsNoPrior());
+    switchedKPsettings.setEntityEntitySimilarities(cohConfigs);
     setSimilaritySettings(switchedKPsettings);
-        
-    SimilaritySettings unnormalizedKPsettings = new SimilaritySettings(getCoherenceRobustnessSimConfigs(), null, 0.0);
-    unnormalizedKPsettings.setIdentifier("CoherenceRobustnessTest");
+
+    Properties cohRobProp = ClassPathUtils.getPropertiesFromClasspath("similarity/conll/SwitchedKP_cohrob.properties");
+    SimilaritySettings unnormalizedKPsettings = new SimilaritySettings(cohRobProp, "CoherenceRobustnessTest");
     getGraphSettings().setCoherenceSimilaritySetting(unnormalizedKPsettings);
-  }
-  
-  public static List<SimilaritySettings.MentionEntitySimilarityRaw> getCoherenceRobustnessSimConfigs() 
-    throws NoSuchMethodException, ClassNotFoundException { 
-      return Arrays.asList(new SimilaritySettings.MentionEntitySimilarityRaw("UnnormalizedKeyphrasesBasedMISimilarity", "KeyphrasesContext", 0.8360808680254525, false),
-          new SimilaritySettings.MentionEntitySimilarityRaw("UnnormalizedKeyphrasesBasedIDFSimilarity", "KeyphrasesContext", 0.16391913197454755, false));
   }
 }

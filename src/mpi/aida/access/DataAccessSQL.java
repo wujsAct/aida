@@ -10,13 +10,36 @@ import gnu.trove.map.hash.TIntIntHashMap;
 import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import gnu.trove.set.hash.TIntHashSet;
+
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+
 import mpi.aida.AidaManager;
 import mpi.aida.access.DataAccessSQLCache.EntityKeyphraseData;
 import mpi.aida.access.DataAccessSQLCache.EntityKeywordsData;
 import mpi.aida.config.AidaConfig;
-import mpi.aida.data.*;
-import mpi.aida.graph.similarity.PriorProbability;
+import mpi.aida.data.Entities;
+import mpi.aida.data.Entity;
+import mpi.aida.data.EntityMetaData;
+import mpi.aida.data.KBIdentifiedEntity;
+import mpi.aida.data.Keyphrases;
+import mpi.aida.data.Type;
 import mpi.aida.graph.similarity.UnitType;
+import mpi.aida.graph.similarity.PriorProbability;
 import mpi.aida.util.CollectionUtils;
 import mpi.aida.util.Counter;
 import mpi.aida.util.Util;
@@ -24,17 +47,10 @@ import mpi.aida.util.YagoUtil;
 import mpi.aida.util.YagoUtil.Gender;
 import mpi.aida.util.timing.RunningTimer;
 import mpi.tools.javatools.datatypes.Pair;
+
 import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.*;
-import java.util.Map.Entry;
-import java.util.stream.Collectors;
 
 public class DataAccessSQL implements DataAccessInterface {
   private static final Logger logger = 
@@ -1587,7 +1603,7 @@ public class DataAccessSQL implements DataAccessInterface {
       con = AidaManager.getConnectionForDatabase(AidaManager.DB_AIDA);
       statement = con.createStatement();
       String sql = "SELECT entity, humanreadablererpresentation, url, "
-          + "knowledgebase, depictionurl FROM " + 
+          + "knowledgebase, depictionurl, description FROM " + 
                    DataAccessSQL.ENTITY_METADATA + 
                    " WHERE entity IN (" + entitiesQuery + ")";
       logger.debug("Getting metadata for " + entitiesIds.length + " entities");    
@@ -1598,8 +1614,9 @@ public class DataAccessSQL implements DataAccessInterface {
         String url = rs.getString("url");
         String knowledgebase = rs.getString("knowledgebase");
         String depictionurl = rs.getString("depictionurl");
+        String description = rs.getString("description");
         entitiesMetaData.put(entity, new EntityMetaData(entity, 
-            humanReadableRepresentation, url, knowledgebase, depictionurl));        
+            humanReadableRepresentation, url, knowledgebase, depictionurl, description));        
       }
       logger.debug("Getting metadata for " + entitiesIds.length + " entities DONE");
       rs.close();

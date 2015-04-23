@@ -3,13 +3,11 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>mpi.aida</groupId>
 	<artifactId>aida</artifactId>
-	<version>3.0.2-SNAPSHOT</version>
+	<version>3.0.2</version>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<java.version>1.8</java.version>
-		<jetty.groupId>org.eclipse.jetty</jetty.groupId>
-		<jetty.artifactId>jetty-maven-plugin</jetty.artifactId>
-		<jetty.version>9.3.0.M1</jetty.version>
+		<jetty.version>9.2.10.v20150310</jetty.version>
 	</properties>
 	<build>
 		<sourceDirectory>src</sourceDirectory>
@@ -50,15 +48,6 @@
 					<tagBase>svn+ssh://contact.mpi-inf.mpg.de/GW/reps-0/work/yn/EVE/aida/tags</tagBase>
 				</configuration>
 			</plugin>
-			<!-- <plugin> <groupId>org.apache.maven.plugins</groupId> <artifactId>maven-shade-plugin</artifactId> 
-				<version>2.1</version> <configuration> <filters> <filter> <artifact>*:*</artifact> 
-				<includes> <include>**</include> </includes> </filter> </filters> </configuration> 
-				<executions> <execution> <phase>package</phase> <goals> <goal>shade</goal> 
-				</goals> </execution> </executions> </plugin> -->
-			<!-- <plugin> <groupId>org.codehaus.mojo</groupId> <artifactId>build-helper-maven-plugin</artifactId> 
-				<version>1.8</version> <executions> <execution> <phase>generate-sources</phase> 
-				<goals> <goal>add-source</goal> </goals> <configuration> <sources> <source>src-gen</source> 
-				</sources> </configuration> </execution> </executions> </plugin> -->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
@@ -79,7 +68,6 @@
 					<webAppSourceDirectory>${basedir}/src/mpi/aida/service/web/</webAppSourceDirectory>
 					<webApp>
 						<descriptor>${project.basedir}/src/mpi/aida/service/web/webapp/WEB-INF/web.xml</descriptor>
-						<!-- <overrideDescriptor>${project.basedir}/src/mpi/aida/service/web/webapp/WEB-INF/web.xml</overrideDescriptor> -->
 						<contextPath>/${project.artifactId}</contextPath>
 					</webApp>
 				</configuration>
@@ -260,12 +248,7 @@
 			<scope>compile</scope>
 		</dependency>
 		<dependency>
-			<groupId>${jetty.groupId}</groupId>
-			<artifactId>${jetty.artifactId}</artifactId>
-			<version>${jetty.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>${jetty.groupId}</groupId>
+			<groupId>org.eclipse.jetty</groupId>
 			<artifactId>jetty-servlets</artifactId>
 			<version>${jetty.version}</version>
 		</dependency>
@@ -293,6 +276,11 @@
 			<groupId>org.elasticsearch</groupId>
 			<artifactId>elasticsearch</artifactId>
 			<version>1.4.0</version>
+		</dependency>
+		<dependency>
+			<groupId>javax.servlet</groupId>
+			<artifactId>javax.servlet-api</artifactId>
+			<version>3.1.0</version>
 		</dependency>
 	</dependencies>
 	<repositories>

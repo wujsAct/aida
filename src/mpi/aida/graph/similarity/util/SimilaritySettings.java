@@ -1,11 +1,21 @@
 package mpi.aida.graph.similarity.util;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.Serializable;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.util.*;
+import java.util.stream.Collectors;
+
 import mpi.aida.access.DataAccessSQL;
 import mpi.aida.data.Entities;
 import mpi.aida.data.ExternalEntitiesContext;
+import mpi.aida.graph.similarity.UnitType;
 import mpi.aida.graph.similarity.EntityEntitySimilarity;
 import mpi.aida.graph.similarity.MentionEntitySimilarity;
-import mpi.aida.graph.similarity.UnitType;
 import mpi.aida.graph.similarity.context.EntitiesContext;
 import mpi.aida.graph.similarity.context.EntitiesContextSettings;
 import mpi.aida.graph.similarity.context.EntitiesContextSettings.EntitiesContextType;
@@ -14,15 +24,10 @@ import mpi.aida.graph.similarity.importance.EntityImportance;
 import mpi.aida.graph.similarity.measure.MentionEntitySimilarityMeasure;
 import mpi.aida.util.CollectionUtils;
 import mpi.experiment.trace.Tracer;
+
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.*;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Settings for computing the weights of the disambiguation graph.
@@ -130,6 +135,19 @@ public class SimilaritySettings implements Serializable {
   public enum ImportanceAggregationStrategy{AVERGAE, LINEAR_COMBINATION};
   
   /**
+   * Initializes SimilaritySettings from a Properties object.
+   * Be careful, the fullPath will not be set when this is used.
+   * 
+   * @param prop
+   * @param identifier
+   * @throws ClassNotFoundException 
+   * @throws NoSuchMethodException 
+   */
+  public SimilaritySettings(Properties prop, String identifier) throws NoSuchMethodException, ClassNotFoundException {
+    init(prop, identifier);
+  }
+  
+  /**
    * mentionEntitySimilarities in property file need to be in the following format:
    * 
    * similarityMeasure:entityContext:weight
@@ -138,7 +156,7 @@ public class SimilaritySettings implements Serializable {
    */
   public SimilaritySettings(File propertiesFile) {
     String name = propertiesFile.getName();
-    identifier = name.substring(0, name.lastIndexOf('.'));
+    String id = name.substring(0, name.lastIndexOf('.'));
 
     Properties prop = new Properties();
     try {
@@ -147,103 +165,8 @@ public class SimilaritySettings implements Serializable {
         prop.load(fr);
         fr.close();
 
-        priorWeight = Double.parseDouble(prop.getProperty("priorWeight", "0.0"));
-        priorTakeLog = Boolean.parseBoolean(prop.getProperty("priorTakeLog", "false"));
-        priorDampingFactor = Double.parseDouble(prop.getProperty("priorDampingFactor", "1.0"));
-        priorThreshold = Double.parseDouble(prop.getProperty("priorThreshold", "-1.0"));
-        
-        numberOfEntityKeyphrase = Integer.parseInt(prop.getProperty("numberOfEntityKeyphrase", String.valueOf(Integer.MAX_VALUE)));
-        entityCohKeyphraseAlpha = Double.parseDouble(prop.getProperty("entityCoherenceKeyphraseAlpha", String.valueOf(EntitiesContextSettings.DEFAULT_KEYPHRASE_ALPHA)));
-        entityCohKeywordAlpha = Double.parseDouble(prop.getProperty("entityCoherenceKeywordAlpha", String.valueOf(EntitiesContextSettings.DEFAULT_KEYWORD_ALPHA)));
-        normalizeCoherenceWeights = Boolean.parseBoolean(prop.getProperty("normalizeCoherenceWeights", "false"));
-        shouldAverageCoherenceWeights = Boolean.parseBoolean(prop.getProperty("shouldAverageCoherenceWeights", "false"));
-        useConfusableMIWeights = Boolean.parseBoolean(prop.getProperty("useConfusableMIWeights", "false"));
-        nGramLength = Integer.parseInt(prop.getProperty("nGramLength", String.valueOf(2)));
-        minimumEntityKeyphraseWeight = Double.parseDouble(prop.getProperty("minimumEntityKeyphraseWeight", "0.0"));
-        maxEntityKeyphraseCount = Integer.parseInt(prop.getProperty("maxEntityKeyphraseCount", "0"));
-        
-        importanceAggregationStrategy = ImportanceAggregationStrategy.valueOf(
-            prop.getProperty("importanceAggregationStrategy", 
-                ImportanceAggregationStrategy.LINEAR_COMBINATION.toString()));
-        
-        
-        // LSH config
-        lshBandSize = Integer.parseInt(prop.getProperty("lshBandSize", "2"));
-        lshBandCount = Integer.parseInt(prop.getProperty("lshBandCount", "100"));
-        lshDatabaseTable = prop.getProperty("lshDatabaseTable", DataAccessSQL.ENTITY_LSH_SIGNATURES);
-
-        // LanguageModel
-        unitSmoothingParameter = new double[UnitType.values().length];
-        for (UnitType unitType : UnitType.values()) {
-          unitSmoothingParameter[unitType.ordinal()] = Double.parseDouble(
-            prop.getProperty("unitSmoothingParameter." + unitType.getUnitName(), 
-              prop.getProperty("unitSmoothingParameter", "1.0")));
-        }
-        unitIgnoreMention = new boolean[UnitType.values().length];
-        for (UnitType unitType : UnitType.values()) {
-          unitIgnoreMention[unitType.ordinal()] = Boolean.parseBoolean(
-            prop.getProperty("unitIgnoreMention." + unitType.getUnitName(), 
-              prop.getProperty("unitIgnoreMention", "false")));
-        }
-        
-                
-        String mentionEntitySimilarityString = prop.getProperty("mentionEntitySimilaritiesNoPrior");
-
-        if (mentionEntitySimilarityString != null) {
-          for (String sim : mentionEntitySimilarityString.split(" ")) {
-            mentionEntitySimilaritiesNoPrior.add(MentionEntitySimilarityRaw.parseFrom(sim));
-          }
-        } else if (priorThreshold > 0.0) {
-          System.err.println("No mention-entity similarity setting for no prior given in the settings file file but priorThreshold set - this almost always needed!");
-        }
-        
-        String mentionEntitySimilarityWithPriorString = prop.getProperty("mentionEntitySimilaritiesWithPrior");
-
-        if (mentionEntitySimilarityWithPriorString != null) {
-          for (String sim : mentionEntitySimilarityWithPriorString.split(" ")) {
-            mentionEntitySimilaritiesWithPrior.add(MentionEntitySimilarityRaw.parseFrom(sim));
-          }
-        } else {
-          System.err.println("No mention-entity similarity setting for prior given in the settings - this almost always needed!");
-        }
-
-        String entityImportanceNoPriorString = prop.getProperty("entityImportanceWeightsNoPrior");
-
-        if (entityImportanceNoPriorString != null) {
-          for (String imp : entityImportanceNoPriorString.split(" ")) {
-            entityImportancesNoPrior.add(EntityImportancesRaw.parseFrom(imp));
-          }
-        }
-
-        String entityImportanceWithPriorString = prop.getProperty("entityImportanceWeightsWithPrior");
-
-        if (entityImportanceWithPriorString != null) {
-          for (String imp : entityImportanceWithPriorString.split(" ")) {
-            entityImportancesWithPrior.add(EntityImportancesRaw.parseFrom(imp));
-          }
-        }
-
-        String entityEntitySimilarityString = prop.getProperty("entityEntitySimilarity");
-
-        if (entityEntitySimilarityString != null) {
-          for (String sim : entityEntitySimilarityString.split(" ")) {
-            entityEntitySimilarities.add(sim.split(":"));
-          }
-        }
-        
-        if (prop.containsKey("entityEntityKeyphraseSourceWeights")) {
-          entityEntityKeyphraseSourceWeights = 
-            Arrays.stream(prop.getProperty("entityEntityKeyphraseSourceWeights").split(" "))
-              .map(src -> src.split(":")).collect(Collectors.toList());
-        }
-        if (prop.containsKey("mentionEntityKeyphraseSourceWeights")) {
-          String mentionEntityKeyphraseSourceWeightsString = prop.getProperty("mentionEntityKeyphraseSourceWeights");
-          for (String src : mentionEntityKeyphraseSourceWeightsString.split(" ")) {
-            mentionEntityKeyphraseSourceWeights.add(src.split(":"));
-          }
-        }
-        
-
+        init(prop, id);
+              
         fullPath = propertiesFile.getAbsolutePath();       
 
       } else {
@@ -254,13 +177,107 @@ public class SimilaritySettings implements Serializable {
       logger.error(e.getLocalizedMessage());
     }
   }
+  
+  private void init(Properties prop, String identifier) throws NoSuchMethodException, ClassNotFoundException {
+    priorWeight = Double.parseDouble(prop.getProperty("priorWeight", "0.0"));
+    priorTakeLog = Boolean.parseBoolean(prop.getProperty("priorTakeLog", "false"));
+    priorDampingFactor = Double.parseDouble(prop.getProperty("priorDampingFactor", "1.0"));
+    priorThreshold = Double.parseDouble(prop.getProperty("priorThreshold", "-1.0"));
+    
+    numberOfEntityKeyphrase = Integer.parseInt(prop.getProperty("numberOfEntityKeyphrase", String.valueOf(Integer.MAX_VALUE)));
+    entityCohKeyphraseAlpha = Double.parseDouble(prop.getProperty("entityCoherenceKeyphraseAlpha", String.valueOf(EntitiesContextSettings.DEFAULT_KEYPHRASE_ALPHA)));
+    entityCohKeywordAlpha = Double.parseDouble(prop.getProperty("entityCoherenceKeywordAlpha", String.valueOf(EntitiesContextSettings.DEFAULT_KEYWORD_ALPHA)));
+    normalizeCoherenceWeights = Boolean.parseBoolean(prop.getProperty("normalizeCoherenceWeights", "false"));
+    shouldAverageCoherenceWeights = Boolean.parseBoolean(prop.getProperty("shouldAverageCoherenceWeights", "false"));
+    useConfusableMIWeights = Boolean.parseBoolean(prop.getProperty("useConfusableMIWeights", "false"));
+    nGramLength = Integer.parseInt(prop.getProperty("nGramLength", String.valueOf(2)));
+    minimumEntityKeyphraseWeight = Double.parseDouble(prop.getProperty("minimumEntityKeyphraseWeight", "0.0"));
+    maxEntityKeyphraseCount = Integer.parseInt(prop.getProperty("maxEntityKeyphraseCount", "0"));
+    
+    importanceAggregationStrategy = ImportanceAggregationStrategy.valueOf(
+        prop.getProperty("importanceAggregationStrategy", 
+            ImportanceAggregationStrategy.LINEAR_COMBINATION.toString()));
+    
+    
+    // LSH config
+    lshBandSize = Integer.parseInt(prop.getProperty("lshBandSize", "2"));
+    lshBandCount = Integer.parseInt(prop.getProperty("lshBandCount", "100"));
+    lshDatabaseTable = prop.getProperty("lshDatabaseTable", DataAccessSQL.ENTITY_LSH_SIGNATURES);
+
+    // LanguageModel
+    unitSmoothingParameter = new double[UnitType.values().length];
+    for (UnitType unitType : UnitType.values()) {
+      unitSmoothingParameter[unitType.ordinal()] = Double.parseDouble(
+        prop.getProperty("unitSmoothingParameter." + unitType.getUnitName(), 
+          prop.getProperty("unitSmoothingParameter", "1.0")));
+    }
+    unitIgnoreMention = new boolean[UnitType.values().length];
+    for (UnitType unitType : UnitType.values()) {
+      unitIgnoreMention[unitType.ordinal()] = Boolean.parseBoolean(
+        prop.getProperty("unitIgnoreMention." + unitType.getUnitName(), 
+          prop.getProperty("unitIgnoreMention", "false")));
+    }
+    
+            
+    String mentionEntitySimilarityString = prop.getProperty("mentionEntitySimilaritiesNoPrior");
+
+    if (mentionEntitySimilarityString != null) {
+      for (String sim : mentionEntitySimilarityString.split(" ")) {
+        mentionEntitySimilaritiesNoPrior.add(MentionEntitySimilarityRaw.parseFrom(sim));
+      }
+    } else if (priorThreshold > 0.0) {
+      System.err.println("No mention-entity similarity setting for no prior given in the settings file file but priorThreshold set - this almost always needed!");
+    }
+    
+    String mentionEntitySimilarityWithPriorString = prop.getProperty("mentionEntitySimilaritiesWithPrior");
+
+    if (mentionEntitySimilarityWithPriorString != null) {
+      for (String sim : mentionEntitySimilarityWithPriorString.split(" ")) {
+        mentionEntitySimilaritiesWithPrior.add(MentionEntitySimilarityRaw.parseFrom(sim));
+      }
+    } else {
+      System.err.println("No mention-entity similarity setting for prior given in the settings - this almost always needed!");
+    }
+
+    String entityImportanceNoPriorString = prop.getProperty("entityImportanceWeightsNoPrior");
+
+    if (entityImportanceNoPriorString != null) {
+      for (String imp : entityImportanceNoPriorString.split(" ")) {
+        entityImportancesNoPrior.add(EntityImportancesRaw.parseFrom(imp));
+      }
+    }
+
+    String entityImportanceWithPriorString = prop.getProperty("entityImportanceWeightsWithPrior");
+
+    if (entityImportanceWithPriorString != null) {
+      for (String imp : entityImportanceWithPriorString.split(" ")) {
+        entityImportancesWithPrior.add(EntityImportancesRaw.parseFrom(imp));
+      }
+    }
+
+    String entityEntitySimilarityString = prop.getProperty("entityEntitySimilarity");
+
+    if (entityEntitySimilarityString != null) {
+      for (String sim : entityEntitySimilarityString.split(" ")) {
+        entityEntitySimilarities.add(sim.split(":"));
+      }
+    }
+    
+    if (prop.containsKey("entityEntityKeyphraseSourceWeights")) {
+      entityEntityKeyphraseSourceWeights = 
+        Arrays.stream(prop.getProperty("entityEntityKeyphraseSourceWeights").split(" "))
+          .map(src -> src.split(":")).collect(Collectors.toList());
+    }
+    if (prop.containsKey("mentionEntityKeyphraseSourceWeights")) {
+      String mentionEntityKeyphraseSourceWeightsString = prop.getProperty("mentionEntityKeyphraseSourceWeights");
+      for (String src : mentionEntityKeyphraseSourceWeightsString.split(" ")) {
+        mentionEntityKeyphraseSourceWeights.add(src.split(":"));
+      }
+    }
+  }
 
   /**
-   * Constructor for programmatic access. Format of params see above
-   * 
-   * @param mentionEntitySimilarities
-   * @param priorWeight
-   * @throws MissingSettingException 
+   * Constructor for programmatic access. Format of params see above.
    */
   public SimilaritySettings(List<MentionEntitySimilarityRaw> similarities, List<String[]> eeSimilarities, double priorWeight) throws MissingSettingException {
     this(similarities, eeSimilarities, null, priorWeight);

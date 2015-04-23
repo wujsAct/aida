@@ -1,5 +1,7 @@
 package mpi.aida.config.settings.disambiguation;
 
+import java.io.IOException;
+
 import mpi.aida.graph.similarity.exception.MissingSettingException;
 
 /**
@@ -18,7 +20,7 @@ public class FastLocalKeyphraseBasedDisambiguationWithNullSettings extends FastL
     
   private static final long serialVersionUID = -1943862223862927646L;
 
-  public FastLocalKeyphraseBasedDisambiguationWithNullSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException {
+  public FastLocalKeyphraseBasedDisambiguationWithNullSettings() throws MissingSettingException, NoSuchMethodException, ClassNotFoundException, IOException {
     super();
     setComputeConfidence(true);
     setNullMappingThreshold(0.2);

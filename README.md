@@ -527,6 +527,7 @@ The AIDA developers are (in alphabetical order):
 * Johannes Hoffart ( http://www.mpi-inf.mpg.de/~jhoffart )
 * Felix Keller
 * Edwin Lewis-Kelham
+* Dragan Milchevski ( http://www.mpi-inf.mpg.de/~dmilchev )
 * Dat Ba Nguyen ( http://www.mpi-inf.mpg.de/~datnb )
 * Stephan Seufert ( http://www.mpi-inf.mpg.de/~sseufert )
 * Vasanth Venkatraman ( http://www.mpi-inf.mpg.de/~vvenkatr )
@@ -543,7 +544,6 @@ We thank the authors of the following pieces of software, without which the deve
 * Apache Commons, all licensed under Apache 2.0
 	* cli, collections, io, lang
 * MPI D5 utilities, all licensed under CC-BY 3.0
-	* basics2, javatools, mpi-DBManager
 * JavaEWAH, licensed under Apache 2.0
 * JUnit, licensed under CPL 1.0
 * log4j, licensed under Apache 2.0

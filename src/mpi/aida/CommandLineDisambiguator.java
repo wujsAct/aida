@@ -1,62 +1,35 @@
 package mpi.aida;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-
 import mpi.aida.access.DataAccess;
 import mpi.aida.config.settings.DisambiguationSettings;
 import mpi.aida.config.settings.JsonSettings.JSONTYPE;
 import mpi.aida.config.settings.PreparationSettings;
 import mpi.aida.config.settings.PreparationSettings.DOCUMENT_INPUT_FORMAT;
-import mpi.aida.config.settings.disambiguation.CocktailPartyDisambiguationWithNullSettings;
-import mpi.aida.config.settings.disambiguation.CocktailPartyKOREDisambiguationWithNullSettings;
-import mpi.aida.config.settings.disambiguation.CocktailPartyKOREIDFDisambiguationWithNullSettings;
-import mpi.aida.config.settings.disambiguation.CocktailPartyWithHeuristicsDisambiguationWithNullSettings;
-import mpi.aida.config.settings.disambiguation.FastLocalKeyphraseBasedDisambiguationWithNullSettings;
-import mpi.aida.config.settings.disambiguation.LocalKeyphraseIDFBasedDisambiguationIDFWithNullSettings;
-import mpi.aida.config.settings.disambiguation.LocalKeyphraseBasedDisambiguationWithNullSettings;
-import mpi.aida.config.settings.disambiguation.PriorOnlyDisambiguationSettings;
+import mpi.aida.config.settings.disambiguation.*;
 import mpi.aida.config.settings.preparation.ManualPreparationSettings;
 import mpi.aida.config.settings.preparation.StanfordHybridPreparationSettings;
-import mpi.aida.data.DisambiguationResults;
-import mpi.aida.data.Entities;
-import mpi.aida.data.EntityMetaData;
-import mpi.aida.data.ExternalEntitiesContext;
-import mpi.aida.data.KBIdentifiedEntity;
-import mpi.aida.data.PreparedInput;
-import mpi.aida.data.ResultMention;
-import mpi.aida.data.ResultProcessor;
+import mpi.aida.data.*;
 import mpi.aida.preparator.Preparator;
 import mpi.aida.util.Counter;
 import mpi.aida.util.htmloutput.HtmlGenerator;
 import mpi.aida.util.splitter.DelimBasedTextSplitter;
 import mpi.aida.util.timing.RunningTimer;
 import mpi.tools.javatools.util.FileUtils;
-
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.MissingOptionException;
-import org.apache.commons.cli.OptionBuilder;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
+import org.apache.commons.cli.*;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Disambiguates a document from the command line.
@@ -193,7 +166,22 @@ public class CommandLineDisambiguator {
 
     // set the document input format
     prepSettings.setDocumentInputFormat(DOCUMENT_INPUT_FORMAT.valueOf(inputFormat));
-
+    
+    if(cmd.hasOption("dfield")){
+      String documentField = cmd.getOptionValue("dfield");
+      prepSettings.setDocumentField(documentField);
+    }
+    
+    if(cmd.hasOption("did")){
+      String documentId = cmd.getOptionValue("did");
+      prepSettings.setDocumentId(documentId);
+    }
+    
+    if(cmd.hasOption("dtitle")){
+      String documentTitle = cmd.getOptionValue("dtitle");
+      prepSettings.setDocumentTitle(documentTitle);
+    }
+    
     if (cmd.hasOption('m')) {
       int minCount = Integer.parseInt(cmd.getOptionValue('m'));
       prepSettings.setMinMentionOccurrenceCount(minCount);
@@ -301,27 +289,7 @@ public class CommandLineDisambiguator {
     String fName = "dummyText_" + System.currentTimeMillis() + ".txt";
     try {
       input = p.prepare(fName, content.toString(), prepSettings, new ExternalEntitiesContext());
-
-      DisambiguationSettings disSettings = null;
-      if (disambiguationTechniqueSetting.equals("PRIOR")) {
-        disSettings = new PriorOnlyDisambiguationSettings();
-      } else if (disambiguationTechniqueSetting.equals("LOCAL")) {
-        disSettings = new LocalKeyphraseBasedDisambiguationWithNullSettings();
-      } else if (disambiguationTechniqueSetting.equals("LOCAL-IDF")) {
-        disSettings = new LocalKeyphraseIDFBasedDisambiguationIDFWithNullSettings();
-      } else if (disambiguationTechniqueSetting.equals("GRAPH")) {
-        disSettings = new CocktailPartyDisambiguationWithNullSettings();
-      } else if (disambiguationTechniqueSetting.equals("GRAPH-IDF")) {
-        disSettings = new CocktailPartyKOREIDFDisambiguationWithNullSettings();
-      } else if (disambiguationTechniqueSetting.equals("GRAPH-KORE")) {
-        disSettings = new CocktailPartyKOREDisambiguationWithNullSettings();       
-      } else {
-        System.err
-        .println("disambiguation-technique can be either: "
-            + "'PRIOR', 'LOCAL', 'LOCAL-IDF', 'GRAPH', 'GRAPH-IDF' or 'GRAPH-KORE");
-        System.exit(2);
-      }
-
+      DisambiguationSettings disSettings = new ImportanceOnlyDisambiguationSettings();
       disSettings.setNumChunkThreads(1);        
       Disambiguator d = new Disambiguator(input, disSettings);
       // ignoring the results
@@ -363,7 +331,7 @@ public class CommandLineDisambiguator {
     .addOption(OptionBuilder
         .withLongOpt("technique")
         .withDescription(
-            "Set the disambiguation-technique to be used: PRIOR, LOCAL, FAST-LOCAL, LOCAL-IDF, GRAPH, GRAPH-IDF, GRAPH-KORE, or COLLECTION. Default is GRAPH.")
+            "Set the disambiguation-technique to be used: PRIOR, LOCAL, FAST-LOCAL, LOCAL-IDF, LM, GRAPH, GRAPH-IDF, GRAPH-KORE, or COLLECTION. Default is GRAPH.")
             .hasArg()
             .withArgName("TECHNIQUE")
             .create("t"));
@@ -379,7 +347,12 @@ public class CommandLineDisambiguator {
     .addOption(OptionBuilder
         .withLongOpt("jsonformat")
         .withDescription(
-            "Set the json-format to be used: COMPACT or EXTENDED. Default is EXTENDED.")
+            "Set the json-format to be used: " + 
+                Arrays.stream(JSONTYPE.values())
+                .map(JSONTYPE::name)
+                .sorted()
+                .collect(Collectors.joining(", ")) + ". " +
+                 "Default is DEFAULT.")
             .hasArg()
             .withArgName("JSONFORMAT")
             .create("j"));
@@ -387,10 +360,39 @@ public class CommandLineDisambiguator {
     .addOption(OptionBuilder
         .withLongOpt("inputformat")
         .withDescription(
-            "Set the input-format to be used: PLAIN, NYT, ALTO, TEI, SPIEGEL, ROBUST04. Default is PLAIN.")
+            "Set the input-format to be used: " +
+                Arrays.stream(DOCUMENT_INPUT_FORMAT.values())
+                .map(DOCUMENT_INPUT_FORMAT::name)
+                .sorted()
+                .collect(Collectors.joining(", ")) + ". " +
+            "Default is PLAIN.")
             .hasArg()
             .withArgName("INPUTFORMAT")
             .create("f"));
+    options
+    .addOption(OptionBuilder
+        .withLongOpt("documentfield")
+        .withDescription(
+            "Set the field in the input to be used. Use for XML or JSON input to specify where the text is stored.")
+            .hasArg()
+            .withArgName("DOCUMENTFIELD")
+            .create("dfield"));
+    options
+    .addOption(OptionBuilder
+        .withLongOpt("documentid")
+        .withDescription(
+            "Set the field for the document ID. Use for XML or JSON input to specify where the document ID is stored.")
+            .hasArg()
+            .withArgName("DOCUMENTID")
+            .create("did"));
+    options
+    .addOption(OptionBuilder
+        .withLongOpt("documenttitle")
+        .withDescription(
+            "Set the field for the document title. Use for XML or JSON input to specify where the document title is stored.")
+            .hasArg()
+            .withArgName("DOCUMENTTITLE")
+            .create("dtitle"));
     options
     .addOption(OptionBuilder
         .withLongOpt("threadcount")
@@ -440,7 +442,7 @@ public class CommandLineDisambiguator {
     .addOption(OptionBuilder
         .withLongOpt("timing")
         .withDescription(
-            "To Retrieve RunningTimer overview.")
+            "Print timing details.")
             .create("z"));
     options
     .addOption(OptionBuilder
@@ -575,7 +577,7 @@ public class CommandLineDisambiguator {
           inputToProcess.addAll(DelimBasedTextSplitter.split(content.toString(), docDelimiter));
           System.out.println("Multidoc enabled - Number of documents extracted : " + inputToProcess.size());
         }
-        
+
         PreparedInput input = null;
         Map<String, DisambiguationResults> disambiguationResults = new HashMap<>();
         Map<String, PreparedInput> inputs = new HashMap<>();
@@ -595,7 +597,7 @@ public class CommandLineDisambiguator {
             } else if (disambiguationTechniqueSetting.equals("COLLECTION")) {
               disSettings = new CocktailPartyWithHeuristicsDisambiguationWithNullSettings();
             } else if (disambiguationTechniqueSetting.equals("LOCAL-IDF")) {
-              disSettings = new LocalKeyphraseIDFBasedDisambiguationIDFWithNullSettings();
+              disSettings = new LocalKeyphraseIDFBasedDisambiguationWithNullSettings();
             } else if (disambiguationTechniqueSetting.equals("GRAPH")) {
               disSettings = new CocktailPartyDisambiguationWithNullSettings();
             } else if (disambiguationTechniqueSetting.equals("GRAPH-IDF")) {

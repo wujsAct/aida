@@ -41,12 +41,16 @@ public class PreparationSettings implements Serializable {
 
   private String encoding = "UTF-8";
   
+  private String documentId;
+  private String documentTitle;
+  private String documentField;
+  
   public static enum DOCUMENT_CHUNK_STRATEGY {
     SINGLE, PAGEBASED, MULTIPLE_FIXEDLENGTH
   }
   
   public static enum DOCUMENT_INPUT_FORMAT {
-    PLAIN, NYT, ALTO, TEI, SPIEGEL, ROBUST04
+    PLAIN, NYT, ALTO, TEI, SPIEGEL, ROBUST04, JSON
   }
   
   public static enum LANGUAGE {
@@ -138,4 +142,36 @@ public class PreparationSettings implements Serializable {
   public void setEncoding(String encoding) {
     this.encoding = encoding;
   }
+
+  
+  public String getDocumentId() {
+    return documentId;
+  }
+
+  
+  public void setDocumentId(String documentId) {
+    this.documentId = documentId;
+  }
+
+  
+  public String getDocumentTitle() {
+    return documentTitle;
+  }
+
+  
+  public void setDocumentTitle(String documentTitle) {
+    this.documentTitle = documentTitle;
+  }
+
+  
+  public String getDocumentField() {
+    return documentField;
+  }
+
+  
+  public void setDocumentField(String documentField) {
+    this.documentField = documentField;
+  }
+  
+  
 }
