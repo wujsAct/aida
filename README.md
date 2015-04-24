@@ -8,6 +8,12 @@ If you want to be notified about AIDA news or new releases, subscribe to our ann
 aida-news-subscribe@lists.mpi-inf.mpg.de
 ```
 
+You can also ask questions or discuss AIDA on our aida-users mailing list:
+ 
+ ```
+ aida-users-subscribe@lists.mpi-inf.mpg.de or https://lists.mpi-inf.mpg.de/listinfo/aida-users
+ ```
+ 
 ## AIDA Overview
 
 AIDA is a framework and online tool for entity detection and disambiguation. Given a natural-language text, it maps mentions of ambiguous names onto canonical entities (e.g., individual people or places) registered in the Wikipedia-derived [YAGO2][YAGO] [YAGO2] knowledge base. 
@@ -206,8 +212,8 @@ which returns a JSON string containing the following fields (among others)
         "YAGO_yagoLegalActorGeo",
         "YAGO_wordnet_urban_area_108675967",
         "YAGO_wikicategory_Populated_places_on_the_Danube",
-		...
-	  ],
+    ...
+    ],
       "readableRepr": "Ulm",
       "url": "http:\/\/en.wikipedia.org\/wiki\/Ulm"
     },
@@ -222,7 +228,7 @@ which returns a JSON string containing the following fields (among others)
         "YAGO_wordnet_laureate_110249011",
         "YAGO_wikicategory_People_from_Ulm",
         "YAGO_wordnet_pantheist_110396594",
-		... 
+    ... 
       ],
       "readableRepr": "Albert Einstein",
       "url": "http:\/\/en.wikipedia.org\/wiki\/Albert%20Einstein"
@@ -268,7 +274,7 @@ which returns a JSON string containing the following fields (among others)
     "YAGO_wikicategory_Swiss_agnostics",
     "YAGO_wordnet_agnostic_109779124",
     "YAGO_wikicategory_German_Nobel_laureates",
-	...
+  ...
   ]
 }
 ```
@@ -542,7 +548,7 @@ AIDA by Max-Planck-Institute for Informatics, Databases and Information Systems 
 We thank the authors of the following pieces of software, without which the development of AIDA would not have been possible. The needed software is available under different licenses than the AIDA source code, namely:
 
 * Apache Commons, all licensed under Apache 2.0
-	* cli, collections, io, lang
+  * cli, collections, io, lang
 * MPI D5 utilities, all licensed under CC-BY 3.0
 * JavaEWAH, licensed under Apache 2.0
 * JUnit, licensed under CPL 1.0
@@ -550,14 +556,14 @@ We thank the authors of the following pieces of software, without which the deve
 * postgresql-jdbc, licensed under the BSD License
 * slf4j, licensed under MIT License
 * Stanford CoreNLP, licensed under the GPL v2
-	* Dependencies: 
-		* jgrapht, licensed under LGPL v2.1
-		* xom, licensed under LGPL v2.1
-		* joda-time, licensed under Apache 2.0
+  * Dependencies: 
+    * jgrapht, licensed under LGPL v2.1
+    * xom, licensed under LGPL v2.1
+    * joda-time, licensed under Apache 2.0
 * Trove, licensed under the LGPL, parts under a license by CERN
 
 All libraries are included as dependencies by maven.
-	
+  
 ### Licenses of included Software
 
 All licenses can be found in the licenses/ directory or at the following URLs:
