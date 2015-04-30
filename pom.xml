@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>mpi.aida</groupId>
 	<artifactId>aida</artifactId>
-	<version>3.0.3-SNAPSHOT</version>
+	<version>3.0.3</version>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<java.version>1.8</java.version>
@@ -61,8 +61,8 @@
 				</configuration>
 			</plugin>
 			<plugin>
-				<groupId>${jetty.groupId}</groupId>
-				<artifactId>${jetty.artifactId}</artifactId>
+				<groupId>org.eclipse.jetty</groupId>
+				<artifactId>jetty-maven-plugin</artifactId>
 				<version>${jetty.version}</version>
 				<configuration>
 					<webAppSourceDirectory>${basedir}/src/mpi/aida/service/web/</webAppSourceDirectory>
