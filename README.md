@@ -527,17 +527,19 @@ If you are using AIDA, any parts of it or any datasets we made available, please
 
 ## Developers
 
-The AIDA developers are (in alphabetical order):
-
-* Ilaria Bordino
+The main AIDA developers are (in alphabetical order):
 * Johannes Hoffart ( http://www.mpi-inf.mpg.de/~jhoffart )
+* Mohamed Amir Yosef ( http://www.mpi-inf.mpg.de/~mamir )
+
+Other contributors include:
+* Ilaria Bordino
 * Felix Keller
 * Edwin Lewis-Kelham
 * Dragan Milchevski ( http://www.mpi-inf.mpg.de/~dmilchev )
 * Dat Ba Nguyen ( http://www.mpi-inf.mpg.de/~datnb )
 * Stephan Seufert ( http://www.mpi-inf.mpg.de/~sseufert )
 * Vasanth Venkatraman ( http://www.mpi-inf.mpg.de/~vvenkatr )
-* Mohamed Amir Yosef ( http://www.mpi-inf.mpg.de/~mamir )
+
 
 ## License
 
