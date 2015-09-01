@@ -44,11 +44,11 @@ public class HtmlGenerator {
    * @return HTML String
    */
   public String generateHeading(String content, int level){
-      String tagVal = "h"+level;
-      String res = "<" + tagVal + ">";
-      res = res.concat(content);
-      res = res.concat("</" + tagVal + ">");
-      return res;
+    String tagVal = "h"+level;
+    String res = "<" + tagVal + ">";
+    res = res.concat(content);
+    res = res.concat("</" + tagVal + ">");
+    return res;
   }
 
   /**
@@ -73,13 +73,18 @@ public class HtmlGenerator {
       sb.append(annotatedText.substring(current, matcher.start()));
       String kbId = matcher.group(1);
       String mention = matcher.group(2);
-      String representation = (String) ((JSONObject) entities.get(kbId)).get("readableRepr");
-      if(representation == null) {
-        representation = kbId;
-      }
-      String url = (String) ((JSONObject) entities.get(kbId)).get("url");
-      if(url == null) {
-        url = kbId;
+      String representation = kbId;
+      String url = kbId;
+      JSONObject entityMetadata = (JSONObject) entities.get(kbId);
+      if (entityMetadata != null) {
+        String repr = (String) entityMetadata.get("readableRepr");
+        if (repr != null) {
+          representation = repr;
+        }
+        String eurl = (String) entityMetadata.get("url");
+        if(eurl != null) {
+          url = eurl;
+        }
       }
       sb.append("<span class='eq'>" + mention + "</span>");
       sb.append(" <small>[<a href=" + StringEscapeUtils.escapeHtml(url) + ">" + StringEscapeUtils.escapeHtml(representation) + "</a>]</small>");
@@ -104,7 +109,7 @@ public class HtmlGenerator {
     while(itMention.hasNext()){
       htmlList.append("<li>");
       JSONObject tmpMention = (JSONObject)itMention.next();
-//      htmlList.append("["+(String)jsonContent.get("docID")+"] ");
+      //      htmlList.append("["+(String)jsonContent.get("docID")+"] ");
       htmlList.append("<strong>\"").append(tmpMention.get("name")).append("\"</strong>");
       htmlList.append(" <em>[").append(tmpMention.get("offset")).append("]</em>");
       htmlList.append("<ul>");
@@ -153,7 +158,7 @@ public class HtmlGenerator {
     sb.append(".eq { background-color:#87CEEB } ");
     sb.append("</style>").append("<body>");
     sb.append(generateHeading("AIDA annotations for " + docTitle, 1));
-//    sb.append(generateHeading("AnotatedText", 2));
+    //    sb.append(generateHeading("AnotatedText", 2));
     sb.append("<div id='annotatedText'>");
     sb.append(getAnnotatedText(jsonContent));
     sb.append("</div>");
