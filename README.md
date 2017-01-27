@@ -4,7 +4,7 @@
 
 If you like AIDA and want to use an updated version in a commercial environment or as a ready-to-go cloud service that is continuously improved, please contact [Ambiverse](https://www.ambiverse.com).
 
-![Ambiverse Logo](https://www.ambiverse.com/wp-content/uploads/2016/05/ambiverse-logo-small-black-text.png)(https://www.ambiverse.com)
+[![Ambiverse Logo](https://www.ambiverse.com/wp-content/uploads/2016/05/ambiverse-logo-small-black-text.png)](https://www.ambiverse.com)
 
 ## AIDA
 
