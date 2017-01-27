@@ -1,5 +1,13 @@
 # AIDA - Accurate Online Disambiguation of Entities
 
+## Commercial Use: Ambiverse
+
+If you like AIDA and want to use it in a commercial environment or as a ready-to-go cloud service, please contact [Ambiverse](https://www.ambiverse.com).
+
+![Ambiverse Logo](https://www.ambiverse.com/wp-content/uploads/2016/05/ambiverse-logo-small-black-text.png)
+
+## AIDA
+
 [AIDA][AIDA] is the named entity disambiguation system created by the Databases and Information Systems Department at the [Max Planck Institute for Informatics in Saarbücken, Germany][MPID5]. It identifies mentions of named entities (persons, organizations, locations, songs, products, ...) in English language text and links them to a unique identifier. Most names are ambiguous, especially family names, and AIDA resolves this ambiguity. See the EMNLP 2011 publication [EMNLP2011] for a detailed description of how it works and the VLDB 2011 publication [VLDB2011] for a description of our Web demo. Read on for a more in-depth introduction and hands-on examples of how to use AIDA.
 
 If you want to be notified about AIDA news or new releases, subscribe to our announcement mailing list by sending a mail to:
